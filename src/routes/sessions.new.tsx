@@ -23,7 +23,7 @@ function NewSessionPage() {
   const { athlete: preselectedAthleteId } = Route.useSearch();
   const athletes = useQuery({ queryKey: ["athletes"], queryFn: listAthletes });
   const lockedAthlete = Boolean(preselectedAthleteId);
-  const [step, setStep] = useState(lockedAthlete ? 2 : 1);
+  const [step, setStep] = useState(1);
   const [athleteId, setAthleteId] = useState<string>(preselectedAthleteId ?? "");
   const [sessionType, setSessionType] = useState<string>("");
   const [hockeyReps, setHockeyReps] = useState<HockeyRep[]>([{ rep_number: 1, time_10m: "", peak_kmh: "" }]);
