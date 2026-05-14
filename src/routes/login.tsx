@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
-import { Activity } from "lucide-react";
+import logoUrl from "@/assets/ascesa-logo.png";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
