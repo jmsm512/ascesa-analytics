@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -26,6 +27,12 @@ function Dashboard() {
   const navigate = useNavigate();
   const athletes = useQuery({ queryKey: ["athletes"], queryFn: listAthletes });
   const recent = useQuery({ queryKey: ["recent"], queryFn: () => listRecentSessions(5) });
+
+  useEffect(() => {
+    if (athletes.isSuccess && (athletes.data?.length ?? 0) === 0) {
+      navigate({ to: "/onboarding" });
+    }
+  }, [athletes.isSuccess, athletes.data, navigate]);
 
   return (
     <div className="space-y-8">
