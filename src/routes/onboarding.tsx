@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
+import logoUrl from "@/assets/ascesa-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { SportIcon } from "@/components/SportIcon";
@@ -103,9 +104,7 @@ function OnboardingPage() {
     <div className="min-h-screen bg-background px-4 py-10">
       <div className="mx-auto w-full max-w-2xl">
         <div className="mb-8 flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent-glow)] ring-1 ring-[var(--accent)]/40">
-            <Activity className="h-5 w-5 text-[var(--accent)]" />
-          </div>
+          <img src={logoUrl} alt="Ascesa Analytics" className="h-12 w-12 object-contain" />
           <div>
             <div className="text-lg font-bold tracking-tight">Welcome to Ascesa Analytics</div>
             <div className="text-xs text-[var(--text-secondary)]">

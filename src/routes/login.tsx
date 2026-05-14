@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
-import { Activity } from "lucide-react";
+import logoUrl from "@/assets/ascesa-logo.png";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -36,9 +36,7 @@ function LoginPage() {
     <div className="grid min-h-screen place-items-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent-glow)] ring-1 ring-[var(--accent)]/40">
-            <Activity className="h-5 w-5 text-[var(--accent)]" />
-          </div>
+          <img src={logoUrl} alt="Ascesa Analytics" className="h-12 w-12 object-contain" />
           <div>
             <div className="text-lg font-bold tracking-tight">Ascesa Analytics</div>
             <div className="text-xs text-[var(--text-secondary)]">Athlete performance, quantified.</div>
