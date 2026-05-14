@@ -10,6 +10,7 @@ import {
   BarChart, Bar, Legend,
 } from "recharts";
 import { ArrowLeft, TrendingUp } from "lucide-react";
+import { kmhToMph } from "@/lib/units";
 
 export const Route = createFileRoute("/sessions/hockey/$id")({
   component: HockeySession,
