@@ -1,0 +1,110 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
+import { Activity } from "lucide-react";
+
+export const Route = createFileRoute("/signup")({
+  component: SignupPage,
+  head: () => ({ meta: [{ title: "Sign up — Ascesa Analytics" }] }),
+});
+
+function SignupPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr("");
+    setLoading(true);
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: window.location.origin,
+        data: { display_name: name },
+      },
+    });
+    setLoading(false);
+    if (error) return setErr(error.message);
+    navigate({ to: "/" });
+  };
+
+  const google = async () => {
+    setErr("");
+    const r = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+    if ("error" in r && r.error) setErr(String((r as any).error?.message ?? r.error));
+  };
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-background px-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent-glow)] ring-1 ring-[var(--accent)]/40">
+            <Activity className="h-5 w-5 text-[var(--accent)]" />
+          </div>
+          <div>
+            <div className="text-lg font-bold tracking-tight">Ascesa Analytics</div>
+            <div className="text-xs text-[var(--text-secondary)]">Athlete performance, quantified.</div>
+          </div>
+        </div>
+
+        <div className="surface p-6">
+          <h1 className="mb-1 text-xl font-semibold">Create account</h1>
+          <p className="mb-6 text-sm text-[var(--text-secondary)]">Sample athletes are pre-loaded so you can explore right away.</p>
+
+          <form onSubmit={submit} className="space-y-3">
+            <Field label="Name" type="text" value={name} onChange={setName} />
+            <Field label="Email" type="email" value={email} onChange={setEmail} />
+            <Field label="Password" type="password" value={password} onChange={setPassword} />
+            {err && <div className="rounded-md bg-[var(--data-negative)]/10 px-3 py-2 text-xs text-[var(--data-negative)]">{err}</div>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-md bg-[var(--accent)] py-2.5 text-sm font-semibold text-[#001813] hover:bg-[var(--accent-dim)] disabled:opacity-50"
+            >
+              {loading ? "Creating…" : "Create account"}
+            </button>
+          </form>
+
+          <div className="my-4 flex items-center gap-3 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+            <div className="h-px flex-1 bg-[var(--border-subtle)]" /> or <div className="h-px flex-1 bg-[var(--border-subtle)]" />
+          </div>
+
+          <button
+            onClick={google}
+            className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] py-2.5 text-sm font-medium hover:bg-[var(--bg-hover)]"
+          >
+            Continue with Google
+          </button>
+
+          <p className="mt-6 text-center text-xs text-[var(--text-secondary)]">
+            Have an account?{" "}
+            <Link to="/login" className="text-[var(--accent)] hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, type, value, onChange }: { label: string; type: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <div className="metric-label mb-1.5">{label}</div>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+        className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+      />
+    </label>
+  );
+}
