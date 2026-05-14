@@ -20,9 +20,11 @@ type FencingAction = { action_type: string; successful: boolean };
 
 function NewSessionPage() {
   const navigate = useNavigate();
+  const { athlete: preselectedAthleteId } = Route.useSearch();
   const athletes = useQuery({ queryKey: ["athletes"], queryFn: listAthletes });
-  const [step, setStep] = useState(1);
-  const [athleteId, setAthleteId] = useState<string>("");
+  const lockedAthlete = Boolean(preselectedAthleteId);
+  const [step, setStep] = useState(lockedAthlete ? 2 : 1);
+  const [athleteId, setAthleteId] = useState<string>(preselectedAthleteId ?? "");
   const [sessionType, setSessionType] = useState<string>("");
   const [hockeyReps, setHockeyReps] = useState<HockeyRep[]>([{ rep_number: 1, time_10m: "", peak_kmh: "" }]);
   const [fencingOpponent, setFencingOpponent] = useState("");
