@@ -77,7 +77,7 @@ function HockeySession() {
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           <StatCard label="Best 10m" value={best10m ? `${best10m.toFixed(2)}` : "—"} unit="s" highlight />
-          <StatCard label="Top Speed" value={topSpeed ? `${topSpeed.toFixed(1)}` : "—"} unit="km/h" />
+          <StatCard label="Top Speed" value={topSpeed ? `${topSpeed.toFixed(1)}` : "—"} unit="mph" />
           <StatCard label="Total Reps" value={String(reps.length)} unit="reps" />
         </div>
 
