@@ -73,7 +73,7 @@ function NewSessionPage() {
             phase: "baseline",
             rep_number: r.rep_number,
             time_10m: r.time_10m ? Number(r.time_10m) : null,
-            peak_kmh: r.peak_kmh ? Number(r.peak_kmh) : null,
+            peak_kmh: r.peak_kmh ? mphToKmh(Number(r.peak_kmh)) : null,
           }));
         if (rows.length) await supabase.from("hockey_sprint_reps").insert(rows);
       }
