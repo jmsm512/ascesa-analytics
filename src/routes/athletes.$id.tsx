@@ -8,6 +8,7 @@ import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals, listVideos
 import { format } from "date-fns";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { ArrowLeft, ChevronRight } from "lucide-react";
+import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/athletes/$id")({
   ssr: false,
