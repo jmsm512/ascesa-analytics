@@ -22,9 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--accent-glow)] ring-1 ring-[var(--accent)]/30">
-              <Activity className="h-4 w-4 text-[var(--accent)]" />
-            </div>
+            <img src={logoUrl} alt="Ascesa Analytics" className="h-9 w-9 object-contain" />
             <div className="leading-tight">
               <div className="text-sm font-bold tracking-tight">Ascesa</div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--text-secondary)]">
