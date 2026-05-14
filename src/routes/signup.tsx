@@ -37,7 +37,7 @@ function SignupPage() {
   const google = async () => {
     setErr("");
     const r = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
-    if (r.error) setErr(typeof r.error === "string" ? r.error : "Google sign-in failed");
+    if ("error" in r && r.error) setErr(String((r as any).error?.message ?? r.error));
   };
 
   return (
