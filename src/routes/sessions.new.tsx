@@ -128,25 +128,39 @@ function NewSessionPage() {
           {step === 1 && (
             <div className="space-y-4">
               <div className="metric-label">Athlete</div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {athletes.data?.map((a) => (
-                  <button
-                    key={a.id}
-                    onClick={() => setAthleteId(a.id)}
-                    className={`surface flex items-center gap-3 p-4 text-left transition-colors ${
-                      athleteId === a.id ? "ring-2 ring-[var(--accent)]" : "hover:bg-[var(--bg-elevated)]"
-                    }`}
-                    style={{ borderLeft: `4px solid ${a.sport === "hockey" ? "var(--hockey)" : "var(--fencing)"}` }}
-                  >
-                    <SportIcon sport={a.sport} className="h-5 w-5" />
-                    <div className="flex-1">
-                      <div className="font-semibold">{a.name}</div>
-                      <div className="text-xs text-[var(--text-secondary)] capitalize">{a.sport}</div>
-                    </div>
-                    {athleteId === a.id && <Check className="h-4 w-4 text-[var(--accent)]" />}
-                  </button>
-                ))}
-              </div>
+              {lockedAthlete && athlete ? (
+                <div
+                  className="surface flex items-center gap-3 p-4"
+                  style={{ borderLeft: `4px solid ${athlete.sport === "hockey" ? "var(--hockey)" : "var(--fencing)"}` }}
+                >
+                  <SportIcon sport={athlete.sport} className="h-5 w-5" />
+                  <div className="flex-1">
+                    <div className="font-semibold">{athlete.name}</div>
+                    <div className="text-xs text-[var(--text-secondary)] capitalize">{athlete.sport}</div>
+                  </div>
+                  <Check className="h-4 w-4 text-[var(--accent)]" />
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {athletes.data?.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => setAthleteId(a.id)}
+                      className={`surface flex items-center gap-3 p-4 text-left transition-colors ${
+                        athleteId === a.id ? "ring-2 ring-[var(--accent)]" : "hover:bg-[var(--bg-elevated)]"
+                      }`}
+                      style={{ borderLeft: `4px solid ${a.sport === "hockey" ? "var(--hockey)" : "var(--fencing)"}` }}
+                    >
+                      <SportIcon sport={a.sport} className="h-5 w-5" />
+                      <div className="flex-1">
+                        <div className="font-semibold">{a.name}</div>
+                        <div className="text-xs text-[var(--text-secondary)] capitalize">{a.sport}</div>
+                      </div>
+                      {athleteId === a.id && <Check className="h-4 w-4 text-[var(--accent)]" />}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {athleteId && (
                 <>
