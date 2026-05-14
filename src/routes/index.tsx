@@ -135,11 +135,22 @@ function AthleteCard({ athlete }: { athlete: any }) {
 
       <div className="mt-6 flex items-end justify-between">
         <div>
-          <div className="metric-label mb-1">{headline?.metric_name?.replaceAll("_", " ") ?? "—"}</div>
-          <div className="metric-num-md">
-            {headline ? `${headline.value}` : "—"}
-            <span className="ml-1 text-base font-medium text-[var(--text-secondary)]">{headline?.unit ?? ""}</span>
-          </div>
+          {(() => {
+            const u = headline?.unit;
+            let v = headline ? Number(headline.value) : null;
+            let unit = u ?? "";
+            if (v != null && u === "km/h") { v = kmhToMph(v)!; unit = "mph"; }
+            else if (v != null && u === "m/s") { v = msToFps(v)!; unit = "ft/s"; }
+            return (
+              <>
+                <div className="metric-label mb-1">{headline?.metric_name?.replaceAll("_", " ") ?? "—"}</div>
+                <div className="metric-num-md">
+                  {v != null ? v.toFixed(unit === "%" || unit === "" ? 0 : 2) : "—"}
+                  <span className="ml-1 text-base font-medium text-[var(--text-secondary)]">{unit}</span>
+                </div>
+              </>
+            );
+          })()}
         </div>
         <Link
           to="/sessions/new"
