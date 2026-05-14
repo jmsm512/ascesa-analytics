@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, ClientOnly } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { RequireAuth } from "@/components/RequireAuth";
@@ -217,6 +217,7 @@ function ChartCard({ title, data, dataKey, color }: any) {
     <div className="surface p-5">
       <div className="metric-label mb-3">{title}</div>
       <div className="h-56">
+        <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
             <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
@@ -234,6 +235,7 @@ function ChartCard({ title, data, dataKey, color }: any) {
             <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color }} />
           </LineChart>
         </ResponsiveContainer>
+        </ClientOnly>
       </div>
     </div>
   );
