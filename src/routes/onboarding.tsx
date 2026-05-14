@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
+import logoUrl from "@/assets/ascesa-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { SportIcon } from "@/components/SportIcon";
