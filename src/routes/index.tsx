@@ -135,6 +135,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
         </div>
         <Link
           to="/sessions/new"
+          search={{ athlete: athlete.id }}
           className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-[#001813] hover:bg-[var(--accent-dim)]"
         >
           <Plus className="h-3.5 w-3.5" /> New Session

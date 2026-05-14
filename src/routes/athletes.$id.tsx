@@ -37,10 +37,21 @@ function AthletePage() {
 
         {a && (
           <div className="surface mt-4 p-6" style={{ borderLeft: `4px solid ${accent}` }}>
-            <div className="metric-label mb-2 flex items-center gap-2">
-              <SportIcon sport={a.sport} className="h-3.5 w-3.5" /> {a.sport}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="metric-label mb-2 flex items-center gap-2">
+                  <SportIcon sport={a.sport} className="h-3.5 w-3.5" /> {a.sport}
+                </div>
+                <h1 className="text-3xl font-bold tracking-tight">{a.name}</h1>
+              </div>
+              <Link
+                to="/sessions/new"
+                search={{ athlete: a.id }}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-[#001813] hover:bg-[var(--accent-dim)]"
+              >
+                + New Session
+              </Link>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">{a.name}</h1>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--text-secondary)]">
               {a.age && <Stat label="Age" value={`${a.age}`} />}
               {a.height_cm && <Stat label="Height" value={`${a.height_cm} cm`} />}
