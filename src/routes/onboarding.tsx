@@ -1,10 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Activity, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { SportIcon } from "@/components/SportIcon";
 import { inToCm, lbToKg } from "@/lib/units";
+import { SPORTS, SPORT_KEYS, type SportKey } from "@/lib/sports";
 
 export const Route = createFileRoute("/onboarding")({
   component: OnboardingPage,
@@ -12,35 +14,33 @@ export const Route = createFileRoute("/onboarding")({
   head: () => ({ meta: [{ title: "Welcome — Ascesa Analytics" }] }),
 });
 
-type Sport = "hockey" | "fencing";
-
 type AthleteForm = {
   name: string;
-  sport: Sport;
+  sport: SportKey;
   age: string;
-  height_cm: string;
-  weight_kg: string;
-  position: string;
-  team: string;
-  weapon: string;
-  club: string;
+  height_in: string;
+  weight_lb: string;
+  role: string; // value for the sport's "role" field (position or weapon)
+  group: string; // value for the sport's "group" field (team or club)
 };
 
-const empty = (sport: Sport = "hockey"): AthleteForm => ({
-  name: "",
-  sport,
-  age: "",
-  height_cm: "",
-  weight_kg: "",
-  position: "Defense",
-  team: "",
-  weapon: "Épée",
-  club: "",
-});
+const empty = (sport: SportKey = "hockey"): AthleteForm => {
+  const cfg = SPORTS[sport];
+  return {
+    name: "",
+    sport,
+    age: "",
+    height_in: "",
+    weight_lb: "",
+    role: cfg.role.options?.[0] ?? "",
+    group: "",
+  };
+};
 
 function OnboardingPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [forms, setForms] = useState<AthleteForm[]>([empty()]);
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -50,28 +50,52 @@ function OnboardingPage() {
   }, [loading, user, navigate]);
 
   const update = (i: number, patch: Partial<AthleteForm>) =>
-    setForms((f) => f.map((a, idx) => (idx === i ? { ...a, ...patch } : a)));
+    setForms((f) =>
+      f.map((a, idx) => {
+        if (idx !== i) return a;
+        const next = { ...a, ...patch };
+        // When the sport changes, reset role to a valid default for that sport.
+        if (patch.sport && patch.sport !== a.sport) {
+          const cfg = SPORTS[patch.sport];
+          next.role = cfg.role.options?.[0] ?? "";
+        }
+        return next;
+      }),
+    );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setErr("");
     setSaving(true);
-    const rows = forms.map((f) => ({
-      user_id: user.id,
-      name: f.name.trim(),
-      sport: f.sport,
-      age: f.age ? Number(f.age) : null,
-      height_cm: f.height_cm ? inToCm(Number(f.height_cm)) : null,
-      weight_kg: f.weight_kg ? lbToKg(Number(f.weight_kg)) : null,
-      position: f.sport === "hockey" ? f.position || null : null,
-      team: f.sport === "hockey" ? f.team || null : null,
-      weapon: f.sport === "fencing" ? f.weapon || null : null,
-      club: f.sport === "fencing" ? f.club || null : null,
-    }));
-    const { error } = await supabase.from("athletes").insert(rows);
+    const rows = forms.map((f) => {
+      const cfg = SPORTS[f.sport];
+      const row: Record<string, unknown> = {
+        user_id: user.id,
+        name: f.name.trim(),
+        sport: f.sport,
+        age: f.age ? Number(f.age) : null,
+        height_cm: f.height_in ? inToCm(Number(f.height_in)) : null,
+        weight_kg: f.weight_lb ? lbToKg(Number(f.weight_lb)) : null,
+        position: null,
+        weapon: null,
+        team: null,
+        club: null,
+      };
+      row[cfg.role.column] = f.role || null;
+      row[cfg.group.column] = f.group || null;
+      return row;
+    });
+    const { error } = await supabase.from("athletes").insert(rows as never);
     setSaving(false);
-    if (error) return setErr(error.message);
+    if (error) {
+      setErr(error.message);
+      return;
+    }
+    // Bust any cached empty athletes list before going to the dashboard,
+    // otherwise the dashboard's redirect-on-empty effect bounces us back here.
+    await queryClient.invalidateQueries({ queryKey: ["athletes"] });
+    await queryClient.invalidateQueries({ queryKey: ["recent"] });
     navigate({ to: "/" });
   };
 
@@ -97,7 +121,11 @@ function OnboardingPage() {
               index={i}
               form={f}
               onChange={(patch) => update(i, patch)}
-              onRemove={forms.length > 1 ? () => setForms((arr) => arr.filter((_, idx) => idx !== i)) : undefined}
+              onRemove={
+                forms.length > 1
+                  ? () => setForms((arr) => arr.filter((_, idx) => idx !== i))
+                  : undefined
+              }
             />
           ))}
 
@@ -141,9 +169,9 @@ function AthleteCard({
   onChange: (patch: Partial<AthleteForm>) => void;
   onRemove?: () => void;
 }) {
-  const accent = form.sport === "hockey" ? "var(--hockey)" : "var(--fencing)";
+  const cfg = SPORTS[form.sport];
   return (
-    <div className="surface p-6" style={{ borderLeft: `4px solid ${accent}` }}>
+    <div className="surface p-6" style={{ borderLeft: `4px solid ${cfg.color}` }}>
       <div className="mb-4 flex items-center justify-between">
         <div className="metric-label">Athlete {index + 1}</div>
         {onRemove && (
@@ -168,23 +196,28 @@ function AthleteCard({
           />
         </Field>
 
-        <div>
-          <div className="metric-label mb-1.5">Sport</div>
-          <div className="inline-flex rounded-lg bg-[var(--bg-elevated)] p-1 ring-1 ring-[var(--border-default)]">
-            <SportPill
-              active={form.sport === "hockey"}
-              sport="hockey"
-              label="Hockey"
-              onClick={() => onChange({ sport: "hockey" })}
-            />
-            <SportPill
-              active={form.sport === "fencing"}
-              sport="fencing"
-              label="Fencing"
-              onClick={() => onChange({ sport: "fencing" })}
-            />
+        <Field label="Sport">
+          <div className="relative">
+            <span
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+              aria-hidden
+            >
+              <SportIcon sport={form.sport} className="h-3.5 w-3.5" />
+            </span>
+            <select
+              value={form.sport}
+              onChange={(e) => onChange({ sport: e.target.value as SportKey })}
+              className={`${inputCls} pl-9`}
+              style={{ borderColor: cfg.color }}
+            >
+              {SPORT_KEYS.map((k) => (
+                <option key={k} value={k}>
+                  {SPORTS[k].label}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
+        </Field>
 
         <div className="grid grid-cols-3 gap-3">
           <Field label="Age">
@@ -201,8 +234,8 @@ function AthleteCard({
             <input
               type="number"
               step="0.1"
-              value={form.height_cm}
-              onChange={(e) => onChange({ height_cm: e.target.value })}
+              value={form.height_in}
+              onChange={(e) => onChange({ height_in: e.target.value })}
               className={inputCls}
             />
           </Field>
@@ -210,56 +243,43 @@ function AthleteCard({
             <input
               type="number"
               step="0.1"
-              value={form.weight_kg}
-              onChange={(e) => onChange({ weight_kg: e.target.value })}
+              value={form.weight_lb}
+              onChange={(e) => onChange({ weight_lb: e.target.value })}
               className={inputCls}
             />
           </Field>
         </div>
 
-        {form.sport === "hockey" ? (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Position">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={cfg.role.label}>
+            {cfg.role.options ? (
               <select
-                value={form.position}
-                onChange={(e) => onChange({ position: e.target.value })}
+                value={form.role}
+                onChange={(e) => onChange({ role: e.target.value })}
                 className={inputCls}
               >
-                <option>Defense</option>
-                <option>Forward</option>
-                <option>Goalie</option>
+                {cfg.role.options.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
               </select>
-            </Field>
-            <Field label="Team">
+            ) : (
               <input
-                value={form.team}
-                onChange={(e) => onChange({ team: e.target.value })}
+                value={form.role}
+                onChange={(e) => onChange({ role: e.target.value })}
                 className={inputCls}
               />
-            </Field>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Weapon">
-              <select
-                value={form.weapon}
-                onChange={(e) => onChange({ weapon: e.target.value })}
-                className={inputCls}
-              >
-                <option>Épée</option>
-                <option>Foil</option>
-                <option>Sabre</option>
-              </select>
-            </Field>
-            <Field label="Club">
-              <input
-                value={form.club}
-                onChange={(e) => onChange({ club: e.target.value })}
-                className={inputCls}
-              />
-            </Field>
-          </div>
-        )}
+            )}
+          </Field>
+          <Field label={cfg.group.label}>
+            <input
+              value={form.group}
+              onChange={(e) => onChange({ group: e.target.value })}
+              className={inputCls}
+            />
+          </Field>
+        </div>
       </div>
     </div>
   );
@@ -274,34 +294,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <div className="metric-label mb-1.5">{label}</div>
       {children}
     </label>
-  );
-}
-
-function SportPill({
-  active,
-  sport,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  sport: Sport;
-  label: string;
-  onClick: () => void;
-}) {
-  const color = sport === "hockey" ? "var(--hockey)" : "var(--fencing)";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition-colors"
-      style={
-        active
-          ? { background: color, color: "#001813" }
-          : { color: "var(--text-secondary)" }
-      }
-    >
-      <SportIcon sport={sport} className="h-3.5 w-3.5" />
-      {label}
-    </button>
   );
 }
