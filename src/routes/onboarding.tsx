@@ -4,6 +4,7 @@ import { Activity, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { SportIcon } from "@/components/SportIcon";
+import { inToCm, lbToKg } from "@/lib/units";
 
 export const Route = createFileRoute("/onboarding")({
   component: OnboardingPage,
