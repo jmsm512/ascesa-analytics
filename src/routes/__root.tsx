@@ -76,10 +76,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "Multi-sport athlete performance analytics for hockey and fencing." },
       { name: "author", content: "Ascesa" },
       { property: "og:title", content: "Ascesa Analytics" },
-      { property: "og:description", content: "Multi-sport athlete performance analytics." },
+      { property: "og:description", content: "Multi-sport athlete performance analytics for hockey and fencing." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Ascesa Analytics" },
+      { name: "twitter:description", content: "Multi-sport athlete performance analytics for hockey and fencing." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a873ac63-b253-4cff-80d6-7fff1c41a26d/id-preview-e4cb9838--f569b4a1-87a3-4533-8cf9-a360649cf03e.lovable.app-1778796456222.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a873ac63-b253-4cff-80d6-7fff1c41a26d/id-preview-e4cb9838--f569b4a1-87a3-4533-8cf9-a360649cf03e.lovable.app-1778796456222.png" },
     ],
     links: [
       {
