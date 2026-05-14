@@ -8,6 +8,7 @@ import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals, listVideos
 import { format } from "date-fns";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { ArrowLeft, ChevronRight } from "lucide-react";
+import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/athletes/$id")({
   ssr: false,
@@ -54,8 +55,8 @@ function AthletePage() {
             </div>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--text-secondary)]">
               {a.age && <Stat label="Age" value={`${a.age}`} />}
-              {a.height_cm && <Stat label="Height" value={`${a.height_cm} cm`} />}
-              {a.weight_kg && <Stat label="Weight" value={`${a.weight_kg} kg`} />}
+              {a.height_cm && <Stat label="Height" value={formatHeightImperial(a.height_cm)} />}
+              {a.weight_kg && <Stat label="Weight" value={formatWeightLb(a.weight_kg)} />}
               {a.position && <Stat label="Position" value={a.position} />}
               {a.weapon && <Stat label="Weapon" value={a.weapon} />}
               {a.team && <Stat label="Team" value={a.team} />}
@@ -203,19 +204,19 @@ function ProgressCharts({ athleteId, sport }: { athleteId: string; sport: string
   // Mock progress trend so charts always look real
   const data = (sessions.data ?? []).slice(0, 8).reverse().map((s, i) => ({
     date: format(new Date(s.session_date), "MMM d"),
-    metric1: sport === "hockey" ? 2.45 - i * 0.015 : 2.9 + i * 0.05,
-    metric2: sport === "hockey" ? 21 + i * 0.4 : 60 + i * 1.5,
+    metric1: sport === "hockey" ? 2.45 - i * 0.015 : Number(msToFps(2.9 + i * 0.05)!.toFixed(2)),
+    metric2: sport === "hockey" ? Number(kmhToMph(21 + i * 0.4)!.toFixed(2)) : 60 + i * 1.5,
   }));
   while (data.length < 6) {
     data.unshift({
       date: `S${6 - data.length}`,
-      metric1: sport === "hockey" ? 2.5 - data.length * 0.02 : 2.8 + data.length * 0.05,
-      metric2: sport === "hockey" ? 20 + data.length * 0.3 : 58 + data.length * 1.5,
+      metric1: sport === "hockey" ? 2.5 - data.length * 0.02 : Number(msToFps(2.8 + data.length * 0.05)!.toFixed(2)),
+      metric2: sport === "hockey" ? Number(kmhToMph(20 + data.length * 0.3)!.toFixed(2)) : 58 + data.length * 1.5,
     });
   }
   const color = sport === "hockey" ? "var(--hockey)" : "var(--fencing)";
-  const m1 = sport === "hockey" ? "Best 10m (s)" : "Attack speed (m/s)";
-  const m2 = sport === "hockey" ? "Top speed (km/h)" : "Bout win rate (%)";
+  const m1 = sport === "hockey" ? "Best 10yd (s)" : "Attack speed (ft/s)";
+  const m2 = sport === "hockey" ? "Top speed (mph)" : "Bout win rate (%)";
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <ChartCard title={m1} data={data} dataKey="metric1" color={color} />

@@ -10,6 +10,7 @@ import {
   BarChart, Bar, Legend,
 } from "recharts";
 import { ArrowLeft, TrendingUp } from "lucide-react";
+import { kmhToMph } from "@/lib/units";
 
 export const Route = createFileRoute("/sessions/hockey/$id")({
   component: HockeySession,
@@ -32,7 +33,7 @@ function HockeySession() {
   const session = q.data?.session;
 
   const best10m = reps.length ? Math.min(...reps.map((r) => Number(r.time_10m) || Infinity).filter(isFinite)) : null;
-  const topSpeed = reps.length ? Math.max(...reps.map((r) => Number(r.peak_kmh) || 0)) : null;
+  const topSpeed = reps.length ? kmhToMph(Math.max(...reps.map((r) => Number(r.peak_kmh) || 0))) : null;
 
   return (
     <RequireAuth>
@@ -76,7 +77,7 @@ function HockeySession() {
 
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           <StatCard label="Best 10m" value={best10m ? `${best10m.toFixed(2)}` : "—"} unit="s" highlight />
-          <StatCard label="Top Speed" value={topSpeed ? `${topSpeed.toFixed(1)}` : "—"} unit="km/h" />
+          <StatCard label="Top Speed" value={topSpeed ? `${topSpeed.toFixed(1)}` : "—"} unit="mph" />
           <StatCard label="Total Reps" value={String(reps.length)} unit="reps" />
         </div>
 
@@ -90,7 +91,7 @@ function HockeySession() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-[var(--text-secondary)]">
-                      <Th>Rep</Th><Th>Time</Th><Th>Peak km/h</Th><Th>10M (s)</Th><Th>5M split</Th><Th>7.5M split</Th><Th>% of Max</Th>
+                      <Th>Rep</Th><Th>Time</Th><Th>Peak mph</Th><Th>10M (s)</Th><Th>5M split</Th><Th>7.5M split</Th><Th>% of Max</Th>
                     </tr>
                   </thead>
                   <tbody>
@@ -98,7 +99,7 @@ function HockeySession() {
                       <tr key={r.id} className="row-hover border-t border-[var(--border-subtle)]">
                         <Td>{r.rep_number}</Td>
                         <Td>{format(new Date(r.created_at), "HH:mm")}</Td>
-                        <Td>{Number(r.peak_kmh).toFixed(1)}</Td>
+                        <Td>{kmhToMph(Number(r.peak_kmh))!.toFixed(1)}</Td>
                         <Td className={r.is_pb ? "font-bold text-[var(--accent)]" : ""}>
                           {Number(r.time_10m).toFixed(2)}
                           {r.is_pb && <span className="ml-2 rounded-full bg-[var(--accent-glow)] px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[var(--accent)]">PB</span>}
@@ -117,7 +118,7 @@ function HockeySession() {
               <div className="metric-label mb-3">Top speed per rep</div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={reps.map((r) => ({ rep: `R${r.rep_number}`, peak: Number(r.peak_kmh) }))}>
+                  <LineChart data={reps.map((r) => ({ rep: `R${r.rep_number}`, peak: Number(kmhToMph(Number(r.peak_kmh))!.toFixed(2)) }))}>
                     <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
                     <XAxis dataKey="rep" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -158,7 +159,7 @@ function LoadBreakdown({ reps }: { reps: any[] }) {
     if (!sub.length) return null;
     const best = Math.min(...sub.map((r) => Number(r.time_10m)));
     const avg = sub.reduce((s, r) => s + Number(r.time_10m), 0) / sub.length;
-    const top = Math.max(...sub.map((r) => Number(r.peak_kmh)));
+    const top = kmhToMph(Math.max(...sub.map((r) => Number(r.peak_kmh))))!;
     return { load: `${lp}% BW`, best: +best.toFixed(2), avg: +avg.toFixed(2), top: +top.toFixed(1) };
   }).filter(Boolean) as any[];
 
@@ -175,7 +176,7 @@ function LoadBreakdown({ reps }: { reps: any[] }) {
             <Legend wrapperStyle={{ fontSize: 11, color: "var(--text-secondary)" }} />
             <Bar dataKey="best" name="Best 10m (s)" fill="var(--accent)" radius={[4, 4, 0, 0]} />
             <Bar dataKey="avg" name="Avg 10m (s)" fill="var(--data-neutral)" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="top" name="Top speed (km/h)" fill="var(--hockey)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="top" name="Top speed (mph)" fill="var(--hockey)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -4,6 +4,7 @@ import { Activity, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { SportIcon } from "@/components/SportIcon";
+import { inToCm, lbToKg } from "@/lib/units";
 
 export const Route = createFileRoute("/onboarding")({
   component: OnboardingPage,
@@ -61,8 +62,8 @@ function OnboardingPage() {
       name: f.name.trim(),
       sport: f.sport,
       age: f.age ? Number(f.age) : null,
-      height_cm: f.height_cm ? Number(f.height_cm) : null,
-      weight_kg: f.weight_kg ? Number(f.weight_kg) : null,
+      height_cm: f.height_cm ? inToCm(Number(f.height_cm)) : null,
+      weight_kg: f.weight_kg ? lbToKg(Number(f.weight_kg)) : null,
       position: f.sport === "hockey" ? f.position || null : null,
       team: f.sport === "hockey" ? f.team || null : null,
       weapon: f.sport === "fencing" ? f.weapon || null : null,
@@ -196,7 +197,7 @@ function AthleteCard({
               className={inputCls}
             />
           </Field>
-          <Field label="Height (cm)">
+          <Field label="Height (in)">
             <input
               type="number"
               step="0.1"
@@ -205,7 +206,7 @@ function AthleteCard({
               className={inputCls}
             />
           </Field>
-          <Field label="Weight (kg)">
+          <Field label="Weight (lb)">
             <input
               type="number"
               step="0.1"

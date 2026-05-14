@@ -7,6 +7,7 @@ import { SportIcon } from "@/components/SportIcon";
 import { listAthletes } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Plus, Trash2, Upload, Check } from "lucide-react";
+import { mphToKmh } from "@/lib/units";
 
 export const Route = createFileRoute("/sessions/new")({
   component: NewSessionPage,
@@ -72,7 +73,7 @@ function NewSessionPage() {
             phase: "baseline",
             rep_number: r.rep_number,
             time_10m: r.time_10m ? Number(r.time_10m) : null,
-            peak_kmh: r.peak_kmh ? Number(r.peak_kmh) : null,
+            peak_kmh: r.peak_kmh ? mphToKmh(Number(r.peak_kmh)) : null,
           }));
         if (rows.length) await supabase.from("hockey_sprint_reps").insert(rows);
       }
@@ -199,7 +200,7 @@ function NewSessionPage() {
                     className="flex-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
                   />
                   <input
-                    placeholder="Peak km/h"
+                    placeholder="Peak mph"
                     value={r.peak_kmh}
                     onChange={(e) => setHockeyReps((rs) => rs.map((x, j) => (j === i ? { ...x, peak_kmh: e.target.value } : x)))}
                     className="flex-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
