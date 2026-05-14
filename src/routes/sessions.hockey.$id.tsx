@@ -33,7 +33,7 @@ function HockeySession() {
   const session = q.data?.session;
 
   const best10m = reps.length ? Math.min(...reps.map((r) => Number(r.time_10m) || Infinity).filter(isFinite)) : null;
-  const topSpeed = reps.length ? Math.max(...reps.map((r) => Number(r.peak_kmh) || 0)) : null;
+  const topSpeed = reps.length ? kmhToMph(Math.max(...reps.map((r) => Number(r.peak_kmh) || 0))) : null;
 
   return (
     <RequireAuth>
