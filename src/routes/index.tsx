@@ -30,10 +30,14 @@ function Dashboard() {
   const recent = useQuery({ queryKey: ["recent"], queryFn: () => listRecentSessions(5) });
 
   useEffect(() => {
-    if (athletes.isSuccess && (athletes.data?.length ?? 0) === 0) {
+    if (
+      athletes.isFetched &&
+      !athletes.isFetching &&
+      (athletes.data?.length ?? 0) === 0
+    ) {
       navigate({ to: "/onboarding" });
     }
-  }, [athletes.isSuccess, athletes.data, navigate]);
+  }, [athletes.isFetched, athletes.isFetching, athletes.data, navigate]);
 
   return (
     <div className="space-y-8">
