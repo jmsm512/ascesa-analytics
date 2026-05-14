@@ -197,7 +197,7 @@ function AthleteCard({
               className={inputCls}
             />
           </Field>
-          <Field label="Height (cm)">
+          <Field label="Height (in)">
             <input
               type="number"
               step="0.1"
@@ -206,7 +206,7 @@ function AthleteCard({
               className={inputCls}
             />
           </Field>
-          <Field label="Weight (kg)">
+          <Field label="Weight (lb)">
             <input
               type="number"
               step="0.1"
