@@ -7,6 +7,7 @@ import { getFencingSession } from "@/lib/data";
 import { format } from "date-fns";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { ArrowLeft, Check, X } from "lucide-react";
+import { msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
   component: FencingSession,
