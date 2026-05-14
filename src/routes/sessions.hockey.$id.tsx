@@ -159,7 +159,7 @@ function LoadBreakdown({ reps }: { reps: any[] }) {
     if (!sub.length) return null;
     const best = Math.min(...sub.map((r) => Number(r.time_10m)));
     const avg = sub.reduce((s, r) => s + Number(r.time_10m), 0) / sub.length;
-    const top = Math.max(...sub.map((r) => Number(r.peak_kmh)));
+    const top = kmhToMph(Math.max(...sub.map((r) => Number(r.peak_kmh))))!;
     return { load: `${lp}% BW`, best: +best.toFixed(2), avg: +avg.toFixed(2), top: +top.toFixed(1) };
   }).filter(Boolean) as any[];
 
