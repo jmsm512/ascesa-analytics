@@ -99,7 +99,7 @@ function HockeySession() {
                       <tr key={r.id} className="row-hover border-t border-[var(--border-subtle)]">
                         <Td>{r.rep_number}</Td>
                         <Td>{format(new Date(r.created_at), "HH:mm")}</Td>
-                        <Td>{Number(r.peak_kmh).toFixed(1)}</Td>
+                        <Td>{kmhToMph(Number(r.peak_kmh))!.toFixed(1)}</Td>
                         <Td className={r.is_pb ? "font-bold text-[var(--accent)]" : ""}>
                           {Number(r.time_10m).toFixed(2)}
                           {r.is_pb && <span className="ml-2 rounded-full bg-[var(--accent-glow)] px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[var(--accent)]">PB</span>}
