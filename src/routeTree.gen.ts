@@ -12,7 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as VideosIdRouteImport } from './routes/videos.$id'
+import { Route as SessionsNewRouteImport } from './routes/sessions.new'
 import { Route as AthletesIdRouteImport } from './routes/athletes.$id'
+import { Route as SessionsHockeyIdRouteImport } from './routes/sessions.hockey.$id'
+import { Route as SessionsFencingIdRouteImport } from './routes/sessions.fencing.$id'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -29,9 +33,29 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VideosIdRoute = VideosIdRouteImport.update({
+  id: '/videos/$id',
+  path: '/videos/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsNewRoute = SessionsNewRouteImport.update({
+  id: '/sessions/new',
+  path: '/sessions/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AthletesIdRoute = AthletesIdRouteImport.update({
   id: '/athletes/$id',
   path: '/athletes/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsHockeyIdRoute = SessionsHockeyIdRouteImport.update({
+  id: '/sessions/hockey/$id',
+  path: '/sessions/hockey/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionsFencingIdRoute = SessionsFencingIdRouteImport.update({
+  id: '/sessions/fencing/$id',
+  path: '/sessions/fencing/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -40,12 +64,20 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/athletes/$id': typeof AthletesIdRoute
+  '/sessions/new': typeof SessionsNewRoute
+  '/videos/$id': typeof VideosIdRoute
+  '/sessions/fencing/$id': typeof SessionsFencingIdRoute
+  '/sessions/hockey/$id': typeof SessionsHockeyIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/athletes/$id': typeof AthletesIdRoute
+  '/sessions/new': typeof SessionsNewRoute
+  '/videos/$id': typeof VideosIdRoute
+  '/sessions/fencing/$id': typeof SessionsFencingIdRoute
+  '/sessions/hockey/$id': typeof SessionsHockeyIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +85,42 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/athletes/$id': typeof AthletesIdRoute
+  '/sessions/new': typeof SessionsNewRoute
+  '/videos/$id': typeof VideosIdRoute
+  '/sessions/fencing/$id': typeof SessionsFencingIdRoute
+  '/sessions/hockey/$id': typeof SessionsHockeyIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/signup' | '/athletes/$id'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/athletes/$id'
+    | '/sessions/new'
+    | '/videos/$id'
+    | '/sessions/fencing/$id'
+    | '/sessions/hockey/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/signup' | '/athletes/$id'
-  id: '__root__' | '/' | '/login' | '/signup' | '/athletes/$id'
+  to:
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/athletes/$id'
+    | '/sessions/new'
+    | '/videos/$id'
+    | '/sessions/fencing/$id'
+    | '/sessions/hockey/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/signup'
+    | '/athletes/$id'
+    | '/sessions/new'
+    | '/videos/$id'
+    | '/sessions/fencing/$id'
+    | '/sessions/hockey/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +128,10 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   AthletesIdRoute: typeof AthletesIdRoute
+  SessionsNewRoute: typeof SessionsNewRoute
+  VideosIdRoute: typeof VideosIdRoute
+  SessionsFencingIdRoute: typeof SessionsFencingIdRoute
+  SessionsHockeyIdRoute: typeof SessionsHockeyIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -92,11 +157,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/videos/$id': {
+      id: '/videos/$id'
+      path: '/videos/$id'
+      fullPath: '/videos/$id'
+      preLoaderRoute: typeof VideosIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions/new': {
+      id: '/sessions/new'
+      path: '/sessions/new'
+      fullPath: '/sessions/new'
+      preLoaderRoute: typeof SessionsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/athletes/$id': {
       id: '/athletes/$id'
       path: '/athletes/$id'
       fullPath: '/athletes/$id'
       preLoaderRoute: typeof AthletesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions/hockey/$id': {
+      id: '/sessions/hockey/$id'
+      path: '/sessions/hockey/$id'
+      fullPath: '/sessions/hockey/$id'
+      preLoaderRoute: typeof SessionsHockeyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sessions/fencing/$id': {
+      id: '/sessions/fencing/$id'
+      path: '/sessions/fencing/$id'
+      fullPath: '/sessions/fencing/$id'
+      preLoaderRoute: typeof SessionsFencingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -107,6 +200,10 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   AthletesIdRoute: AthletesIdRoute,
+  SessionsNewRoute: SessionsNewRoute,
+  VideosIdRoute: VideosIdRoute,
+  SessionsFencingIdRoute: SessionsFencingIdRoute,
+  SessionsHockeyIdRoute: SessionsHockeyIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
