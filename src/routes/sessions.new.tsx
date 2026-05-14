@@ -10,6 +10,9 @@ import { ArrowLeft, Plus, Trash2, Upload, Check } from "lucide-react";
 
 export const Route = createFileRoute("/sessions/new")({
   component: NewSessionPage,
+  validateSearch: (s: Record<string, unknown>) => ({
+    athlete: typeof s.athlete === "string" ? s.athlete : undefined,
+  }),
 });
 
 type HockeyRep = { rep_number: number; time_10m: string; peak_kmh: string };
