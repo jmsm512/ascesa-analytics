@@ -91,7 +91,7 @@ function HockeySession() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-[var(--text-secondary)]">
-                      <Th>Rep</Th><Th>Time</Th><Th>Peak km/h</Th><Th>10M (s)</Th><Th>5M split</Th><Th>7.5M split</Th><Th>% of Max</Th>
+                      <Th>Rep</Th><Th>Time</Th><Th>Peak mph</Th><Th>10M (s)</Th><Th>5M split</Th><Th>7.5M split</Th><Th>% of Max</Th>
                     </tr>
                   </thead>
                   <tbody>
