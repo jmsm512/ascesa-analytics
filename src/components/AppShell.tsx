@@ -1,7 +1,8 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { Activity, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import logoUrl from "@/assets/ascesa-logo.png";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
