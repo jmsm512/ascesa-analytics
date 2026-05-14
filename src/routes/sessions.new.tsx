@@ -7,6 +7,7 @@ import { SportIcon } from "@/components/SportIcon";
 import { listAthletes } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Plus, Trash2, Upload, Check } from "lucide-react";
+import { mphToKmh } from "@/lib/units";
 
 export const Route = createFileRoute("/sessions/new")({
   component: NewSessionPage,
