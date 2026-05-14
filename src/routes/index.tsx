@@ -30,10 +30,14 @@ function Dashboard() {
   const recent = useQuery({ queryKey: ["recent"], queryFn: () => listRecentSessions(5) });
 
   useEffect(() => {
-    if (athletes.isSuccess && (athletes.data?.length ?? 0) === 0) {
+    if (
+      athletes.isFetched &&
+      !athletes.isFetching &&
+      (athletes.data?.length ?? 0) === 0
+    ) {
       navigate({ to: "/onboarding" });
     }
-  }, [athletes.isSuccess, athletes.data, navigate]);
+  }, [athletes.isFetched, athletes.isFetching, athletes.data, navigate]);
 
   return (
     <div className="space-y-8">
@@ -119,9 +123,9 @@ function AthleteCard({ athlete }: { athlete: any }) {
           </div>
           <h3 className="text-2xl font-bold tracking-tight">{athlete.name}</h3>
           <div className="mt-1 text-xs text-[var(--text-secondary)]">
-            {athlete.sport === "hockey"
-              ? `${athlete.position ?? ""} · ${athlete.team ?? ""}`
-              : `${athlete.weapon ?? ""} · ${athlete.club ?? ""}`}
+            {`${athlete.position ?? athlete.weapon ?? ""}${
+              (athlete.position || athlete.weapon) && (athlete.team || athlete.club) ? " · " : ""
+            }${athlete.team ?? athlete.club ?? ""}`}
           </div>
         </div>
         <Link
