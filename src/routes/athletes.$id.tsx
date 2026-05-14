@@ -10,6 +10,7 @@ import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianG
 import { ArrowLeft, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/athletes/$id")({
+  ssr: false,
   component: AthletePage,
 });
 
