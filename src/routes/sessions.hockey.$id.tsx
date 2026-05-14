@@ -176,7 +176,7 @@ function LoadBreakdown({ reps }: { reps: any[] }) {
             <Legend wrapperStyle={{ fontSize: 11, color: "var(--text-secondary)" }} />
             <Bar dataKey="best" name="Best 10m (s)" fill="var(--accent)" radius={[4, 4, 0, 0]} />
             <Bar dataKey="avg" name="Avg 10m (s)" fill="var(--data-neutral)" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="top" name="Top speed (km/h)" fill="var(--hockey)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="top" name="Top speed (mph)" fill="var(--hockey)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
