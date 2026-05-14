@@ -27,6 +27,12 @@ function Dashboard() {
   const athletes = useQuery({ queryKey: ["athletes"], queryFn: listAthletes });
   const recent = useQuery({ queryKey: ["recent"], queryFn: () => listRecentSessions(5) });
 
+  useEffect(() => {
+    if (athletes.isSuccess && (athletes.data?.length ?? 0) === 0) {
+      navigate({ to: "/onboarding" });
+    }
+  }, [athletes.isSuccess, athletes.data, navigate]);
+
   return (
     <div className="space-y-8">
       <div className="flex items-end justify-between">
