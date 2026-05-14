@@ -200,7 +200,7 @@ function NewSessionPage() {
                     className="flex-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
                   />
                   <input
-                    placeholder="Peak km/h"
+                    placeholder="Peak mph"
                     value={r.peak_kmh}
                     onChange={(e) => setHockeyReps((rs) => rs.map((x, j) => (j === i ? { ...x, peak_kmh: e.target.value } : x)))}
                     className="flex-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
