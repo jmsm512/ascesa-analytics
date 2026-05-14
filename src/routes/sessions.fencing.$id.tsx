@@ -72,7 +72,7 @@ function FencingSession() {
 
             {sensors.length > 0 && (
               <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <SensorChart title="Attack speed (m/s)" data={sensors} dataKey="attack_speed_ms" />
+                <SensorChart title="Attack speed (ft/s)" data={sensors.map((s: any) => ({ ...s, attack_speed_fps: msToFps(Number(s.attack_speed_ms)) }))} dataKey="attack_speed_fps" />
                 <SensorChart title="Footwork cadence" data={sensors} dataKey="footwork_cadence" />
               </div>
             )}
