@@ -118,7 +118,7 @@ function HockeySession() {
               <div className="metric-label mb-3">Top speed per rep</div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={reps.map((r) => ({ rep: `R${r.rep_number}`, peak: Number(r.peak_kmh) }))}>
+                  <LineChart data={reps.map((r) => ({ rep: `R${r.rep_number}`, peak: Number(kmhToMph(Number(r.peak_kmh))!.toFixed(2)) }))}>
                     <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
                     <XAxis dataKey="rep" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
