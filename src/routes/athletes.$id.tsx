@@ -55,8 +55,8 @@ function AthletePage() {
             </div>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--text-secondary)]">
               {a.age && <Stat label="Age" value={`${a.age}`} />}
-              {a.height_cm && <Stat label="Height" value={`${a.height_cm} cm`} />}
-              {a.weight_kg && <Stat label="Weight" value={`${a.weight_kg} kg`} />}
+              {a.height_cm && <Stat label="Height" value={formatHeightImperial(a.height_cm)} />}
+              {a.weight_kg && <Stat label="Weight" value={formatWeightLb(a.weight_kg)} />}
               {a.position && <Stat label="Position" value={a.position} />}
               {a.weapon && <Stat label="Weapon" value={a.weapon} />}
               {a.team && <Stat label="Team" value={a.team} />}
