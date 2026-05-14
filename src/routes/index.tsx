@@ -123,9 +123,9 @@ function AthleteCard({ athlete }: { athlete: any }) {
           </div>
           <h3 className="text-2xl font-bold tracking-tight">{athlete.name}</h3>
           <div className="mt-1 text-xs text-[var(--text-secondary)]">
-            {athlete.sport === "hockey"
-              ? `${athlete.position ?? ""} · ${athlete.team ?? ""}`
-              : `${athlete.weapon ?? ""} · ${athlete.club ?? ""}`}
+            {`${athlete.position ?? athlete.weapon ?? ""}${
+              (athlete.position || athlete.weapon) && (athlete.team || athlete.club) ? " · " : ""
+            }${athlete.team ?? athlete.club ?? ""}`}
           </div>
         </div>
         <Link
