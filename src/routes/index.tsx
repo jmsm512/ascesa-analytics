@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
 import { listAthletes, listRecentSessions, getBenchmarks } from "@/lib/data";
 import { ArrowRight, Plus } from "lucide-react";
+import { kmhToMph, msToFps } from "@/lib/units";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/")({
