@@ -117,6 +117,6 @@ export async function listVideosForAthlete(athleteId: string) {
 }
 
 export async function getVideo(id: string) {
-  const { data } = await supabase.from("videos").select("*, athletes(name, sport)").eq("id", id).maybeSingle();
+  const { data } = await supabase.from("videos").select("*, athletes(name, sport, age)").eq("id", id).maybeSingle();
   return data;
 }

@@ -32,9 +32,39 @@ function VideoPage() {
             <h1 className="text-2xl font-bold tracking-tight">{video?.label ?? "Untitled clip"}</h1>
           </div>
           <button
-            onClick={() => {
+            onClick={async () => {
+              if (!video) return;
+              const athlete = (video as any).athletes;
+              if (!athlete) {
+                console.error("Video missing athlete data");
+                return;
+              }
               setAnalyzing(true);
-              setTimeout(() => setAnalyzing(false), 2200);
+              try {
+                const res = await fetch(
+                  "https://yixcufjaoqofcloccyix.supabase.co/functions/v1/analyze-video",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      video_id: video.id,
+                      sport: athlete.sport,
+                      athlete_name: athlete.name,
+                      age: athlete.age,
+                    }),
+                  },
+                );
+                if (!res.ok) {
+                  const err = await res.text();
+                  console.error("analyze-video failed:", res.status, err);
+                } else {
+                  await v.refetch();
+                }
+              } catch (err) {
+                console.error("analyze-video error:", err);
+              } finally {
+                setAnalyzing(false);
+              }
             }}
             disabled={analyzing}
             className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#001813] hover:bg-[var(--accent-dim)] disabled:opacity-60"
