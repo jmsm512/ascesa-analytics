@@ -1,13 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { format } from "date-fns";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
 import { listAthletes } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, Trash2, Check } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, CalendarIcon } from "lucide-react";
 import { mphToKmh } from "@/lib/units";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/sessions/new")({
   component: NewSessionPage,
@@ -27,6 +32,7 @@ function NewSessionPage() {
   const [step, setStep] = useState(1);
   const [athleteId, setAthleteId] = useState<string>(preselectedAthleteId ?? "");
   const [sessionType, setSessionType] = useState<string>("");
+  const [sessionDate, setSessionDate] = useState<Date>(new Date());
   const [hockeyReps, setHockeyReps] = useState<HockeyRep[]>([{ rep_number: 1, time_10m: "", peak_kmh: "" }]);
   const [fencingOpponent, setFencingOpponent] = useState("");
   const [fencingScore, setFencingScore] = useState({ scored: 0, received: 0 });
@@ -50,7 +56,7 @@ function NewSessionPage() {
         user_id: userId,
         sport: athlete.sport,
         session_type: sessionType,
-        session_date: new Date().toISOString(),
+        session_date: sessionDate.toISOString(),
       })
       .select()
       .single();
@@ -172,6 +178,31 @@ function NewSessionPage() {
                     placeholder={isHockey ? "sprint, on-ice, off-ice…" : "bout, drills, footwork…"}
                     className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
                   />
+                  <div className="metric-label mt-4">Session date</div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal border-[var(--border-default)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+                          !sessionDate && "text-[var(--text-muted)]"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {sessionDate ? format(sessionDate, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-[var(--bg-elevated)] border-[var(--border-default)]" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={sessionDate}
+                        onSelect={(date) => date && setSessionDate(date)}
+                        disabled={(date) => date > new Date()}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </>
               )}
 
@@ -284,6 +315,7 @@ function NewSessionPage() {
               <Row k="Athlete" v={athlete?.name ?? ""} />
               <Row k="Sport" v={athlete?.sport ?? ""} />
               <Row k="Session type" v={sessionType} />
+              <Row k="Date" v={sessionDate ? format(sessionDate, "PPP") : ""} />
               {isHockey && <Row k="Reps" v={String(hockeyReps.length)} />}
               {!isHockey && <Row k="Score" v={`${fencingScore.scored} - ${fencingScore.received}`} />}
               {!isHockey && <Row k="Actions logged" v={String(actions.length)} />}
