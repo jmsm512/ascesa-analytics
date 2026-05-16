@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { getFencingSession } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import {
   ResponsiveContainer,
