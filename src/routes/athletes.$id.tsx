@@ -988,7 +988,6 @@ function extractBenchFirstFrame(url: string): Promise<{ frame: string; dur: numb
     v.muted = true;
     v.playsInline = true;
     v.crossOrigin = "anonymous";
-    v.src = url;
     v.addEventListener("loadeddata", () => { v.currentTime = 0.05; });
     v.addEventListener("seeked", () => {
       const c = document.createElement("canvas");
