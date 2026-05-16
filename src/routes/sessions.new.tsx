@@ -12,6 +12,7 @@ import { mphToKmh } from "@/lib/units";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/sessions/new")({
@@ -172,12 +173,18 @@ function NewSessionPage() {
               {athleteId && (
                 <>
                   <div className="metric-label mt-4">Session type</div>
-                  <input
-                    value={sessionType}
-                    onChange={(e) => setSessionType(e.target.value)}
-                    placeholder={isHockey ? "sprint, on-ice, off-ice…" : "bout, drills, footwork…"}
-                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
-                  />
+                  <Select value={sessionType} onValueChange={setSessionType}>
+                    <SelectTrigger className="w-full border-[var(--border-default)] bg-[var(--bg-elevated)] focus:ring-[var(--accent)] focus:ring-1">
+                      <SelectValue placeholder="Select session type…" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[var(--bg-elevated)] border-[var(--border-default)]">
+                      {["Bout", "Drill Session", "Footwork", "Sparring", "Competition"].map((opt) => (
+                        <SelectItem key={opt} value={opt} className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <div className="metric-label mt-4">Session date</div>
                   <Popover>
                     <PopoverTrigger asChild>
