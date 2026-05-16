@@ -18,7 +18,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { ArrowLeft, Check, X, Upload, RotateCcw, Download } from "lucide-react";
+import { ArrowLeft, Check, X, Upload, RotateCcw, Download, Trash2 } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
