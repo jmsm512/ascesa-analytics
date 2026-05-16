@@ -402,10 +402,12 @@ function VideoSpeedAnalyzer({
       }
       setReadings(out);
       setStage("results");
-      if (pendingFile) {
-        void persistVideo(pendingFile).then(() => persistAnalysis(out, points, v.duration));
-      } else {
-        void persistAnalysis(out, points, v.duration);
+      setSaving(true);
+      try {
+        if (pendingFile) await persistVideo(pendingFile);
+        await persistAnalysis(out, points, v.duration);
+      } finally {
+        setSaving(false);
       }
     } catch (e: any) {
       setError(e?.message ?? "Analysis failed");
