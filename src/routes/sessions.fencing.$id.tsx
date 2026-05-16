@@ -5,7 +5,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { getAthlete, getFencingSession } from "@/lib/data";
-import { generateCoachingSummary, type CoachingSummary } from "@/lib/coaching.functions";
+import {
+  generateCoachingSummary,
+  generateDrills,
+  type CoachingSummary,
+  type DrillsPlan,
+} from "@/lib/coaching.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import {
@@ -20,7 +25,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { ArrowLeft, Check, X, Upload, RotateCcw, Download, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, X, Upload, RotateCcw, Download, Trash2, ChevronDown, RefreshCw, Sparkles } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
@@ -244,6 +249,7 @@ type SavedAnalysis = {
   savedAt: string;
   tags?: ActionTag[];
   coaching?: CoachingSummary;
+  drills?: DrillsPlan;
 };
 
 function VideoSpeedAnalyzer({
@@ -278,7 +284,11 @@ function VideoSpeedAnalyzer({
   const [coaching, setCoaching] = useState<CoachingSummary | null>(existingAnalysis?.coaching ?? null);
   const [coachingLoading, setCoachingLoading] = useState(false);
   const [coachingError, setCoachingError] = useState<string | null>(null);
+  const [drills, setDrills] = useState<DrillsPlan | null>(existingAnalysis?.drills ?? null);
+  const [drillsLoading, setDrillsLoading] = useState(false);
+  const [drillsError, setDrillsError] = useState<string | null>(null);
   const generateCoaching = useServerFn(generateCoachingSummary);
+  const generateDrillsFn = useServerFn(generateDrills);
   const athleteQuery = useQuery({
     queryKey: ["athlete", athleteId],
     queryFn: () => (athleteId ? getAthlete(athleteId) : Promise.resolve(null)),
@@ -324,6 +334,7 @@ function VideoSpeedAnalyzer({
       savedAt: new Date().toISOString(),
       tags: tagList,
       coaching: coaching ?? undefined,
+      drills: drills ?? undefined,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
     onSaved?.();
@@ -338,6 +349,7 @@ function VideoSpeedAnalyzer({
       savedAt: new Date().toISOString(),
       tags: next,
       coaching: coaching ?? undefined,
+      drills: drills ?? undefined,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
   }
@@ -351,8 +363,80 @@ function VideoSpeedAnalyzer({
       savedAt: new Date().toISOString(),
       tags,
       coaching: c,
+      drills: drills ?? undefined,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+  }
+
+  async function persistDrills(d: DrillsPlan | null) {
+    if (!fencingSessionId) return;
+    const payload: SavedAnalysis = {
+      readings,
+      duration,
+      points,
+      savedAt: new Date().toISOString(),
+      tags,
+      coaching: coaching ?? undefined,
+      drills: d ?? undefined,
+    };
+    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+  }
+
+  function buildTagsSummary(): string {
+    if (!tags.length) return "none";
+    const groups = tags.reduce<Record<string, { count: number; success: number }>>((acc, t) => {
+      const k = t.action;
+      if (!acc[k]) acc[k] = { count: 0, success: 0 };
+      acc[k].count++;
+      if (t.success) acc[k].success++;
+      return acc;
+    }, {});
+    return Object.entries(groups)
+      .map(([a, v]) => `${a} x${v.count} (${v.success}/${v.count} successful)`)
+      .join(", ");
+  }
+
+  async function handleGenerateDrills() {
+    if (drillsLoading) return;
+    const athlete = athleteQuery.data;
+    if (!athlete || !readings.length) return;
+    const peakD = readings.reduce((m, r) => Math.max(m, r.speed), 0);
+    const avgD = readings.reduce((s, r) => s + r.speed, 0) / readings.length;
+    const peakAdvD = readings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
+    const peakRetD = readings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
+    setDrillsLoading(true);
+    setDrillsError(null);
+    try {
+      const plan = await generateDrillsFn({
+        data: {
+          athleteName: athlete.name,
+          athleteAge: athlete.age,
+          peakSpeed: peakD,
+          avgSpeed: avgD,
+          peakAdvance: peakAdvD,
+          peakRetreat: peakRetD,
+          readingCount: readings.length,
+          duration,
+          tagsSummary: buildTagsSummary(),
+        },
+      });
+      setDrills(plan);
+      void persistDrills(plan);
+    } catch (e: any) {
+      setDrillsError(e?.message ?? "Failed to generate drills");
+    } finally {
+      setDrillsLoading(false);
+    }
+  }
+
+  function toggleDrillComplete(name: string) {
+    if (!drills) return;
+    const completed = { ...drills.completed };
+    if (completed[name]) delete completed[name];
+    else completed[name] = new Date().toISOString();
+    const next = { ...drills, completed };
+    setDrills(next);
+    void persistDrills(next);
   }
 
   function speedAt(t: number): Reading | null {
@@ -602,6 +686,8 @@ function VideoSpeedAnalyzer({
     setError(null);
     setCoaching(null);
     setCoachingError(null);
+    setDrills(null);
+    setDrillsError(null);
   }
 
   function downloadCsv() {
@@ -745,6 +831,15 @@ function VideoSpeedAnalyzer({
           </div>
 
           <CoachingCards coaching={coaching} loading={coachingLoading} error={coachingError} />
+
+          <DrillsSection
+            drills={drills}
+            loading={drillsLoading}
+            error={drillsError}
+            canGenerate={!!readings.length && !!athleteQuery.data}
+            onGenerate={handleGenerateDrills}
+            onToggleComplete={toggleDrillComplete}
+          />
 
           {dataUrl && (
             <div className="surface overflow-hidden rounded-lg p-3">
@@ -1111,3 +1206,132 @@ function CoachingCards({
   );
 }
 
+function DrillsSection({
+  drills,
+  loading,
+  error,
+  canGenerate,
+  onGenerate,
+  onToggleComplete,
+}: {
+  drills: DrillsPlan | null;
+  loading: boolean;
+  error: string | null;
+  canGenerate: boolean;
+  onGenerate: () => void;
+  onToggleComplete: (name: string) => void;
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="metric-label">Prescribed Drills</div>
+        {drills && (
+          <button
+            onClick={onGenerate}
+            disabled={loading || !canGenerate}
+            title="Regenerate drills"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          </button>
+        )}
+      </div>
+
+      {!drills && !loading && (
+        <button
+          onClick={onGenerate}
+          disabled={!canGenerate}
+          className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
+        >
+          <Sparkles className="h-3.5 w-3.5" /> Get Drills
+        </button>
+      )}
+
+      {loading && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="surface p-4">
+              <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--bg-elevated)]" />
+              <div className="mt-3 h-2 w-1/2 animate-pulse rounded bg-[var(--bg-elevated)]" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="surface p-3 text-xs text-[var(--data-negative)]">{error}</div>
+      )}
+
+      {drills && !loading && drills.drills.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {drills.drills.map((d) => {
+            const isOpen = !!expanded[d.name];
+            const completedAt = drills.completed[d.name];
+            return (
+              <div
+                key={d.name}
+                className="surface p-4"
+                style={{ borderLeft: `4px solid ${completedAt ? "var(--data-positive)" : "var(--accent)"}` }}
+              >
+                <button
+                  onClick={() => setExpanded((p) => ({ ...p, [d.name]: !isOpen }))}
+                  className="flex w-full items-start justify-between gap-2 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      {completedAt && <Check className="h-3.5 w-3.5 shrink-0 text-[var(--data-positive)]" />}
+                      <div className={`text-sm font-semibold ${completedAt ? "text-[var(--text-secondary)] line-through" : "text-[var(--text-primary)]"}`}>
+                        {d.name}
+                      </div>
+                    </div>
+                    <div className="mt-1 text-[11px] text-[var(--text-secondary)]">Target: {d.target}</div>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--text-secondary)] transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {isOpen && (
+                  <div className="mt-3 space-y-3 border-t border-[var(--border-subtle)] pt-3">
+                    <div>
+                      <div className="metric-label mb-1">Addresses</div>
+                      <div className="text-xs text-[var(--text-secondary)]">{d.addresses}</div>
+                    </div>
+                    <div>
+                      <div className="metric-label mb-1">Instructions</div>
+                      <ol className="list-decimal space-y-1 pl-4 text-xs text-[var(--text-secondary)]">
+                        {d.instructions.map((step, i) => (
+                          <li key={i}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--text-secondary)]">
+                      <span>Duration: <span className="text-[var(--text-primary)]">{d.duration}</span></span>
+                      <span>Target: <span className="text-[var(--text-primary)]">{d.target}</span></span>
+                    </div>
+                    {completedAt && (
+                      <div className="text-[11px] text-[var(--data-positive)]">
+                        Completed {format(new Date(completedAt), "MMM d, yyyy")}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => onToggleComplete(d.name)}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ${
+                        completedAt
+                          ? "border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+                          : "bg-[var(--data-positive)] text-black hover:opacity-90"
+                      }`}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      {completedAt ? "Mark Incomplete" : "Mark Complete"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
