@@ -32,6 +32,7 @@ function NewSessionPage() {
   const [fencingScore, setFencingScore] = useState({ scored: 0, received: 0 });
   const [actions, setActions] = useState<FencingAction[]>([]);
   const [saving, setSaving] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
 
   const athlete = athletes.data?.find((a) => a.id === athleteId);
   const isHockey = athlete?.sport === "hockey";
@@ -56,6 +57,24 @@ function NewSessionPage() {
     if (error || !session) {
       setSaving(false);
       return;
+    }
+
+    if (videoFile) {
+      const ext = videoFile.name.split(".").pop() || "mp4";
+      const path = `${userId}/${session.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("videos")
+        .upload(path, videoFile, { contentType: videoFile.type || "video/mp4", upsert: false });
+      if (!upErr) {
+        await supabase.from("videos").insert({
+          user_id: userId,
+          session_id: session.id,
+          athlete_id: athlete.id,
+          label: videoFile.name,
+          video_url: path,
+          status: "ready",
+        });
+      }
     }
 
     if (isHockey) {
@@ -282,8 +301,15 @@ function NewSessionPage() {
             <div className="surface flex flex-col items-center justify-center p-12 text-center">
               <Upload className="mb-3 h-8 w-8 text-[var(--text-muted)]" />
               <div className="font-semibold">Upload video (optional)</div>
-              <div className="mt-1 text-xs text-[var(--text-secondary)]">Drop a clip here or skip for now</div>
-              <input type="file" accept="video/*" className="mt-4 text-xs text-[var(--text-secondary)]" />
+              <div className="mt-1 text-xs text-[var(--text-secondary)]">
+                {videoFile ? `Selected: ${videoFile.name}` : "Drop a clip here or skip for now"}
+              </div>
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)}
+                className="mt-4 text-xs text-[var(--text-secondary)]"
+              />
               <div className="mt-6">
                 <NavBtns onBack={() => setStep(2)} onNext={() => setStep(4)} />
               </div>
