@@ -1348,3 +1348,100 @@ function DrillsSection({
     </div>
   );
 }
+
+function SpeedInsights({
+  fencingSessionId,
+  athleteId,
+  analysis,
+  onSaved,
+  onGoToVideo,
+}: {
+  fencingSessionId: string;
+  athleteId: string | null;
+  analysis: SavedAnalysis | null;
+  onSaved: () => void;
+  onGoToVideo: () => void;
+}) {
+  const generateCoaching = useServerFn(generateCoachingSummary);
+  const [coaching, setCoaching] = useState<CoachingSummary | null>(analysis?.coaching ?? null);
+  const [coachingLoading, setCoachingLoading] = useState(false);
+  const [coachingError, setCoachingError] = useState<string | null>(null);
+  const athleteQuery = useQuery({
+    queryKey: ["athlete", athleteId],
+    queryFn: () => (athleteId ? getAthlete(athleteId) : Promise.resolve(null)),
+    enabled: !!athleteId,
+  });
+
+  useEffect(() => {
+    setCoaching(analysis?.coaching ?? null);
+  }, [analysis?.coaching]);
+
+  const readings = analysis?.readings ?? [];
+
+  if (!analysis || !readings.length) {
+    return (
+      <div className="mt-6 surface flex items-center justify-between gap-4 p-4 text-xs text-[var(--text-secondary)]">
+        <span>Upload and analyze a video to see speed insights.</span>
+        <button
+          onClick={onGoToVideo}
+          className="rounded-md border border-[var(--border-default)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
+        >
+          Go to Video
+        </button>
+      </div>
+    );
+  }
+
+  const peak = readings.reduce((m, r) => Math.max(m, r.speed), 0);
+  const avg = readings.reduce((s, r) => s + r.speed, 0) / readings.length;
+  const peakAdv = readings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
+  const peakRet = readings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
+
+  async function regenerate() {
+    if (!athleteQuery.data || coachingLoading) return;
+    setCoachingLoading(true);
+    setCoachingError(null);
+    try {
+      const c = await generateCoaching({
+        data: {
+          athleteName: athleteQuery.data.name,
+          athleteAge: athleteQuery.data.age,
+          peakSpeed: peak,
+          avgSpeed: avg,
+          peakAdvance: peakAdv,
+          peakRetreat: peakRet,
+          readingCount: readings.length,
+          duration: analysis?.duration ?? 0,
+        },
+      });
+      setCoaching(c);
+      if (analysis) {
+        const payload: SavedAnalysis = { ...analysis, coaching: c, savedAt: new Date().toISOString() };
+        await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+        onSaved();
+      }
+    } catch (e: any) {
+      setCoachingError(e?.message ?? "Failed to regenerate coaching summary");
+    } finally {
+      setCoachingLoading(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 space-y-6">
+      <div className="grid gap-4 sm:grid-cols-4">
+        <BenchmarkStatCard label="Peak speed (m/s)" value={peak.toFixed(2)} numericValue={peak} benchmarkText="Elite junior fencers: 4–6 m/s. Olympic level: 6–8 m/s" eliteMin={4} />
+        <BenchmarkStatCard label="Avg speed (m/s)" value={avg.toFixed(2)} numericValue={avg} benchmarkText="Higher average means more aggressive pressure footwork. Elite avg: 1.2–2.0 m/s" eliteMin={1.2} />
+        <BenchmarkStatCard label="Peak advance (m/s)" value={peakAdv.toFixed(2)} numericValue={peakAdv} benchmarkText="Explosive advance drives attacks. Elite junior: 3.5–5.0 m/s" eliteMin={3.5} />
+        <BenchmarkStatCard label="Peak retreat (m/s)" value={peakRet.toFixed(2)} numericValue={peakRet} benchmarkText="Fast retreat indicates good defensive instincts. Elite junior: 3.0–4.5 m/s" eliteMin={3.0} />
+      </div>
+
+      <CoachingCards
+        coaching={coaching}
+        loading={coachingLoading}
+        error={coachingError}
+        onRegenerate={athleteQuery.data ? regenerate : undefined}
+      />
+    </div>
+  );
+}
