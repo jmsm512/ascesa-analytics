@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { ArrowLeft, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus } from "lucide-react";
+import { ArrowLeft, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2 } from "lucide-react";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/athletes/$id")({
