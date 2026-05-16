@@ -135,12 +135,14 @@ export const generateAthleteDrillPlan = createServerFn({ method: "POST" })
   .inputValidator((input: AthleteDrillsInput) => input)
   .handler(async ({ data }): Promise<Omit<AthleteDrillPlan, "completed">> => {
     const ageStr = data.athleteAge ? String(data.athleteAge) : "teenage";
-    const prompt = `You are an expert fencing coach. Athlete: ${data.athleteName}, age ${ageStr}, épée fencer. Aggregate performance across ${data.sessionCount} sessions: Average peak speed ${data.avgPeakSpeed.toFixed(2)} m/s, Average advance speed ${data.avgAdvanceSpeed.toFixed(2)} m/s, Average retreat speed ${data.avgRetreatSpeed.toFixed(2)} m/s, Average speed ${data.avgSpeed.toFixed(2)} m/s. Tagged action success rates: ${data.actionSuccessRates}. Elite junior benchmarks: Peak Speed 4-6 m/s, Avg Speed 1.2-2.0 m/s, Peak Advance 3.5-5.0 m/s, Peak Retreat 3.0-4.5 m/s. Based on the biggest gaps between current performance and benchmarks, and the action success rate data, prescribe exactly 3 targeted drills in priority order. For each drill: name, what weakness it addresses, step by step instructions in plain language for a 14 year old, duration or reps, and a target the athlete can measure themselves using only a phone stopwatch or a training partner — no sensors or equipment. Format as JSON: {drills: [{name: string, addresses: string, instructions: string[], duration: string, target: string, priority: 1|2|3}]}. Respond with ONLY the JSON, no markdown fences or commentary.`;
+    const prompt = `You are an expert fencing coach. Athlete: ${data.athleteName}, age ${ageStr}, épée fencer. Aggregate performance across ${data.sessionCount} sessions: Average peak speed ${data.avgPeakSpeed.toFixed(2)} m/s, Average advance speed ${data.avgAdvanceSpeed.toFixed(2)} m/s, Average retreat speed ${data.avgRetreatSpeed.toFixed(2)} m/s, Average speed ${data.avgSpeed.toFixed(2)} m/s. Tagged action success rates: ${data.actionSuccessRates}. Elite junior benchmarks: Peak Speed 4-6 m/s, Avg Speed 1.2-2.0 m/s, Peak Advance 3.5-5.0 m/s, Peak Retreat 3.0-4.5 m/s. Based on the biggest gaps between current performance and benchmarks, and the action success rate data, prescribe between 3 and 5 targeted drills in priority order. CRITICAL MIX REQUIREMENT: the set MUST include at least one drill of EACH of these kinds: "solo" (individual drill, no partner needed, can be done alone at home or in a gym, weapon optional), "partner" (requires a training partner or coach), and "footwork" (footwork-only, no weapon required). Mark each drill with a "kind" field set to exactly one of "solo", "partner", or "footwork". For each drill: name, what weakness it addresses, step by step instructions in plain language for a 14 year old, duration or reps, and a target the athlete can measure themselves using only a phone stopwatch or a training partner — no sensors or equipment. Format as JSON: {drills: [{name: string, addresses: string, instructions: string[], duration: string, target: string, priority: 1|2|3, kind: "solo"|"partner"|"footwork"}]}. Respond with ONLY the JSON, no markdown fences or commentary.`;
     const cleaned = await callAnthropic(prompt);
     const parsed = parseJsonLoose<{ drills: AthleteDrillPrescription[] }>(cleaned);
     const drills = (parsed.drills ?? []).slice(0, 5).map((d, i) => {
       const pRaw = Number(d.priority);
       const priority = (pRaw === 1 || pRaw === 2 || pRaw === 3 ? pRaw : Math.min(3, i + 1)) as 1 | 2 | 3;
+      const kRaw = String((d as { kind?: string }).kind ?? "").toLowerCase();
+      const kind: DrillKind = kRaw === "partner" ? "partner" : kRaw === "footwork" ? "footwork" : "solo";
       return {
         name: String(d.name ?? `Drill ${i + 1}`),
         addresses: String(d.addresses ?? ""),
@@ -148,6 +150,7 @@ export const generateAthleteDrillPlan = createServerFn({ method: "POST" })
         duration: String(d.duration ?? ""),
         target: String(d.target ?? ""),
         priority,
+        kind,
       };
     });
     drills.sort((a, b) => a.priority - b.priority);
