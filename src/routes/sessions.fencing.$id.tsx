@@ -832,6 +832,15 @@ function VideoSpeedAnalyzer({
 
           <CoachingCards coaching={coaching} loading={coachingLoading} error={coachingError} />
 
+          <DrillsSection
+            drills={drills}
+            loading={drillsLoading}
+            error={drillsError}
+            canGenerate={!!readings.length && !!athleteQuery.data}
+            onGenerate={handleGenerateDrills}
+            onToggleComplete={toggleDrillComplete}
+          />
+
           {dataUrl && (
             <div className="surface overflow-hidden rounded-lg p-3">
               <video
