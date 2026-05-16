@@ -95,19 +95,7 @@ function AthletePage() {
         </div>
 
         <div className="mt-6">
-          {tab === "Overview" && (
-            <div className="grid gap-4 md:grid-cols-3">
-              {benchmarks.data?.map((b: any) => (
-                <div key={b.id} className="surface p-5">
-                  <div className="metric-label">{b.metric_name.replaceAll("_", " ")}</div>
-                  <div className="metric-num-md mt-2">
-                    {b.value}
-                    <span className="ml-1 text-sm font-medium text-[var(--text-secondary)]">{b.unit}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {tab === "Overview" && a && <OverviewTab athleteId={id} athleteName={a.name} />}
 
           {tab === "Sessions" && (
             <div className="surface divide-y divide-[var(--border-subtle)] overflow-hidden">
