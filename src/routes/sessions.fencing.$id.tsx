@@ -118,7 +118,7 @@ function FencingSession() {
           </div>
         )}
 
-        {tab === "Video" && <VideoSpeedAnalyzer />}
+        {tab === "Video" && <VideoSpeedAnalyzer sessionId={id} athleteId={session?.athlete_id ?? null} existingVideoUrl={q.data?.videoUrl ?? null} />}
       </AppShell>
     </RequireAuth>
   );
