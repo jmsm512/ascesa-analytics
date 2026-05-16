@@ -214,14 +214,26 @@ function SensorChart({ title, data, dataKey }: { title: string; data: any[]; dat
 type Pt = { x: number; y: number };
 type Frame = { time: number; nx: number; ny: number; detected: boolean };
 type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
+type ActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
+type ActionTag = { id: string; time: number; action: ActionType };
 
-
+const ACTION_COLORS: Record<ActionType, string> = {
+  Attack: "#ef4444",
+  Lunge: "#f97316",
+  Parry: "#3b82f6",
+  Riposte: "#06b6d4",
+  Advance: "#22c55e",
+  Retreat: "#ec4899",
+  Touch: "#eab308",
+};
+const ACTION_TYPES: ActionType[] = ["Attack", "Lunge", "Parry", "Riposte", "Advance", "Retreat", "Touch"];
 
 type SavedAnalysis = {
   readings: Reading[];
   duration: number;
   points: Pt[];
   savedAt: string;
+  tags?: ActionTag[];
 };
 
 function VideoSpeedAnalyzer({
