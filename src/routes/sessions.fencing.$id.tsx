@@ -602,10 +602,10 @@ function VideoSpeedAnalyzer({
             </div>
           )}
           <div className="grid gap-4 sm:grid-cols-4">
-            <StatCard label="Peak speed (m/s)" value={peak.toFixed(2)} />
-            <StatCard label="Avg speed (m/s)" value={avg.toFixed(2)} />
-            <StatCard label="Peak advance (m/s)" value={peakAdv.toFixed(2)} accent="positive" />
-            <StatCard label="Peak retreat (m/s)" value={peakRet.toFixed(2)} accent="negative" />
+            <BenchmarkStatCard label="Peak speed (m/s)" value={peak.toFixed(2)} numericValue={peak} benchmarkText="Elite junior fencers: 4–6 m/s. Olympic level: 6–8 m/s" eliteMin={4} />
+            <BenchmarkStatCard label="Avg speed (m/s)" value={avg.toFixed(2)} numericValue={avg} benchmarkText="Higher average means more aggressive pressure footwork. Elite avg: 1.2–2.0 m/s" eliteMin={1.2} />
+            <BenchmarkStatCard label="Peak advance (m/s)" value={peakAdv.toFixed(2)} numericValue={peakAdv} benchmarkText="Explosive advance drives attacks. Elite junior: 3.5–5.0 m/s" eliteMin={3.5} />
+            <BenchmarkStatCard label="Peak retreat (m/s)" value={peakRet.toFixed(2)} numericValue={peakRet} benchmarkText="Fast retreat indicates good defensive instincts. Elite junior: 3.0–4.5 m/s" eliteMin={3.0} />
           </div>
 
           <div className="surface p-5">
