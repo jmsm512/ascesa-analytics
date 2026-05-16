@@ -1419,7 +1419,22 @@ function binReadings(readings: BenchReading[], bins = 20): { t: number; speed: n
   }));
 }
 
-function BenchmarksTab({ athleteId, athleteName }: { athleteId: string; athleteName: string }) {
+// Bin readings into N evenly-spaced time buckets keyed by absolute seconds
+function binByTime(readings: BenchReading[], bins = 30): { t: number; speed: number }[] {
+  if (!readings.length) return [];
+  const tMax = Math.max(...readings.map((r) => r.time));
+  const tMin = Math.min(...readings.map((r) => r.time));
+  const span = tMax - tMin || 1;
+  const buckets: number[][] = Array.from({ length: bins }, () => []);
+  for (const r of readings) {
+    const idx = Math.min(bins - 1, Math.floor(((r.time - tMin) / span) * bins));
+    buckets[idx].push(r.speed);
+  }
+  return buckets.map((b, i) => ({
+    t: +(tMin + (i / (bins - 1)) * span).toFixed(1),
+    speed: b.length ? +(b.reduce((s, x) => s + x, 0) / b.length).toFixed(2) : 0,
+  }));
+}
   const benchmarks = useQuery({
     queryKey: ["athlete-benchmarks-records", athleteId],
     queryFn: async () => {
