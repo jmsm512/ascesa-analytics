@@ -47,8 +47,15 @@ function HockeySession() {
           <div className="surface mt-4 p-6" style={{ borderLeft: "4px solid var(--hockey)" }}>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="metric-label mb-2">Hockey Sprint Session</div>
-                <h1 className="text-2xl font-bold tracking-tight">{format(new Date(session.session_date), "EEEE, MMM d")}</h1>
+                <div className="metric-label mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>Hockey Sprint Session</span>
+                  <span className="text-[var(--text-secondary)] normal-case tracking-normal">
+                    {format(new Date(session.session_date), "EEEE, MMM d")}
+                  </span>
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight">
+                  {(session as any).name?.trim() || format(new Date(session.session_date), "EEEE, MMM d")}
+                </h1>
                 <div className="mt-2 text-sm text-[var(--text-secondary)]">
                   {session.location && <>{session.location} · </>}
                   {session.notes}
