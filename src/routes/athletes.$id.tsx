@@ -268,7 +268,7 @@ function OverviewTab({ athleteId, athleteName: _athleteName }: { athleteId: stri
         />
       </div>
 
-      {d.recentFeedback && (
+      {d.recentFeedback?.feedback && (
         <div className="surface p-5" style={{ borderLeft: "3px solid var(--accent)" }}>
           <div className="metric-label mb-2 flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> Latest AI coaching observation
