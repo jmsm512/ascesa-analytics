@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
-import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals, listVideosForAthlete } from "@/lib/data";
+import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 import { generateAthleteDrillPlan, type AthleteDrillPlan, type AthleteDrillPrescription, type DrillKind } from "@/lib/coaching.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,8 +13,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { ArrowLeft, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check } from "lucide-react";
+import { ArrowLeft, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus } from "lucide-react";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/athletes/$id")({
@@ -22,7 +28,7 @@ export const Route = createFileRoute("/athletes/$id")({
   component: AthletePage,
 });
 
-const TABS = ["Overview", "Sessions", "Videos", "Progress", "Goals", "Drills"] as const;
+const TABS = ["Overview", "Sessions", "Progress", "Goals", "Drills"] as const;
 
 function AthletePage() {
   const { id } = Route.useParams();
@@ -30,8 +36,6 @@ function AthletePage() {
   const athlete = useQuery({ queryKey: ["athlete", id], queryFn: () => getAthlete(id) });
   const sessions = useQuery({ queryKey: ["sessions", id], queryFn: () => listSessionsForAthlete(id) });
   const benchmarks = useQuery({ queryKey: ["benchmarks", id], queryFn: () => getBenchmarks(id) });
-  const goals = useQuery({ queryKey: ["goals", id], queryFn: () => getGoals(id) });
-  const videos = useQuery({ queryKey: ["videos", id], queryFn: () => listVideosForAthlete(id) });
 
   const a = athlete.data;
   const accent = a?.sport === "hockey" ? "var(--hockey)" : "var(--fencing)";
@@ -123,59 +127,11 @@ function AthletePage() {
             </div>
           )}
 
-          {tab === "Videos" && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {videos.data?.length === 0 && (
-                <div className="surface col-span-full p-10 text-center text-sm text-[var(--text-secondary)]">
-                  No videos uploaded yet.
-                </div>
-              )}
-              {videos.data?.map((v: any) => (
-                <Link key={v.id} to="/videos/$id" params={{ id: v.id }} className="surface overflow-hidden hover:border-[var(--border-default)]">
-                  <div className="aspect-video bg-[var(--bg-elevated)]" />
-                  <div className="p-3">
-                    <div className="text-sm font-medium">{v.label ?? "Untitled"}</div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <span className="text-xs text-[var(--text-secondary)]">{format(new Date(v.created_at), "PP")}</span>
-                      <StatusBadge status={v.status} />
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-
           {tab === "Drills" && a && <DrillsTab athleteId={id} athleteName={a.name} athleteAge={a.age} />}
 
           {tab === "Progress" && <ProgressCharts athleteId={id} sport={a?.sport ?? "hockey"} />}
 
-          {tab === "Goals" && (
-            <div className="space-y-3">
-              {goals.data?.length === 0 && <div className="surface p-10 text-center text-sm text-[var(--text-secondary)]">No goals set.</div>}
-              {goals.data?.map((g: any) => {
-                const pct = g.target_value && g.current_value ? Math.min(100, Math.round((g.current_value / g.target_value) * 100)) : 0;
-                return (
-                  <div key={g.id} className="surface p-5">
-                    <div className="flex items-baseline justify-between">
-                      <div>
-                        <div className="text-sm font-semibold capitalize">{g.metric_name}</div>
-                        <div className="text-xs text-[var(--text-secondary)]">
-                          Target: {g.target_value}{g.unit ? ` ${g.unit}` : ""} {g.target_date ? `· by ${format(new Date(g.target_date), "PP")}` : ""}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium">{g.current_value}{g.unit ? ` ${g.unit}` : ""}</div>
-                        <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">current</div>
-                      </div>
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-                      <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {tab === "Goals" && <GoalsTab athleteId={id} />}
         </div>
       </AppShell>
     </RequireAuth>
@@ -663,6 +619,254 @@ function DrillsTab({ athleteId, athleteName, athleteAge }: { athleteId: string; 
                 className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
               >
                 <Sparkles className="h-3.5 w-3.5" /> Generate Drills
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============= Goals Tab =============
+
+type GoalMetricKey = "peak_speed" | "avg_speed" | "peak_advance" | "peak_retreat" | "bout_win_rate";
+
+const GOAL_METRICS: { key: GoalMetricKey; label: string; unit: string }[] = [
+  { key: "peak_speed", label: "Peak Speed", unit: "m/s" },
+  { key: "avg_speed", label: "Avg Speed", unit: "m/s" },
+  { key: "peak_advance", label: "Peak Advance", unit: "m/s" },
+  { key: "peak_retreat", label: "Peak Retreat", unit: "m/s" },
+  { key: "bout_win_rate", label: "Bout Win Rate", unit: "%" },
+];
+
+async function loadGoalCurrents(athleteId: string): Promise<Record<GoalMetricKey, number>> {
+  const { data: sess } = await supabase
+    .from("sessions")
+    .select("id")
+    .eq("athlete_id", athleteId);
+  const sessionIds = (sess ?? []).map((s) => s.id);
+  const result: Record<GoalMetricKey, number> = {
+    peak_speed: 0,
+    avg_speed: 0,
+    peak_advance: 0,
+    peak_retreat: 0,
+    bout_win_rate: 0,
+  };
+  if (!sessionIds.length) return result;
+
+  const { data: fsRows } = await supabase
+    .from("fencing_sessions")
+    .select("speed_analysis, result")
+    .in("session_id", sessionIds);
+  const rows = fsRows ?? [];
+
+  const peakSpeeds: number[] = [];
+  const advanceSpeeds: number[] = [];
+  const retreatSpeeds: number[] = [];
+  const allSpeeds: number[] = [];
+
+  for (const r of rows) {
+    const readings = (r as any)?.speed_analysis?.readings as Array<{ speed: number; direction: string }> | undefined;
+    if (!readings?.length) continue;
+    const speeds = readings.map((x) => x.speed);
+    peakSpeeds.push(Math.max(...speeds));
+    allSpeeds.push(...speeds);
+    const adv = readings.filter((x) => x.direction === "advance").map((x) => x.speed);
+    if (adv.length) advanceSpeeds.push(Math.max(...adv));
+    const ret = readings.filter((x) => x.direction === "retreat").map((x) => x.speed);
+    if (ret.length) retreatSpeeds.push(Math.max(...ret));
+  }
+  const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
+  result.peak_speed = peakSpeeds.length ? Math.max(...peakSpeeds) : 0;
+  result.avg_speed = mean(allSpeeds);
+  result.peak_advance = advanceSpeeds.length ? Math.max(...advanceSpeeds) : 0;
+  result.peak_retreat = retreatSpeeds.length ? Math.max(...retreatSpeeds) : 0;
+
+  const withResult = rows.filter((r: any) => r.result === "win" || r.result === "loss");
+  if (withResult.length) {
+    const wins = withResult.filter((r: any) => r.result === "win").length;
+    result.bout_win_rate = Math.round((wins / withResult.length) * 100);
+  }
+  return result;
+}
+
+function GoalsTab({ athleteId }: { athleteId: string }) {
+  const goals = useQuery({ queryKey: ["goals", athleteId], queryFn: () => getGoals(athleteId) });
+  const currents = useQuery({ queryKey: ["goal-currents", athleteId], queryFn: () => loadGoalCurrents(athleteId) });
+  const [open, setOpen] = useState(false);
+  const [metric, setMetric] = useState<GoalMetricKey>("peak_speed");
+  const [target, setTarget] = useState("");
+  const [date, setDate] = useState<Date | undefined>(undefined);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  function resetForm() {
+    setMetric("peak_speed");
+    setTarget("");
+    setDate(undefined);
+    setErr(null);
+  }
+
+  async function saveGoal() {
+    setErr(null);
+    const targetNum = Number(target);
+    if (!Number.isFinite(targetNum) || targetNum <= 0) {
+      setErr("Enter a valid target value.");
+      return;
+    }
+    const def = GOAL_METRICS.find((m) => m.key === metric)!;
+    setSaving(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u.user?.id;
+      if (!userId) throw new Error("Not authenticated");
+      const cur = currents.data?.[metric] ?? 0;
+      const { error } = await supabase.from("athlete_goals").insert({
+        athlete_id: athleteId,
+        user_id: userId,
+        metric_name: def.label,
+        target_value: targetNum,
+        current_value: cur,
+        unit: def.unit,
+        target_date: date ? format(date, "yyyy-MM-dd") : null,
+      });
+      if (error) throw error;
+      setOpen(false);
+      resetForm();
+      await goals.refetch();
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to save goal");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function currentFor(metricName: string): number | null {
+    const def = GOAL_METRICS.find((m) => m.label === metricName);
+    if (!def || !currents.data) return null;
+    return currents.data[def.key];
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-[var(--text-secondary)]">
+          {goals.data?.length ?? 0} goal{(goals.data?.length ?? 0) === 1 ? "" : "s"}
+        </div>
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add Goal
+        </button>
+      </div>
+
+      {goals.data?.length === 0 && (
+        <div className="surface p-10 text-center">
+          <div className="text-sm text-[var(--text-secondary)]">No goals set yet.</div>
+          <button
+            onClick={() => setOpen(true)}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Goal
+          </button>
+        </div>
+      )}
+
+      {goals.data?.map((g: any) => {
+        const live = currentFor(g.metric_name);
+        const current = live ?? Number(g.current_value ?? 0);
+        const pct = g.target_value ? Math.min(100, Math.round((current / Number(g.target_value)) * 100)) : 0;
+        return (
+          <div key={g.id} className="surface p-5">
+            <div className="flex items-baseline justify-between">
+              <div>
+                <div className="text-sm font-semibold capitalize">{g.metric_name}</div>
+                <div className="text-xs text-[var(--text-secondary)]">
+                  Target: {g.target_value}{g.unit ? ` ${g.unit}` : ""} {g.target_date ? `· by ${format(new Date(g.target_date), "PP")}` : ""}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-medium">{Number.isFinite(current) ? current.toFixed(current < 10 ? 2 : 0) : "—"}{g.unit ? ` ${g.unit}` : ""}</div>
+                <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">current</div>
+              </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+              <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
+        <DialogContent className="bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-primary)]">
+          <DialogHeader>
+            <DialogTitle>Add Goal</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div className="space-y-1.5">
+              <Label>Metric</Label>
+              <Select value={metric} onValueChange={(v) => setMetric(v as GoalMetricKey)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GOAL_METRICS.map((m) => (
+                    <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="target">Target value ({GOAL_METRICS.find((m) => m.key === metric)?.unit})</Label>
+              <Input
+                id="target"
+                type="number"
+                inputMode="decimal"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder="e.g. 4.0"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Target date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            {err && <div className="text-xs text-[var(--data-negative)]">{err}</div>}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => { setOpen(false); resetForm(); }}
+                className="rounded-md px-3 py-2 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveGoal}
+                disabled={saving || !target}
+                className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save Goal"}
               </button>
             </div>
           </div>
