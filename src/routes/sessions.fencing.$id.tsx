@@ -228,6 +228,13 @@ const ACTION_COLORS: Record<ActionType, string> = {
 };
 const ACTION_TYPES: ActionType[] = ["Attack", "Lunge", "Parry", "Riposte", "Advance", "Retreat", "Touch"];
 
+const ACTION_BENCHMARKS: Record<string, { metric: "peak" | "avg"; eliteMin: number; eliteMax: number; label: string }> = {
+  Lunge: { metric: "peak", eliteMin: 3.5, eliteMax: 5.0, label: "Elite junior: 3.5–5.0 m/s" },
+  Attack: { metric: "peak", eliteMin: 3.0, eliteMax: 4.5, label: "Elite junior: 3.0–4.5 m/s" },
+  Advance: { metric: "avg", eliteMin: 1.5, eliteMax: 2.5, label: "Elite junior: 1.5–2.5 m/s" },
+  Retreat: { metric: "peak", eliteMin: 3.0, eliteMax: 4.5, label: "Elite junior: 3.0–4.5 m/s" },
+};
+
 type SavedAnalysis = {
   readings: Reading[];
   duration: number;
