@@ -729,6 +729,8 @@ function VideoSpeedAnalyzer({
             <BenchmarkStatCard label="Peak retreat (m/s)" value={peakRet.toFixed(2)} numericValue={peakRet} benchmarkText="Fast retreat indicates good defensive instincts. Elite junior: 3.0–4.5 m/s" eliteMin={3.0} />
           </div>
 
+          <CoachingCards coaching={coaching} loading={coachingLoading} error={coachingError} />
+
           {dataUrl && (
             <div className="surface overflow-hidden rounded-lg p-3">
               <video
