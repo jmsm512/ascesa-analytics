@@ -465,6 +465,7 @@ export type Database = {
           created_at: string
           id: string
           location: string | null
+          name: string | null
           notes: string | null
           session_date: string
           session_type: string
@@ -476,6 +477,7 @@ export type Database = {
           created_at?: string
           id?: string
           location?: string | null
+          name?: string | null
           notes?: string | null
           session_date?: string
           session_type: string
@@ -487,6 +489,7 @@ export type Database = {
           created_at?: string
           id?: string
           location?: string | null
+          name?: string | null
           notes?: string | null
           session_date?: string
           session_type?: string
