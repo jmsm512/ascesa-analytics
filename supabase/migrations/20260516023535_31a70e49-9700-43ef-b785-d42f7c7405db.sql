@@ -1,0 +1,1 @@
+ALTER TABLE public.fencing_sessions ADD COLUMN IF NOT EXISTS speed_analysis JSONB;

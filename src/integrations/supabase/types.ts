@@ -233,6 +233,7 @@ export type Database = {
           opponent: string | null
           result: string | null
           session_id: string
+          speed_analysis: Json | null
           touches_received: number | null
           touches_scored: number | null
           user_id: string
@@ -244,6 +245,7 @@ export type Database = {
           opponent?: string | null
           result?: string | null
           session_id: string
+          speed_analysis?: Json | null
           touches_received?: number | null
           touches_scored?: number | null
           user_id: string
@@ -255,6 +257,7 @@ export type Database = {
           opponent?: string | null
           result?: string | null
           session_id?: string
+          speed_analysis?: Json | null
           touches_received?: number | null
           touches_scored?: number | null
           user_id?: string
