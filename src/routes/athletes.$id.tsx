@@ -944,3 +944,749 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
     </div>
   );
 }
+
+// ============= Benchmarks Tab =============
+
+type BenchPt = { x: number; y: number };
+type BenchReading = { time: number; speed: number; direction: "advance" | "retreat" };
+type BenchFrame = { time: number; nx: number; ny: number; detected: boolean };
+type BenchAnalysis = {
+  readings: BenchReading[];
+  duration: number;
+  points: BenchPt[];
+  videoPath?: string | null;
+};
+
+const BENCHMARK_COLOR = "#f59e0b";
+const RIE_COLOR = "var(--fencing)";
+
+function benchUid() {
+  return (typeof crypto !== "undefined" && (crypto as any).randomUUID?.()) || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function extractBenchFirstFrame(url: string): Promise<{ frame: string; dur: number }> {
+  return new Promise((resolve, reject) => {
+    const v = document.createElement("video");
+    v.preload = "auto";
+    v.muted = true;
+    v.playsInline = true;
+    v.crossOrigin = "anonymous";
+    v.src = url;
+    v.addEventListener("loadeddata", () => { v.currentTime = 0.05; });
+    v.addEventListener("seeked", () => {
+      const c = document.createElement("canvas");
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      const ctx = c.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas 2D unavailable"));
+      ctx.drawImage(v, 0, 0);
+      resolve({ frame: c.toDataURL("image/jpeg", 0.9), dur: v.duration });
+    }, { once: true });
+    v.addEventListener("error", () => reject(new Error("Video load error")));
+  });
+}
+
+async function aggregateAthleteStats(athleteId: string) {
+  const { data: sess } = await supabase.from("sessions").select("id").eq("athlete_id", athleteId);
+  const sessionIds = (sess ?? []).map((s) => s.id);
+  const result = {
+    peakSpeed: 0,
+    avgSpeed: 0,
+    peakAdvance: 0,
+    peakRetreat: 0,
+    readings: [] as BenchReading[],
+  };
+  if (!sessionIds.length) return result;
+  const { data: fsRows } = await supabase
+    .from("fencing_sessions")
+    .select("speed_analysis")
+    .in("session_id", sessionIds);
+  const peaks: number[] = [];
+  const advPeaks: number[] = [];
+  const retPeaks: number[] = [];
+  const all: number[] = [];
+  const allReadings: BenchReading[] = [];
+  for (const r of (fsRows ?? []) as any[]) {
+    const readings = r?.speed_analysis?.readings as BenchReading[] | undefined;
+    if (!readings?.length) continue;
+    const speeds = readings.map((x) => x.speed);
+    peaks.push(Math.max(...speeds));
+    all.push(...speeds);
+    const adv = readings.filter((x) => x.direction === "advance").map((x) => x.speed);
+    if (adv.length) advPeaks.push(Math.max(...adv));
+    const ret = readings.filter((x) => x.direction === "retreat").map((x) => x.speed);
+    if (ret.length) retPeaks.push(Math.max(...ret));
+    allReadings.push(...readings);
+  }
+  const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
+  result.peakSpeed = mean(peaks);
+  result.avgSpeed = mean(all);
+  result.peakAdvance = mean(advPeaks);
+  result.peakRetreat = mean(retPeaks);
+  result.readings = allReadings;
+  return result;
+}
+
+function statsFromReadings(readings: BenchReading[]) {
+  if (!readings.length) return { peakSpeed: 0, avgSpeed: 0, peakAdvance: 0, peakRetreat: 0 };
+  const speeds = readings.map((r) => r.speed);
+  const adv = readings.filter((r) => r.direction === "advance").map((r) => r.speed);
+  const ret = readings.filter((r) => r.direction === "retreat").map((r) => r.speed);
+  const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
+  return {
+    peakSpeed: Math.max(...speeds),
+    avgSpeed: mean(speeds),
+    peakAdvance: adv.length ? Math.max(...adv) : 0,
+    peakRetreat: ret.length ? Math.max(...ret) : 0,
+  };
+}
+
+// Bin readings into N evenly-spaced buckets across normalized 0..100% timeline
+function binReadings(readings: BenchReading[], bins = 20): { t: number; speed: number }[] {
+  if (!readings.length) return [];
+  const tMax = Math.max(...readings.map((r) => r.time));
+  const tMin = Math.min(...readings.map((r) => r.time));
+  const span = tMax - tMin || 1;
+  const buckets: number[][] = Array.from({ length: bins }, () => []);
+  for (const r of readings) {
+    const idx = Math.min(bins - 1, Math.floor(((r.time - tMin) / span) * bins));
+    buckets[idx].push(r.speed);
+  }
+  return buckets.map((b, i) => ({
+    t: Math.round((i / (bins - 1)) * 100),
+    speed: b.length ? b.reduce((s, x) => s + x, 0) / b.length : 0,
+  }));
+}
+
+function BenchmarksTab({ athleteId, athleteName }: { athleteId: string; athleteName: string }) {
+  const benchmarks = useQuery({
+    queryKey: ["athlete-benchmarks-records", athleteId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("benchmarks" as any)
+        .select("*")
+        .eq("athlete_id", athleteId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+  const athleteStats = useQuery({
+    queryKey: ["athlete-aggregate-stats", athleteId],
+    queryFn: () => aggregateAthleteStats(athleteId),
+  });
+
+  const list = benchmarks.data ?? [];
+  const primary = list[0];
+  const additional = list.slice(1, 3);
+  const canAddMore = list.length < 3;
+
+  async function addBenchmark() {
+    const { data: u } = await supabase.auth.getUser();
+    const userId = u.user?.id;
+    if (!userId) return;
+    const defaultName = list.length === 0 ? "Benchmark Fencer" : `Benchmark ${list.length + 1}`;
+    const { error } = await supabase.from("benchmarks" as any).insert({
+      athlete_id: athleteId,
+      user_id: userId,
+      name: defaultName,
+    });
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    await benchmarks.refetch();
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Benchmarks</h2>
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">
+            Upload footage of elite fencers to compare against {athleteName || "this athlete"}'s data.
+          </p>
+        </div>
+        {canAddMore && (
+          <button
+            onClick={addBenchmark}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Benchmark
+          </button>
+        )}
+      </div>
+
+      {list.length === 0 && (
+        <div className="surface p-10 text-center">
+          <div className="text-sm text-[var(--text-secondary)]">No benchmarks yet.</div>
+          <button
+            onClick={addBenchmark}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Primary Benchmark
+          </button>
+        </div>
+      )}
+
+      {primary && (
+        <BenchmarkCard
+          benchmark={primary}
+          isPrimary
+          onUpdated={() => benchmarks.refetch()}
+        />
+      )}
+      {additional.map((b) => (
+        <BenchmarkCard key={b.id} benchmark={b} onUpdated={() => benchmarks.refetch()} />
+      ))}
+
+      {primary?.speed_analysis?.readings?.length > 0 && athleteStats.data && (
+        <ComparisonSection
+          athleteName={athleteName}
+          athleteStats={athleteStats.data}
+          benchmarks={list.filter((b: any) => b.speed_analysis?.readings?.length > 0)}
+        />
+      )}
+    </div>
+  );
+}
+
+function BenchmarkCard({
+  benchmark,
+  isPrimary,
+  onUpdated,
+}: {
+  benchmark: any;
+  isPrimary?: boolean;
+  onUpdated: () => void;
+}) {
+  const analysis: BenchAnalysis | null = benchmark.speed_analysis ?? null;
+  const hasResults = !!analysis?.readings?.length;
+
+  type Stage = "upload" | "extracting" | "calibrate" | "analyzing" | "results";
+  const [stage, setStage] = useState<Stage>(hasResults ? "results" : "upload");
+  const [name, setName] = useState<string>(benchmark.name ?? "");
+  const [notes, setNotes] = useState<string>(benchmark.notes ?? "");
+  const [savingMeta, setSavingMeta] = useState(false);
+
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [firstFrame, setFirstFrame] = useState<string | null>(null);
+  const [duration, setDuration] = useState(analysis?.duration ?? 0);
+  const [points, setPoints] = useState<BenchPt[]>(analysis?.points ?? []);
+  const [progress, setProgress] = useState({ cur: 0, total: 0 });
+  const [readings, setReadings] = useState<BenchReading[]>(analysis?.readings ?? []);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  async function saveMeta() {
+    setSavingMeta(true);
+    try {
+      await supabase
+        .from("benchmarks" as any)
+        .update({ name: name.trim() || "Untitled Benchmark", notes: notes.trim() || null })
+        .eq("id", benchmark.id);
+      onUpdated();
+    } finally {
+      setSavingMeta(false);
+    }
+  }
+
+  async function deleteBenchmark() {
+    if (!confirm("Delete this benchmark and its analysis?")) return;
+    await supabase.from("benchmarks" as any).delete().eq("id", benchmark.id);
+    onUpdated();
+  }
+
+  async function persistVideo(file: File): Promise<string | null> {
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u.user?.id;
+      if (!userId) return null;
+      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+      const path = `${userId}/benchmarks/${benchmark.id}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("videos")
+        .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
+      if (upErr) {
+        console.error("benchmark video upload failed", upErr);
+        return null;
+      }
+      return path;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  }
+
+  function onFile(file: File) {
+    setError(null);
+    setStage("extracting");
+    setPendingFile(file);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const url = reader.result as string;
+      setDataUrl(url);
+      try {
+        const { frame, dur } = await extractBenchFirstFrame(url);
+        setFirstFrame(frame);
+        setDuration(dur);
+        setPoints([]);
+        setStage("calibrate");
+      } catch (e: any) {
+        setError(e?.message ?? "Failed to extract frame");
+        setStage("upload");
+      }
+    };
+    reader.onerror = () => {
+      setError("Failed to read file");
+      setStage("upload");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function onImgClick(e: React.MouseEvent<HTMLImageElement>) {
+    if (points.length >= 2) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    setPoints([...points, { x, y }]);
+  }
+
+  async function runAnalysis() {
+    if (!dataUrl || points.length < 2) return;
+    setStage("analyzing");
+    setError(null);
+    try {
+      const v = document.createElement("video");
+      v.muted = true;
+      v.playsInline = true;
+      v.src = dataUrl;
+      await new Promise<void>((res, rej) => {
+        v.addEventListener("loadeddata", () => res(), { once: true });
+        v.addEventListener("error", () => rej(new Error("Video error")), { once: true });
+      });
+      const c = document.createElement("canvas");
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      const ctx = c.getContext("2d")!;
+
+      const fileset = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
+      );
+      const poseLandmarker = await PoseLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numPoses: 1,
+      });
+
+      const step = 0.3;
+      const times: number[] = [];
+      for (let t = 0; t < v.duration; t += step) times.push(t);
+      setProgress({ cur: 0, total: times.length });
+
+      const frames: BenchFrame[] = [];
+      for (let i = 0; i < times.length; i++) {
+        const t = times[i];
+        await new Promise<void>((res) => {
+          v.addEventListener("seeked", () => res(), { once: true });
+          v.currentTime = t;
+        });
+        ctx.drawImage(v, 0, 0);
+        try {
+          const result = poseLandmarker.detectForVideo(c, Math.round(t * 1000));
+          const lm = result.landmarks?.[0];
+          if (lm && lm[23] && lm[24]) {
+            const nx = (lm[23].x + lm[24].x) / 2;
+            const ny = (lm[23].y + lm[24].y) / 2;
+            frames.push({ time: t, nx, ny, detected: true });
+          } else {
+            frames.push({ time: t, nx: 0, ny: 0, detected: false });
+          }
+        } catch {
+          frames.push({ time: t, nx: 0, ny: 0, detected: false });
+        }
+        setProgress({ cur: i + 1, total: times.length });
+      }
+      poseLandmarker.close();
+
+      const W = v.videoWidth, H = v.videoHeight;
+      const p0 = { x: points[0].x * W, y: points[0].y * H };
+      const p1 = { x: points[1].x * W, y: points[1].y * H };
+      const axis = { x: p1.x - p0.x, y: p1.y - p0.y };
+      const axisLen = Math.hypot(axis.x, axis.y);
+      const ux = axis.x / axisLen;
+      const uy = axis.y / axisLen;
+      const mPerPx = 14 / axisLen;
+
+      const out: BenchReading[] = [];
+      const detected = frames.filter((f) => f.detected);
+      for (let i = 1; i < detected.length; i++) {
+        const a = detected[i - 1];
+        const b = detected[i];
+        const dx = (b.nx - a.nx) * W;
+        const dy = (b.ny - a.ny) * H;
+        const proj = dx * ux + dy * uy;
+        const dt = b.time - a.time;
+        if (dt <= 0) continue;
+        const speed = Math.abs(proj * mPerPx) / dt;
+        if (speed < 0.05 || speed > 10) continue;
+        out.push({
+          time: b.time,
+          speed,
+          direction: proj >= 0 ? "advance" : "retreat",
+        });
+      }
+      setReadings(out);
+      setStage("results");
+
+      let videoPath: string | null = analysis?.videoPath ?? null;
+      if (pendingFile) {
+        const newPath = await persistVideo(pendingFile);
+        if (newPath) videoPath = newPath;
+      }
+      const payload: BenchAnalysis = {
+        readings: out,
+        duration: v.duration,
+        points,
+        videoPath,
+      };
+      await supabase.from("benchmarks" as any).update({ speed_analysis: payload }).eq("id", benchmark.id);
+      onUpdated();
+    } catch (e: any) {
+      setError(e?.message ?? "Analysis failed");
+      setStage("calibrate");
+    }
+  }
+
+  async function resetAnalysis() {
+    if (!confirm("Reset this benchmark's video and analysis?")) return;
+    setStage("upload");
+    setDataUrl(null);
+    setFirstFrame(null);
+    setDuration(0);
+    setPoints([]);
+    setReadings([]);
+    setProgress({ cur: 0, total: 0 });
+    setError(null);
+    await supabase.from("benchmarks" as any).update({ speed_analysis: null }).eq("id", benchmark.id);
+    onUpdated();
+  }
+
+  const stats = statsFromReadings(readings);
+
+  return (
+    <div className="surface overflow-hidden" style={{ borderLeft: `4px solid ${BENCHMARK_COLOR}` }}>
+      <div className="border-b border-[var(--border-subtle)] p-5 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 space-y-2">
+            <div className="metric-label">{isPrimary ? "Primary Benchmark" : "Additional Benchmark"}</div>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={saveMeta}
+              placeholder='e.g. "Nathalie Moellhausen — Olympic Bronze"'
+              className="font-semibold"
+            />
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={saveMeta}
+              placeholder="Notes (optional)"
+            />
+          </div>
+          <button
+            onClick={deleteBenchmark}
+            title="Delete benchmark"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+        {savingMeta && <div className="text-[10px] text-[var(--text-muted)]">Saving…</div>}
+      </div>
+
+      <div className="space-y-6 p-5">
+        {error && (
+          <div className="rounded-md border border-[var(--data-negative)]/40 bg-[var(--data-negative)]/10 p-3 text-sm text-[var(--data-negative)]">
+            {error}
+          </div>
+        )}
+
+        {stage === "upload" && (
+          <label
+            className="surface flex cursor-pointer flex-col items-center justify-center gap-3 p-10 text-center transition-colors hover:border-[var(--accent)]"
+            style={{ borderWidth: 2, borderStyle: "dashed" }}
+          >
+            <Upload className="h-7 w-7 text-[var(--text-secondary)]" />
+            <div className="text-sm font-medium">Upload benchmark video</div>
+            <div className="text-xs text-[var(--text-secondary)]">MP4, MOV, WebM — analysed in your browser</div>
+            <input
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+            />
+          </label>
+        )}
+
+        {stage === "extracting" && (
+          <div className="surface grid place-items-center p-12 text-sm text-[var(--text-secondary)]">
+            Extracting first frame…
+          </div>
+        )}
+
+        {stage === "calibrate" && firstFrame && (
+          <div className="surface p-5">
+            <div className="metric-label mb-2">Calibrate the piste</div>
+            <p className="mb-4 text-xs text-[var(--text-secondary)]">
+              Click the <span style={{ color: "var(--accent)" }}>0m end</span>, then the{" "}
+              <span style={{ color: BENCHMARK_COLOR }}>14m end</span>. Duration: {duration.toFixed(1)}s.
+            </p>
+            <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
+              <img
+                src={firstFrame}
+                alt="First frame"
+                onClick={onImgClick}
+                style={{ maxWidth: "100%", display: "block", cursor: points.length < 2 ? "crosshair" : "default" }}
+              />
+              {points.map((p, i) => (
+                <div
+                  key={i}
+                  style={{
+                    position: "absolute",
+                    left: `${p.x * 100}%`,
+                    top: `${p.y * 100}%`,
+                    width: 14,
+                    height: 14,
+                    borderRadius: "50%",
+                    background: i === 0 ? "var(--accent)" : BENCHMARK_COLOR,
+                    border: "2px solid white",
+                    transform: "translate(-50%, -50%)",
+                    pointerEvents: "none",
+                    boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+                  }}
+                />
+              ))}
+            </div>
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => setPoints([])}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Reset
+              </button>
+              {points.length === 2 && (
+                <button
+                  onClick={runAnalysis}
+                  className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90"
+                >
+                  Confirm — Analyze Video
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {stage === "analyzing" && (
+          <div className="surface p-6 text-center text-sm text-[var(--text-secondary)]">
+            Analyzing pose… {progress.cur}/{progress.total} frames
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+              <div
+                className="h-full bg-[var(--accent)] transition-all"
+                style={{ width: `${progress.total ? (progress.cur / progress.total) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {stage === "results" && readings.length > 0 && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <BenchStatBox label="Peak Speed" value={stats.peakSpeed} unit="m/s" />
+              <BenchStatBox label="Avg Speed" value={stats.avgSpeed} unit="m/s" />
+              <BenchStatBox label="Peak Advance" value={stats.peakAdvance} unit="m/s" />
+              <BenchStatBox label="Peak Retreat" value={stats.peakRetreat} unit="m/s" />
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={resetAnalysis}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Re-upload
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BenchStatBox({ label, value, unit }: { label: string; value: number; unit: string }) {
+  return (
+    <div className="surface p-4">
+      <div className="metric-label">{label}</div>
+      <div className="mt-1 text-2xl font-bold tabular-nums">
+        {value.toFixed(2)}
+        <span className="ml-1 text-sm font-medium text-[var(--text-secondary)]">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+function ComparisonSection({
+  athleteName,
+  athleteStats,
+  benchmarks,
+}: {
+  athleteName: string;
+  athleteStats: { peakSpeed: number; avgSpeed: number; peakAdvance: number; peakRetreat: number; readings: BenchReading[] };
+  benchmarks: any[];
+}) {
+  const primary = benchmarks[0];
+  if (!primary) return null;
+  const primaryStats = statsFromReadings(primary.speed_analysis.readings as BenchReading[]);
+
+  const metrics: { key: keyof typeof primaryStats; label: string }[] = [
+    { key: "peakSpeed", label: "Peak Speed" },
+    { key: "avgSpeed", label: "Avg Speed" },
+    { key: "peakAdvance", label: "Peak Advance" },
+    { key: "peakRetreat", label: "Peak Retreat" },
+  ];
+
+  const athleteBins = binReadings(athleteStats.readings);
+  const benchBins = binReadings(primary.speed_analysis.readings as BenchReading[]);
+  const merged: any[] = [];
+  const len = Math.max(athleteBins.length, benchBins.length);
+  for (let i = 0; i < len; i++) {
+    merged.push({
+      t: athleteBins[i]?.t ?? benchBins[i]?.t ?? Math.round((i / (len - 1)) * 100),
+      athlete: athleteBins[i]?.speed ?? null,
+      benchmark: benchBins[i]?.speed ?? null,
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Comparison</h3>
+        <p className="mt-1 text-xs text-[var(--text-secondary)]">
+          {athleteName || "Athlete"}'s average across all sessions vs. {primary.name}.
+        </p>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        {metrics.map((m) => (
+          <ComparisonCard
+            key={m.key}
+            label={m.label}
+            athleteValue={athleteStats[m.key] as number}
+            benchmarkValue={primaryStats[m.key]}
+          />
+        ))}
+      </div>
+
+      <div className="surface p-5">
+        <div className="metric-label mb-3">Speed Profile Overlay</div>
+        <div className="h-72">
+          <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={merged} margin={{ top: 10, right: 10, bottom: 5, left: -10 }}>
+                <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+                <XAxis
+                  dataKey="t"
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  label={{ value: "Bout progression (%)", position: "insideBottom", offset: -2, fill: "var(--text-secondary)", fontSize: 11 }}
+                />
+                <YAxis
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  label={{ value: "Speed (m/s)", angle: -90, position: "insideLeft", fill: "var(--text-secondary)", fontSize: 11 }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(v: any) => (typeof v === "number" ? `${v.toFixed(2)} m/s` : v)}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line
+                  type="monotone"
+                  dataKey="athlete"
+                  name={athleteName || "Athlete"}
+                  stroke={RIE_COLOR}
+                  strokeWidth={2.5}
+                  dot={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="benchmark"
+                  name={primary.name}
+                  stroke={BENCHMARK_COLOR}
+                  strokeWidth={2.5}
+                  dot={false}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </ClientOnly>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ComparisonCard({
+  label,
+  athleteValue,
+  benchmarkValue,
+}: {
+  label: string;
+  athleteValue: number;
+  benchmarkValue: number;
+}) {
+  const gap = athleteValue - benchmarkValue;
+  const pctGap = benchmarkValue > 0 ? (gap / benchmarkValue) * 100 : 0;
+  // pctGap negative => below benchmark
+  let color = "var(--data-positive, #10b981)";
+  let tone = "bg-emerald-500/10 text-emerald-400";
+  if (pctGap < -30) {
+    color = "var(--data-negative)";
+    tone = "bg-rose-500/10 text-rose-400";
+  } else if (pctGap < -10) {
+    color = "#f59e0b";
+    tone = "bg-amber-500/10 text-amber-400";
+  }
+  return (
+    <div className="surface p-4">
+      <div className="metric-label">{label}</div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Athlete</div>
+          <div className="text-lg font-bold tabular-nums">{athleteValue.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">Benchmark</div>
+          <div className="text-lg font-bold tabular-nums" style={{ color: BENCHMARK_COLOR }}>{benchmarkValue.toFixed(2)}</div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs">
+        <span className="text-[var(--text-secondary)]">Gap</span>
+        <span className={`rounded-full px-2 py-0.5 font-semibold tabular-nums ${tone}`}>
+          {gap >= 0 ? "+" : ""}{gap.toFixed(2)} m/s ({pctGap >= 0 ? "+" : ""}{pctGap.toFixed(0)}%)
+        </span>
+      </div>
+    </div>
+  );
+}
