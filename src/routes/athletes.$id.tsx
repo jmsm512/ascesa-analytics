@@ -203,6 +203,13 @@ async function loadOverviewData(athleteId: string) {
     recentFeedback = fb?.[0] ?? null;
   }
 
+  // FencingTracker cache + URL
+  const { data: ath } = await supabase
+    .from("athletes")
+    .select("fencing_tracker_url, fencing_tracker_data, fencing_tracker_updated_at")
+    .eq("id", athleteId)
+    .maybeSingle();
+
   const recent = sessions.slice(0, 3).map((s) => {
     const fs = fsBySession.get(s.id);
     const readings = fs?.speed_analysis?.readings as Array<{ speed: number }> | undefined;
@@ -229,10 +236,13 @@ async function loadOverviewData(athleteId: string) {
     boutCount: resulted.length,
     recentFeedback,
     recent,
+    fencingTrackerUrl: (ath?.fencing_tracker_url ?? null) as string | null,
+    fencingTrackerData: (ath?.fencing_tracker_data ?? null) as import("@/lib/data").FencingTrackerData | null,
+    fencingTrackerUpdatedAt: (ath?.fencing_tracker_updated_at ?? null) as string | null,
   };
 }
 
-function OverviewTab({ athleteId, athleteName: _athleteName }: { athleteId: string; athleteName: string }) {
+function OverviewTab({ athleteId, athleteName: _athleteName, sport }: { athleteId: string; athleteName: string; sport: "hockey" | "fencing" }) {
   const q = useQuery({ queryKey: ["overview", athleteId], queryFn: () => loadOverviewData(athleteId) });
   const d = q.data;
 
@@ -240,7 +250,7 @@ function OverviewTab({ athleteId, athleteName: _athleteName }: { athleteId: stri
     return <div className="surface p-6 text-sm text-[var(--text-secondary)]">Loading overview…</div>;
   }
 
-  if (d.totalSessions === 0) {
+  if (d.totalSessions === 0 && sport !== "fencing") {
     return (
       <div className="surface flex flex-col items-center gap-4 px-6 py-16 text-center">
         <div className="text-base font-medium">No sessions yet — let's change that.</div>
@@ -262,18 +272,72 @@ function OverviewTab({ athleteId, athleteName: _athleteName }: { athleteId: stri
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <OverviewStat label="Sessions analyzed" value={`${d.analyzedCount}`} sub={`${d.totalSessions} total`} />
-        <OverviewStat label="Avg peak speed" value={fmt(d.avgPeak)} />
-        <OverviewStat label="Avg advance" value={fmt(d.avgAdvance)} />
-        <OverviewStat label="Avg retreat" value={fmt(d.avgRetreat)} />
-        <OverviewStat
-          label="Bout win rate"
-          value={d.winRate == null ? "—" : `${d.winRate}%`}
-          sub={d.boutCount ? `${d.winCount}W / ${d.boutCount - d.winCount}L` : undefined}
+      {/* TOP: FencingTracker competition data */}
+      {sport === "fencing" && (
+        <FencingTrackerSection
+          athleteId={athleteId}
+          url={d.fencingTrackerUrl}
+          data={d.fencingTrackerData}
+          updatedAt={d.fencingTrackerUpdatedAt}
         />
-      </div>
+      )}
 
+      {/* MIDDLE: aggregate Ascesa IQ speed stats */}
+      {d.totalSessions === 0 ? (
+        <div className="surface flex flex-col items-center gap-3 px-6 py-10 text-center">
+          <div className="text-sm font-medium">No Ascesa IQ sessions yet.</div>
+          <Link
+            to="/sessions/new"
+            search={{ athlete: athleteId }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#001813] hover:bg-[var(--accent-dim)]"
+          >
+            + Start your first session
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <OverviewStat label="Sessions analyzed" value={`${d.analyzedCount}`} sub={`${d.totalSessions} total`} />
+            <OverviewStat label="Avg peak speed" value={fmt(d.avgPeak)} />
+            <OverviewStat label="Avg advance" value={fmt(d.avgAdvance)} />
+            <OverviewStat label="Avg retreat" value={fmt(d.avgRetreat)} />
+            <OverviewStat
+              label="Bout win rate"
+              value={d.winRate == null ? "—" : `${d.winRate}%`}
+              sub={d.boutCount ? `${d.winCount}W / ${d.boutCount - d.winCount}L` : undefined}
+            />
+          </div>
+
+          <div className="surface p-5">
+            <div className="metric-label mb-3">Recent sessions</div>
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {d.recent.map((s) => (
+                <Link
+                  key={s.id}
+                  to={s.sport === "hockey" ? "/sessions/hockey/$id" : "/sessions/fencing/$id"}
+                  params={{ id: s.id }}
+                  className="row-hover flex items-center gap-4 py-3"
+                >
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{s.name?.trim() || s.opponent}</div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      {format(new Date(s.date), "PP")}
+                      {s.name?.trim() && s.opponent && s.opponent !== "—" ? ` · vs ${s.opponent}` : ""}
+                    </div>
+                  </div>
+                  <div className="text-xs capitalize text-[var(--text-secondary)]">{s.result}</div>
+                  <div className="w-20 text-right text-sm tabular-nums">
+                    {s.peakSpeed == null ? <span className="text-[var(--text-muted)]">—</span> : `${s.peakSpeed.toFixed(2)} m/s`}
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* BOTTOM: most recent AI coaching observation */}
       {d.recentFeedback?.feedback && (
         <div className="surface p-5" style={{ borderLeft: "3px solid var(--accent)" }}>
           <div className="metric-label mb-2 flex items-center gap-1.5">
@@ -287,33 +351,6 @@ function OverviewTab({ athleteId, athleteName: _athleteName }: { athleteId: stri
           </div>
         </div>
       )}
-
-      <div className="surface p-5">
-        <div className="metric-label mb-3">Recent sessions</div>
-        <div className="divide-y divide-[var(--border-subtle)]">
-          {d.recent.map((s) => (
-            <Link
-              key={s.id}
-              to={s.sport === "hockey" ? "/sessions/hockey/$id" : "/sessions/fencing/$id"}
-              params={{ id: s.id }}
-              className="row-hover flex items-center gap-4 py-3"
-            >
-              <div className="flex-1">
-                <div className="text-sm font-medium">{s.name?.trim() || s.opponent}</div>
-                <div className="text-xs text-[var(--text-secondary)]">
-                  {format(new Date(s.date), "PP")}
-                  {s.name?.trim() && s.opponent && s.opponent !== "—" ? ` · vs ${s.opponent}` : ""}
-                </div>
-              </div>
-              <div className="text-xs capitalize text-[var(--text-secondary)]">{s.result}</div>
-              <div className="w-20 text-right text-sm tabular-nums">
-                {s.peakSpeed == null ? <span className="text-[var(--text-muted)]">—</span> : `${s.peakSpeed.toFixed(2)} m/s`}
-              </div>
-              <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
-            </Link>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
