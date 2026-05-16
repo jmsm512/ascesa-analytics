@@ -553,6 +553,12 @@ function VideoSpeedAnalyzer({
 
       {stage === "results" && (
         <>
+          {saving && (
+            <div className="surface flex items-center gap-3 p-3 text-xs text-[var(--text-secondary)]">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />
+              Saving analysis…
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-4">
             <StatCard label="Peak speed (m/s)" value={peak.toFixed(2)} />
             <StatCard label="Avg speed (m/s)" value={avg.toFixed(2)} />
