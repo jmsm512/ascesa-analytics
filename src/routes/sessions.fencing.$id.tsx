@@ -252,7 +252,7 @@ function VideoSpeedAnalyzer({
   function onFile(file: File) {
     setError(null);
     setStage("extracting");
-    void persistVideo(file);
+    setPendingFile(file);
     const reader = new FileReader();
     reader.onload = async () => {
       const url = reader.result as string;
