@@ -178,6 +178,31 @@ function NewSessionPage() {
                     placeholder={isHockey ? "sprint, on-ice, off-ice…" : "bout, drills, footwork…"}
                     className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
                   />
+                  <div className="metric-label mt-4">Session date</div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal border-[var(--border-default)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+                          !sessionDate && "text-[var(--text-muted)]"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {sessionDate ? format(sessionDate, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-[var(--bg-elevated)] border-[var(--border-default)]" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={sessionDate}
+                        onSelect={(date) => date && setSessionDate(date)}
+                        disabled={(date) => date > new Date()}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </>
               )}
 
