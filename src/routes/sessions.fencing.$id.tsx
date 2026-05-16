@@ -28,7 +28,6 @@ import {
 import {
   ArrowLeft,
   Check,
-  X,
   Upload,
   RotateCcw,
   Download,
