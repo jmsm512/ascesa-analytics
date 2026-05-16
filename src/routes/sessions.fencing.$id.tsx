@@ -5,7 +5,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { getAthlete, getFencingSession } from "@/lib/data";
-import { generateCoachingSummary, type CoachingSummary } from "@/lib/coaching.functions";
+import {
+  generateCoachingSummary,
+  generateDrills,
+  type CoachingSummary,
+  type DrillsPlan,
+} from "@/lib/coaching.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import {
