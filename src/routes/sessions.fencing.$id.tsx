@@ -197,9 +197,9 @@ function VideoSpeedAnalyzer({
   existingAnalysis: SavedAnalysis | null;
   onSaved?: () => void;
 }) {
-  const initialStage: "upload" | "extracting" | "calibrate" | "analyzing" | "results" =
-    existingAnalysis && existingVideoUrl ? "results" : "upload";
-  const [stage, setStage] = useState(initialStage);
+  type Stage = "upload" | "extracting" | "calibrate" | "analyzing" | "results";
+  const initialStage: Stage = existingAnalysis && existingVideoUrl ? "results" : "upload";
+  const [stage, setStage] = useState<Stage>(initialStage);
   const [dataUrl, setDataUrl] = useState<string | null>(existingVideoUrl);
   const [firstFrame, setFirstFrame] = useState<string | null>(null);
   const [duration, setDuration] = useState(existingAnalysis?.duration ?? 0);
