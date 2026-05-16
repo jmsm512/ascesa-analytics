@@ -11,6 +11,7 @@ import {
   Line,
   AreaChart,
   Area,
+  ReferenceLine,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -169,7 +170,9 @@ function VideoSpeedAnalyzer() {
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
   const [readings, setReadings] = useState<Reading[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
+  const playbackRef = useRef<HTMLVideoElement>(null);
 
   function onFile(file: File) {
     setError(null);
@@ -474,16 +477,49 @@ function VideoSpeedAnalyzer() {
             <div className="metric-label mb-3">Speed over time (m/s)</div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={readings.map((r) => ({ t: r.time.toFixed(1), speed: Number(r.speed.toFixed(3)) }))}>
+                <AreaChart
+                  data={readings.map((r) => ({ t: Number(r.time.toFixed(2)), speed: Number(r.speed.toFixed(3)) }))}
+                  onClick={(e: any) => {
+                    const t = e?.activeLabel;
+                    if (typeof t === "number" && playbackRef.current) {
+                      playbackRef.current.currentTime = t;
+                      setCurrentTime(t);
+                    }
+                  }}
+                >
                   <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
-                  <XAxis dataKey="t" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <XAxis
+                    dataKey="t"
+                    type="number"
+                    domain={[0, duration || "auto"]}
+                    tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${Number(v).toFixed(1)}`}
+                  />
                   <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)", borderRadius: 8, fontSize: 12 }} />
                   <Area type="monotone" dataKey="speed" stroke="var(--fencing)" fill="var(--fencing)" fillOpacity={0.25} strokeWidth={2.5} />
+                  <ReferenceLine x={currentTime} stroke="#ffffff" strokeWidth={2} ifOverflow="extendDomain" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
+
+          {dataUrl && (
+            <div className="surface overflow-hidden rounded-lg p-3">
+              <video
+                ref={playbackRef}
+                src={dataUrl}
+                controls
+                playsInline
+                onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                className="w-full rounded-md bg-black"
+                style={{ maxHeight: 480 }}
+              />
+            </div>
+          )}
 
           <div className="surface overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--border-subtle)]">
