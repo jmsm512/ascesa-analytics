@@ -149,6 +149,47 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
   );
 }
 
+function getBenchmarkColor(value: number, eliteMin: number): string {
+  if (value >= eliteMin) return "var(--data-positive)";
+  if (value >= eliteMin * 0.8) return "var(--data-warning)";
+  return "var(--data-negative)";
+}
+
+function BenchmarkStatCard({
+  label,
+  value,
+  numericValue,
+  benchmarkText,
+  eliteMin,
+}: {
+  label: string;
+  value: string;
+  numericValue: number;
+  benchmarkText: string;
+  eliteMin: number;
+}) {
+  const color = getBenchmarkColor(numericValue, eliteMin);
+  return (
+    <TooltipProvider delayDuration={100}>
+      <UITooltip>
+        <TooltipTrigger asChild>
+          <div className="surface p-5 cursor-help" style={{ borderTop: `2px solid ${color}` }}>
+            <div className="metric-label">{label}</div>
+            <div className="metric-num-md mt-2" style={{ color }}>{value}</div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={8}
+          className="max-w-[240px] bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[var(--text-primary)] p-3 rounded-lg shadow-lg"
+        >
+          <p className="text-xs leading-relaxed">{benchmarkText}</p>
+        </TooltipContent>
+      </UITooltip>
+    </TooltipProvider>
+  );
+}
+
 function SensorChart({ title, data, dataKey }: { title: string; data: any[]; dataKey: string }) {
   return (
     <div className="surface p-5">
