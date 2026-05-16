@@ -1804,6 +1804,8 @@ function BenchmarkCard({
     setDuration(0);
     setPoints([]);
     setReadings([]);
+    setTags([]);
+    setPendingTag(null);
     setProgress({ cur: 0, total: 0 });
     setError(null);
     await supabase.from("benchmarks" as any).update({ speed_analysis: null }).eq("id", benchmark.id);
