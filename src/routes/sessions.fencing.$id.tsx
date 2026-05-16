@@ -41,6 +41,7 @@ import {
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
+import { SessionEditDelete } from "@/components/SessionEditDelete";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
   component: FencingSession,
@@ -191,16 +192,31 @@ function FencingSession() {
 
         {session && fs && (
           <div className="surface mt-4 p-6" style={{ borderLeft: "4px solid var(--fencing)" }}>
-            <div className="metric-label mb-2">Fencing Bout</div>
-            <h1 className="text-2xl font-bold tracking-tight">{format(new Date(session.session_date), "EEEE, MMM d")}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-[var(--text-secondary)]">
-              <span>Weapon: <span className="text-[var(--text-primary)]">{fs.weapon}</span></span>
-              <span>Opponent: <span className="text-[var(--text-primary)]">{fs.opponent}</span></span>
-              <span>Score:{" "}
-                <span className={`font-semibold ${fs.result === "win" ? "text-[var(--data-positive)]" : "text-[var(--data-negative)]"}`}>
-                  {fs.result?.toUpperCase()} {fs.touches_scored}-{fs.touches_received}
-                </span>
-              </span>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="metric-label mb-2">Fencing Bout</div>
+                <h1 className="text-2xl font-bold tracking-tight">{format(new Date(session.session_date), "EEEE, MMM d")}</h1>
+                <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-[var(--text-secondary)]">
+                  <span>Weapon: <span className="text-[var(--text-primary)]">{fs.weapon}</span></span>
+                  <span>Opponent: <span className="text-[var(--text-primary)]">{fs.opponent}</span></span>
+                  <span>Score:{" "}
+                    <span className={`font-semibold ${fs.result === "win" ? "text-[var(--data-positive)]" : "text-[var(--data-negative)]"}`}>
+                      {fs.result?.toUpperCase()} {fs.touches_scored}-{fs.touches_received}
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <SessionEditDelete
+                session={session as any}
+                fencing={{
+                  fencingSessionId: fs.id,
+                  weapon: fs.weapon ?? null,
+                  opponent: fs.opponent ?? null,
+                  touches_scored: fs.touches_scored ?? 0,
+                  touches_received: fs.touches_received ?? 0,
+                }}
+                onSaved={() => q.refetch()}
+              />
             </div>
           </div>
         )}

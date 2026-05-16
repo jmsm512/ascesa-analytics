@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { ArrowLeft, TrendingUp } from "lucide-react";
 import { kmhToMph } from "@/lib/units";
+import { SessionEditDelete } from "@/components/SessionEditDelete";
 
 export const Route = createFileRoute("/sessions/hockey/$id")({
   component: HockeySession,
@@ -44,11 +45,16 @@ function HockeySession() {
 
         {session && (
           <div className="surface mt-4 p-6" style={{ borderLeft: "4px solid var(--hockey)" }}>
-            <div className="metric-label mb-2">Hockey Sprint Session</div>
-            <h1 className="text-2xl font-bold tracking-tight">{format(new Date(session.session_date), "EEEE, MMM d")}</h1>
-            <div className="mt-2 text-sm text-[var(--text-secondary)]">
-              {session.location && <>{session.location} · </>}
-              {session.notes}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="metric-label mb-2">Hockey Sprint Session</div>
+                <h1 className="text-2xl font-bold tracking-tight">{format(new Date(session.session_date), "EEEE, MMM d")}</h1>
+                <div className="mt-2 text-sm text-[var(--text-secondary)]">
+                  {session.location && <>{session.location} · </>}
+                  {session.notes}
+                </div>
+              </div>
+              <SessionEditDelete session={session as any} onSaved={() => q.refetch()} />
             </div>
           </div>
         )}
