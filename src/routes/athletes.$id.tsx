@@ -1786,6 +1786,7 @@ function BenchmarkCard({
         duration: v.duration,
         points,
         videoPath,
+        tags,
       };
       await supabase.from("benchmarks" as any).update({ speed_analysis: payload }).eq("id", benchmark.id);
       onUpdated();
