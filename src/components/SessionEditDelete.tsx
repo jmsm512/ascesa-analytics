@@ -63,6 +63,7 @@ export function SessionEditDelete({
           session_type: sessionType || (session.session_type ?? "bout"),
           location: location || null,
           notes: notes || null,
+          name: name.trim() || null,
         })
         .eq("id", session.id);
       if (e1) throw e1;
