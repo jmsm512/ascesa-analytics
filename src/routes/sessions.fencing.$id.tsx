@@ -101,6 +101,14 @@ function FencingSession() {
                 <SensorChart title="Footwork cadence" data={sensors} dataKey="footwork_cadence" />
               </div>
             )}
+
+            <SpeedInsights
+              fencingSessionId={fs.id}
+              athleteId={session?.athlete_id ?? null}
+              analysis={q.data?.speedAnalysis ?? null}
+              onSaved={() => q.refetch()}
+              onGoToVideo={() => setTab("Video")}
+            />
           </>
         )}
 
