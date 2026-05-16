@@ -121,59 +121,11 @@ function AthletePage() {
             </div>
           )}
 
-          {tab === "Videos" && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {videos.data?.length === 0 && (
-                <div className="surface col-span-full p-10 text-center text-sm text-[var(--text-secondary)]">
-                  No videos uploaded yet.
-                </div>
-              )}
-              {videos.data?.map((v: any) => (
-                <Link key={v.id} to="/videos/$id" params={{ id: v.id }} className="surface overflow-hidden hover:border-[var(--border-default)]">
-                  <div className="aspect-video bg-[var(--bg-elevated)]" />
-                  <div className="p-3">
-                    <div className="text-sm font-medium">{v.label ?? "Untitled"}</div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <span className="text-xs text-[var(--text-secondary)]">{format(new Date(v.created_at), "PP")}</span>
-                      <StatusBadge status={v.status} />
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-
           {tab === "Drills" && a && <DrillsTab athleteId={id} athleteName={a.name} athleteAge={a.age} />}
 
           {tab === "Progress" && <ProgressCharts athleteId={id} sport={a?.sport ?? "hockey"} />}
 
-          {tab === "Goals" && (
-            <div className="space-y-3">
-              {goals.data?.length === 0 && <div className="surface p-10 text-center text-sm text-[var(--text-secondary)]">No goals set.</div>}
-              {goals.data?.map((g: any) => {
-                const pct = g.target_value && g.current_value ? Math.min(100, Math.round((g.current_value / g.target_value) * 100)) : 0;
-                return (
-                  <div key={g.id} className="surface p-5">
-                    <div className="flex items-baseline justify-between">
-                      <div>
-                        <div className="text-sm font-semibold capitalize">{g.metric_name}</div>
-                        <div className="text-xs text-[var(--text-secondary)]">
-                          Target: {g.target_value}{g.unit ? ` ${g.unit}` : ""} {g.target_date ? `· by ${format(new Date(g.target_date), "PP")}` : ""}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium">{g.current_value}{g.unit ? ` ${g.unit}` : ""}</div>
-                        <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">current</div>
-                      </div>
-                    </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-                      <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {tab === "Goals" && <GoalsTab athleteId={id} />}
         </div>
       </AppShell>
     </RequireAuth>
