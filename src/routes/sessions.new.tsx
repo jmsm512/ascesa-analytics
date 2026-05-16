@@ -103,7 +103,7 @@ function NewSessionPage() {
           })),
         );
       }
-      navigate({ to: "/sessions/fencing/$id", params: { id: session.id } });
+      navigate({ to: "/sessions/fencing/$id", params: { id: session.id }, search: { tab: "Video" } });
     }
   };
 
