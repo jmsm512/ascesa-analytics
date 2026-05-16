@@ -211,6 +211,7 @@ async function loadOverviewData(athleteId: string) {
       id: s.id,
       sport: s.sport,
       date: s.session_date,
+      name: (s as any).name ?? null,
       opponent: fs?.opponent ?? "—",
       result: fs?.result ?? s.session_type,
       peakSpeed: peak,
