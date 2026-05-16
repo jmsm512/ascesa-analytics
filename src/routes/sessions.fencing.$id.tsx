@@ -223,20 +223,20 @@ function VideoSpeedAnalyzer({
       const { error: upErr } = await supabase.storage
         .from("videos")
         .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
-      if (upErr) return null;
-      await supabase.from("videos").insert({
-        user_id: userId,
-        session_id: sessionId,
-        athlete_id: athleteId,
-        label: file.name,
-        video_url: path,
-        status: "ready",
-      });
+      if (upErr) {
+        console.error("video upload failed", upErr);
+        return null;
+      }
       if (fencingSessionId) {
-        await supabase.from("fencing_sessions").update({ video_url: path } as any).eq("id", fencingSessionId);
+        const { error: updErr } = await supabase
+          .from("fencing_sessions")
+          .update({ video_url: path } as any)
+          .eq("id", fencingSessionId);
+        if (updErr) console.error("fencing_sessions video_url update failed", updErr);
       }
       return path;
-    } catch {
+    } catch (e) {
+      console.error("persistVideo error", e);
       return null;
     }
   }
