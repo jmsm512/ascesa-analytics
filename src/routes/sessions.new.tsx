@@ -116,11 +116,11 @@ function NewSessionPage() {
 
         <div className="mt-4">
           <div className="metric-label mb-1">New Session</div>
-          <h1 className="text-2xl font-bold tracking-tight">Step {step} of 4</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Step {step} of 3</h1>
         </div>
 
         <div className="mt-4 flex gap-1.5">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div key={s} className={`h-1 flex-1 rounded-full ${s <= step ? "bg-[var(--accent)]" : "bg-[var(--bg-elevated)]"}`} />
           ))}
         </div>
