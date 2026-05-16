@@ -116,11 +116,7 @@ function FencingSession() {
           </div>
         )}
 
-        {tab === "Video" && (
-          <div className="surface mt-6 grid place-items-center p-16 text-center text-sm text-[var(--text-secondary)]">
-            No video attached to this bout.
-          </div>
-        )}
+        {tab === "Video" && <VideoSpeedAnalyzer />}
       </AppShell>
     </RequireAuth>
   );
