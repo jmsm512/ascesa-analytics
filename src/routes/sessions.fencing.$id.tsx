@@ -900,6 +900,14 @@ function VideoSpeedAnalyzer({
                             {tg.action}
                           </span>
                         </td>
+                        <td className="px-5 py-2">
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                            style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}
+                          >
+                            {tg.success ? "Success" : "Fail"}
+                          </span>
+                        </td>
                         <td className="px-5 py-2 tabular-nums">{r ? r.speed.toFixed(3) : "—"}</td>
                         <td className="px-5 py-2 text-[var(--text-secondary)]">{r?.direction ?? "—"}</td>
                         <td className="px-5 py-2 text-right">
