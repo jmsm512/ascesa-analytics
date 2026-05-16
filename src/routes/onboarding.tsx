@@ -21,8 +21,9 @@ type AthleteForm = {
   age: string;
   height_in: string;
   weight_lb: string;
-  role: string; // value for the sport's "role" field (position or weapon)
-  group: string; // value for the sport's "group" field (team or club)
+  role: string;
+  group: string;
+  fencing_tracker_url: string;
 };
 
 const empty = (sport: SportKey = "hockey"): AthleteForm => {
@@ -35,6 +36,7 @@ const empty = (sport: SportKey = "hockey"): AthleteForm => {
     weight_lb: "",
     role: cfg.role.options?.[0] ?? "",
     group: "",
+    fencing_tracker_url: "",
   };
 };
 
