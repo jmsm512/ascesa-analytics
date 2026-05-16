@@ -514,6 +514,7 @@ function VideoSpeedAnalyzer({
     setDuration(0);
     setPoints([]);
     setReadings([]);
+    setTags([]);
     setProgress({ cur: 0, total: 0 });
     setError(null);
   }
