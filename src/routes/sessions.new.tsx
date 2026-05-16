@@ -301,8 +301,15 @@ function NewSessionPage() {
             <div className="surface flex flex-col items-center justify-center p-12 text-center">
               <Upload className="mb-3 h-8 w-8 text-[var(--text-muted)]" />
               <div className="font-semibold">Upload video (optional)</div>
-              <div className="mt-1 text-xs text-[var(--text-secondary)]">Drop a clip here or skip for now</div>
-              <input type="file" accept="video/*" className="mt-4 text-xs text-[var(--text-secondary)]" />
+              <div className="mt-1 text-xs text-[var(--text-secondary)]">
+                {videoFile ? `Selected: ${videoFile.name}` : "Drop a clip here or skip for now"}
+              </div>
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)}
+                className="mt-4 text-xs text-[var(--text-secondary)]"
+              />
               <div className="mt-6">
                 <NavBtns onBack={() => setStep(2)} onNext={() => setStep(4)} />
               </div>
