@@ -249,6 +249,7 @@ type SavedAnalysis = {
   savedAt: string;
   tags?: ActionTag[];
   coaching?: CoachingSummary;
+  drills?: DrillsPlan;
 };
 
 function VideoSpeedAnalyzer({
