@@ -617,6 +617,57 @@ function DrillsTab({ athleteId, athleteName, athleteAge }: { athleteId: string; 
           )}
         </div>
       )}
+
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-primary)]">
+          <DialogHeader>
+            <DialogTitle>Customize your drill plan</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div>
+              <div className="metric-label mb-2">Drill types</div>
+              <div className="flex flex-wrap gap-4">
+                {(["solo", "partner", "footwork"] as DrillKind[]).map((k) => (
+                  <label key={k} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={allowedKinds[k]}
+                      onCheckedChange={(v) => setAllowedKinds((p) => ({ ...p, [k]: v === true }))}
+                    />
+                    <span className="capitalize">{k}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="equipment">Equipment available (optional)</Label>
+              <Input
+                id="equipment"
+                value={equipment}
+                onChange={(e) => setEquipment(e.target.value)}
+                placeholder="e.g. resistance bands, cones, second fencer"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="focus">Focus area (optional)</Label>
+              <Input
+                id="focus"
+                value={focusArea}
+                onChange={(e) => setFocusArea(e.target.value)}
+                placeholder="e.g. explosive lunge, distance management"
+              />
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={handleGenerate}
+                disabled={!Object.values(allowedKinds).some(Boolean)}
+                className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Generate Drills
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
