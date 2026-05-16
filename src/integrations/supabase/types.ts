@@ -103,6 +103,9 @@ export type Database = {
           club: string | null
           created_at: string
           drill_plan: Json | null
+          fencing_tracker_data: Json | null
+          fencing_tracker_updated_at: string | null
+          fencing_tracker_url: string | null
           height_cm: number | null
           id: string
           name: string
@@ -120,6 +123,9 @@ export type Database = {
           club?: string | null
           created_at?: string
           drill_plan?: Json | null
+          fencing_tracker_data?: Json | null
+          fencing_tracker_updated_at?: string | null
+          fencing_tracker_url?: string | null
           height_cm?: number | null
           id?: string
           name: string
@@ -137,6 +143,9 @@ export type Database = {
           club?: string | null
           created_at?: string
           drill_plan?: Json | null
+          fencing_tracker_data?: Json | null
+          fencing_tracker_updated_at?: string | null
+          fencing_tracker_url?: string | null
           height_cm?: number | null
           id?: string
           name?: string

@@ -1,5 +1,18 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export type FencingTrackerData = {
+  source_url: string;
+  name: string | null;
+  club: string | null;
+  current_rating: string | null;
+  rating_history: { weapon: string; rating: string; date: string }[];
+  total_tournaments: number | null;
+  podium_all_time: { season: string; gold: number; silver: number; bronze: number; t8: number; total: number } | null;
+  podium_by_season: { season: string; gold: number; silver: number; bronze: number; t8: number; total: number }[];
+  recent_results: { date: string; tournament: string; event: string; place: string; event_class: string }[];
+  fetched_at: string;
+};
+
 export type Athlete = {
   id: string;
   name: string;
@@ -12,6 +25,9 @@ export type Athlete = {
   team: string | null;
   club: string | null;
   rating: string | null;
+  fencing_tracker_url: string | null;
+  fencing_tracker_data: FencingTrackerData | null;
+  fencing_tracker_updated_at: string | null;
 };
 
 export type Session = {
