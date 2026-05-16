@@ -868,6 +868,7 @@ function VideoSpeedAnalyzer({
                   <tr>
                     <th className="px-5 py-2 text-left">Time (s)</th>
                     <th className="px-5 py-2 text-left">Action</th>
+                    <th className="px-5 py-2 text-left">Result</th>
                     <th className="px-5 py-2 text-left">Speed (m/s)</th>
                     <th className="px-5 py-2 text-left">Direction</th>
                     <th className="px-5 py-2 w-10" />
