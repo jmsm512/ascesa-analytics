@@ -22,6 +22,7 @@ export type Session = {
   session_date: string;
   location: string | null;
   notes: string | null;
+  name: string | null;
 };
 
 export async function listAthletes() {
