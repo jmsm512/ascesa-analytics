@@ -1149,10 +1149,12 @@ function CoachingCards({
   coaching,
   loading,
   error,
+  onRegenerate,
 }: {
   coaching: CoachingSummary | null;
   loading: boolean;
   error: string | null;
+  onRegenerate?: () => void;
 }) {
   if (!coaching && !loading && !error) return null;
 
@@ -1161,7 +1163,19 @@ function CoachingCards({
 
   return (
     <div className="space-y-3">
-      <div className="metric-label">AI Coaching Summary</div>
+      <div className="flex items-center justify-between">
+        <div className="metric-label">AI Coaching Summary</div>
+        {onRegenerate && (
+          <button
+            onClick={onRegenerate}
+            disabled={loading}
+            title="Regenerate coaching summary"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Regenerate
+          </button>
+        )}
+      </div>
       {loading && (
         <div className="grid gap-3 sm:grid-cols-3">
           {[0, 1, 2].map((i) => (
