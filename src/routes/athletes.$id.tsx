@@ -1277,10 +1277,10 @@ function BenchmarkCard({
       const v = document.createElement("video");
       v.muted = true;
       v.playsInline = true;
-      v.src = dataUrl;
       await new Promise<void>((res, rej) => {
         v.addEventListener("loadeddata", () => res(), { once: true });
-        v.addEventListener("error", () => rej(new Error("Video error")), { once: true });
+        v.addEventListener("error", () => rej(new Error(UNSUPPORTED_VIDEO_MESSAGE)), { once: true });
+        attachVideoSources(v, dataUrl);
       });
       const c = document.createElement("canvas");
       c.width = v.videoWidth;
