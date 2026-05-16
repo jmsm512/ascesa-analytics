@@ -108,7 +108,24 @@ export async function getFencingSession(sessionId: string) {
     const s = await supabase.from("fencing_sensor_reps").select("*").eq("fencing_session_id", fs.id).order("rep_number");
     sensors = s.data ?? [];
   }
-  return { session, fs, actions, sensors };
+
+  // Latest video attached to this session
+  const { data: video } = await supabase
+    .from("videos")
+    .select("*")
+    .eq("session_id", sessionId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let videoUrl: string | null = null;
+  if (video?.video_url) {
+    const { data: signed } = await supabase.storage
+      .from("videos")
+      .createSignedUrl(video.video_url, 60 * 60);
+    videoUrl = signed?.signedUrl ?? null;
+  }
+
+  return { session, fs, actions, sensors, videoUrl };
 }
 
 export async function listVideosForAthlete(athleteId: string) {
