@@ -108,8 +108,13 @@ function AthletePage() {
                   className="row-hover flex items-center gap-4 px-5 py-4"
                 >
                   <div className="flex-1">
-                    <div className="text-sm font-medium capitalize">{s.session_type}</div>
-                    <div className="text-xs text-[var(--text-secondary)]">{format(new Date(s.session_date), "PP")}</div>
+                    <div className="text-sm font-medium">
+                      {s.name?.trim() || <span className="capitalize">{s.session_type}</span>}
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      {format(new Date(s.session_date), "PP")}
+                      {s.name?.trim() ? <span className="capitalize"> · {s.session_type}</span> : null}
+                    </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
                 </Link>
