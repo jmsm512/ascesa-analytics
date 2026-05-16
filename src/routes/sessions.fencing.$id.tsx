@@ -175,57 +175,54 @@ type Reading = { time: number; speed: number; direction: "advance" | "retreat" }
 
 
 
+type SavedAnalysis = {
+  readings: Reading[];
+  duration: number;
+  points: Pt[];
+  savedAt: string;
+};
+
 function VideoSpeedAnalyzer({
   sessionId,
+  fencingSessionId,
   athleteId,
   existingVideoUrl,
+  existingAnalysis,
+  onSaved,
 }: {
   sessionId: string;
+  fencingSessionId: string | null;
   athleteId: string | null;
   existingVideoUrl: string | null;
+  existingAnalysis: SavedAnalysis | null;
+  onSaved?: () => void;
 }) {
-  const [stage, setStage] = useState<"upload" | "extracting" | "calibrate" | "analyzing" | "results">("upload");
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const initialStage: "upload" | "extracting" | "calibrate" | "analyzing" | "results" =
+    existingAnalysis && existingVideoUrl ? "results" : "upload";
+  const [stage, setStage] = useState(initialStage);
+  const [dataUrl, setDataUrl] = useState<string | null>(existingVideoUrl);
   const [firstFrame, setFirstFrame] = useState<string | null>(null);
-  const [duration, setDuration] = useState(0);
-  const [points, setPoints] = useState<Pt[]>([]);
+  const [duration, setDuration] = useState(existingAnalysis?.duration ?? 0);
+  const [points, setPoints] = useState<Pt[]>(existingAnalysis?.points ?? []);
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
-  const [readings, setReadings] = useState<Reading[]>([]);
+  const [readings, setReadings] = useState<Reading[]>(existingAnalysis?.readings ?? []);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
-  const [showUpload, setShowUpload] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
 
-  // If a video is already stored for this session and the user hasn't asked
-  // to upload a replacement, just play it back.
-  if (existingVideoUrl && !showUpload && stage === "upload") {
-    return (
-      <div className="mt-6 space-y-4">
-        <div className="surface overflow-hidden rounded-lg p-3">
-          <video src={existingVideoUrl} controls playsInline className="w-full rounded-md bg-black" style={{ maxHeight: 520 }} />
-        </div>
-        <button
-          onClick={() => setShowUpload(true)}
-          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
-        >
-          <Upload className="h-3.5 w-3.5" /> Upload a new video
-        </button>
-      </div>
-    );
-  }
-
-  async function persistVideo(file: File) {
+  async function persistVideo(file: File): Promise<string | null> {
     try {
       const { data: u } = await supabase.auth.getUser();
       const userId = u.user?.id;
-      if (!userId) return;
+      if (!userId) return null;
       const ext = file.name.split(".").pop() || "mp4";
       const path = `${userId}/${sessionId}/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("videos")
         .upload(path, file, { contentType: file.type || "video/mp4", upsert: false });
-      if (upErr) return;
+      if (upErr) return null;
       await supabase.from("videos").insert({
         user_id: userId,
         session_id: sessionId,
@@ -234,9 +231,22 @@ function VideoSpeedAnalyzer({
         video_url: path,
         status: "ready",
       });
+      return path;
     } catch {
-      // non-blocking — local analysis still works
+      return null;
     }
+  }
+
+  async function persistAnalysis(out: Reading[], pts: Pt[], dur: number) {
+    if (!fencingSessionId) return;
+    const payload: SavedAnalysis = {
+      readings: out,
+      duration: dur,
+      points: pts,
+      savedAt: new Date().toISOString(),
+    };
+    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+    onSaved?.();
   }
 
   function onFile(file: File) {
