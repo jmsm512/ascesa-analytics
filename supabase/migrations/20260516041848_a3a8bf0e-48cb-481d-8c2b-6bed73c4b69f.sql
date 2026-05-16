@@ -1,0 +1,1 @@
+ALTER TABLE public.athletes ADD COLUMN IF NOT EXISTS drill_plan jsonb;
