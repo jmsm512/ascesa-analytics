@@ -40,6 +40,26 @@ export type DrillsInput = CoachingInput & {
   tagsSummary: string;
 };
 
+export type AthleteDrillPrescription = DrillPrescription & { priority: 1 | 2 | 3 };
+
+export type AthleteDrillPlan = {
+  drills: AthleteDrillPrescription[];
+  generatedAt: string;
+  sessionCountAtGeneration: number;
+  completed: Record<string, { completedAt: string; drill: AthleteDrillPrescription }>;
+};
+
+export type AthleteDrillsInput = {
+  athleteName: string;
+  athleteAge: number | null;
+  sessionCount: number;
+  avgPeakSpeed: number;
+  avgAdvanceSpeed: number;
+  avgRetreatSpeed: number;
+  avgSpeed: number;
+  actionSuccessRates: string;
+};
+
 async function callAnthropic(prompt: string): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("Missing ANTHROPIC_API_KEY");
