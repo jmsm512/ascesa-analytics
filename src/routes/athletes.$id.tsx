@@ -960,6 +960,23 @@ type BenchAnalysis = {
 const BENCHMARK_COLOR = "#f59e0b";
 const RIE_COLOR = "var(--fencing)";
 
+const UNSUPPORTED_VIDEO_MESSAGE =
+  "Video format not supported. Please convert to MP4 and try again, or use QuickTime Player → Export As → 1080p to convert on Mac.";
+
+function attachVideoSources(v: HTMLVideoElement, url: string) {
+  // Set src as fallback, and add explicit <source> children so the browser
+  // can pick the first supported MIME (mp4 / quicktime for .mov files).
+  v.src = url;
+  const mp4 = document.createElement("source");
+  mp4.src = url;
+  mp4.type = "video/mp4";
+  const mov = document.createElement("source");
+  mov.src = url;
+  mov.type = "video/quicktime";
+  v.appendChild(mp4);
+  v.appendChild(mov);
+}
+
 function benchUid() {
   return (typeof crypto !== "undefined" && (crypto as any).randomUUID?.()) || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -971,7 +988,6 @@ function extractBenchFirstFrame(url: string): Promise<{ frame: string; dur: numb
     v.muted = true;
     v.playsInline = true;
     v.crossOrigin = "anonymous";
-    v.src = url;
     v.addEventListener("loadeddata", () => { v.currentTime = 0.05; });
     v.addEventListener("seeked", () => {
       const c = document.createElement("canvas");
@@ -982,7 +998,8 @@ function extractBenchFirstFrame(url: string): Promise<{ frame: string; dur: numb
       ctx.drawImage(v, 0, 0);
       resolve({ frame: c.toDataURL("image/jpeg", 0.9), dur: v.duration });
     }, { once: true });
-    v.addEventListener("error", () => reject(new Error("Video load error")));
+    v.addEventListener("error", () => reject(new Error(UNSUPPORTED_VIDEO_MESSAGE)));
+    attachVideoSources(v, url);
   });
 }
 
@@ -1260,10 +1277,10 @@ function BenchmarkCard({
       const v = document.createElement("video");
       v.muted = true;
       v.playsInline = true;
-      v.src = dataUrl;
       await new Promise<void>((res, rej) => {
         v.addEventListener("loadeddata", () => res(), { once: true });
-        v.addEventListener("error", () => rej(new Error("Video error")), { once: true });
+        v.addEventListener("error", () => rej(new Error(UNSUPPORTED_VIDEO_MESSAGE)), { once: true });
+        attachVideoSources(v, dataUrl);
       });
       const c = document.createElement("canvas");
       c.width = v.videoWidth;
