@@ -170,7 +170,9 @@ function VideoSpeedAnalyzer() {
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
   const [readings, setReadings] = useState<Reading[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
+  const playbackRef = useRef<HTMLVideoElement>(null);
 
   function onFile(file: File) {
     setError(null);
