@@ -2244,9 +2244,88 @@ function ComparisonSection({
           </ClientOnly>
         </div>
       </div>
+
+      <SpeedProfileChart
+        title={`${primary.name} — Speed Profile`}
+        data={binByTime(primary.speed_analysis.readings as BenchReading[])}
+        color={BENCHMARK_COLOR}
+        yMax={Math.max(primaryStats.peakSpeed, athleteStats.peakSpeed) * 1.1}
+      />
+      <SpeedProfileChart
+        title={`${athleteName || "Athlete"} — Average Speed Profile`}
+        data={binByTime(athleteStats.readings)}
+        color={RIE_COLOR}
+        yMax={Math.max(primaryStats.peakSpeed, athleteStats.peakSpeed) * 1.1}
+      />
     </div>
   );
 }
+
+function SpeedProfileChart({
+  title,
+  data,
+  color,
+  yMax,
+}: {
+  title: string;
+  data: { t: number; speed: number }[];
+  color: string;
+  yMax: number;
+}) {
+  const gradId = `grad-${title.replace(/[^a-z0-9]/gi, "")}`;
+  return (
+    <div className="surface p-5">
+      <div className="metric-label mb-3">{title}</div>
+      <div className="h-56">
+        <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 10, right: 10, bottom: 5, left: -10 }}>
+              <defs>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.55} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+              <XAxis
+                dataKey="t"
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                label={{ value: "Time (s)", position: "insideBottom", offset: -2, fill: "var(--text-secondary)", fontSize: 11 }}
+              />
+              <YAxis
+                domain={[0, yMax || "auto"]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                label={{ value: "Speed (m/s)", angle: -90, position: "insideLeft", fill: "var(--text-secondary)", fontSize: 11 }}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                formatter={(v: any) => (typeof v === "number" ? `${v.toFixed(2)} m/s` : v)}
+                labelFormatter={(v: any) => `t = ${v}s`}
+              />
+              <Area
+                type="monotone"
+                dataKey="speed"
+                stroke={color}
+                strokeWidth={2}
+                fill={`url(#${gradId})`}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ClientOnly>
+      </div>
+    </div>
+  );
+}
+
 
 function ComparisonCard({
   label,
