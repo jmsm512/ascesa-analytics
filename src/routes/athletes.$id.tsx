@@ -28,7 +28,7 @@ export const Route = createFileRoute("/athletes/$id")({
   component: AthletePage,
 });
 
-const TABS = ["Overview", "Sessions", "Progress", "Goals", "Drills"] as const;
+const TABS = ["Overview", "Sessions", "Progress", "Benchmarks", "Goals", "Drills"] as const;
 
 function AthletePage() {
   const { id } = Route.useParams();
@@ -130,6 +130,8 @@ function AthletePage() {
           {tab === "Drills" && a && <DrillsTab athleteId={id} athleteName={a.name} athleteAge={a.age} />}
 
           {tab === "Progress" && <ProgressCharts athleteId={id} sport={a?.sport ?? "hockey"} />}
+
+          {tab === "Benchmarks" && <BenchmarksTab athleteId={id} athleteName={a?.name ?? ""} />}
 
           {tab === "Goals" && <GoalsTab athleteId={id} />}
         </div>
