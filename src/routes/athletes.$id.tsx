@@ -2254,7 +2254,7 @@ function ComparisonSection({
       <SpeedProfileChart
         title={`${athleteName || "Athlete"} — Average Speed Profile`}
         data={binByTime(athleteStats.readings)}
-        color={RIE_COLOR}
+        color="var(--accent)"
         yMax={Math.max(primaryStats.peakSpeed, athleteStats.peakSpeed) * 1.1}
       />
     </div>
