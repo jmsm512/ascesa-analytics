@@ -686,6 +686,8 @@ function VideoSpeedAnalyzer({
     setError(null);
     setCoaching(null);
     setCoachingError(null);
+    setDrills(null);
+    setDrillsError(null);
   }
 
   function downloadCsv() {
