@@ -102,6 +102,7 @@ export type Database = {
           avatar_url: string | null
           club: string | null
           created_at: string
+          drill_plan: Json | null
           height_cm: number | null
           id: string
           name: string
@@ -118,6 +119,7 @@ export type Database = {
           avatar_url?: string | null
           club?: string | null
           created_at?: string
+          drill_plan?: Json | null
           height_cm?: number | null
           id?: string
           name: string
@@ -134,6 +136,7 @@ export type Database = {
           avatar_url?: string | null
           club?: string | null
           created_at?: string
+          drill_plan?: Json | null
           height_cm?: number | null
           id?: string
           name?: string

@@ -1,13 +1,16 @@
 import { createFileRoute, Link, ClientOnly } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
 import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals, listVideosForAthlete } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
+import { generateAthleteDrillPlan, type AthleteDrillPlan, type AthleteDrillPrescription } from "@/lib/coaching.functions";
 import { format } from "date-fns";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check } from "lucide-react";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/athletes/$id")({
@@ -15,7 +18,7 @@ export const Route = createFileRoute("/athletes/$id")({
   component: AthletePage,
 });
 
-const TABS = ["Overview", "Sessions", "Videos", "Progress", "Goals"] as const;
+const TABS = ["Overview", "Sessions", "Videos", "Progress", "Goals", "Drills"] as const;
 
 function AthletePage() {
   const { id } = Route.useParams();
@@ -138,6 +141,8 @@ function AthletePage() {
             </div>
           )}
 
+          {tab === "Drills" && a && <DrillsTab athleteId={id} athleteName={a.name} athleteAge={a.age} />}
+
           {tab === "Progress" && <ProgressCharts athleteId={id} sport={a?.sport ?? "hockey"} />}
 
           {tab === "Goals" && (
@@ -250,6 +255,341 @@ function ChartCard({ title, data, dataKey, color }: any) {
         </ResponsiveContainer>
         </ClientOnly>
       </div>
+    </div>
+  );
+}
+
+// ============= Drills Tab =============
+
+type AggregatedStats = {
+  sessionCount: number;
+  analyzedCount: number;
+  avgPeakSpeed: number;
+  avgAdvanceSpeed: number;
+  avgRetreatSpeed: number;
+  avgSpeed: number;
+  actionSuccessRates: string;
+  latestSessionDate: string | null;
+};
+
+async function loadAthleteAggregate(athleteId: string): Promise<{
+  plan: AthleteDrillPlan | null;
+  stats: AggregatedStats;
+}> {
+  const { data: athlete } = await supabase
+    .from("athletes")
+    .select("drill_plan")
+    .eq("id", athleteId)
+    .maybeSingle();
+  const plan = ((athlete as any)?.drill_plan ?? null) as AthleteDrillPlan | null;
+
+  const { data: sess } = await supabase
+    .from("sessions")
+    .select("id, session_date")
+    .eq("athlete_id", athleteId);
+  const sessionIds = (sess ?? []).map((s) => s.id);
+  const latestSessionDate =
+    (sess ?? []).map((s) => s.session_date).sort().slice(-1)[0] ?? null;
+
+  let analyses: Array<{ readings: Array<{ speed: number; direction: string }>; tags?: Array<{ action: string; success: boolean }> }> = [];
+  if (sessionIds.length) {
+    const { data: fsRows } = await supabase
+      .from("fencing_sessions")
+      .select("speed_analysis")
+      .in("session_id", sessionIds);
+    analyses = (fsRows ?? [])
+      .map((r: any) => r.speed_analysis)
+      .filter((a: any) => a && Array.isArray(a.readings) && a.readings.length);
+  }
+
+  const peakSpeeds: number[] = [];
+  const advanceSpeeds: number[] = [];
+  const retreatSpeeds: number[] = [];
+  const allSpeeds: number[] = [];
+  const tagGroups: Record<string, { total: number; success: number; successSpeed: number[]; failSpeed: number[] }> = {};
+
+  for (const a of analyses) {
+    const speeds = a.readings.map((r) => r.speed);
+    if (speeds.length) {
+      peakSpeeds.push(Math.max(...speeds));
+      allSpeeds.push(...speeds);
+    }
+    const adv = a.readings.filter((r) => r.direction === "advance").map((r) => r.speed);
+    if (adv.length) advanceSpeeds.push(Math.max(...adv));
+    const ret = a.readings.filter((r) => r.direction === "retreat").map((r) => r.speed);
+    if (ret.length) retreatSpeeds.push(Math.max(...ret));
+
+    for (const t of a.tags ?? []) {
+      const k = t.action;
+      if (!tagGroups[k]) tagGroups[k] = { total: 0, success: 0, successSpeed: [], failSpeed: [] };
+      tagGroups[k].total++;
+      // find nearest reading speed
+      const nearest = a.readings.length
+        ? a.readings.reduce((best, r) => (Math.abs(r.speed) > Math.abs(best.speed) ? r : best), a.readings[0])
+        : null;
+      const sp = nearest?.speed ?? 0;
+      if (t.success) {
+        tagGroups[k].success++;
+        tagGroups[k].successSpeed.push(sp);
+      } else {
+        tagGroups[k].failSpeed.push(sp);
+      }
+    }
+  }
+
+  const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
+  const actionSuccessRates = Object.entries(tagGroups)
+    .map(([action, v]) => {
+      const successPct = Math.round((v.success / v.total) * 100);
+      const failPct = 100 - successPct;
+      const successAvg = mean(v.successSpeed).toFixed(2);
+      const failAvg = mean(v.failSpeed).toFixed(2);
+      return `${action}: ${successPct}% success rate at avg ${successAvg} m/s, ${failPct}% fail rate at avg ${failAvg} m/s`;
+    })
+    .join("; ") || "no tagged actions";
+
+  return {
+    plan,
+    stats: {
+      sessionCount: sessionIds.length,
+      analyzedCount: analyses.length,
+      avgPeakSpeed: mean(peakSpeeds),
+      avgAdvanceSpeed: mean(advanceSpeeds),
+      avgRetreatSpeed: mean(retreatSpeeds),
+      avgSpeed: mean(allSpeeds),
+      actionSuccessRates,
+      latestSessionDate,
+    },
+  };
+}
+
+function DrillsTab({ athleteId, athleteName, athleteAge }: { athleteId: string; athleteName: string; athleteAge: number | null }) {
+  const generate = useServerFn(generateAthleteDrillPlan);
+  const q = useQuery({
+    queryKey: ["athlete-drills", athleteId],
+    queryFn: () => loadAthleteAggregate(athleteId),
+  });
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [showCompleted, setShowCompleted] = useState(false);
+
+  const plan = q.data?.plan ?? null;
+  const stats = q.data?.stats;
+
+  async function savePlan(next: AthleteDrillPlan) {
+    await supabase.from("athletes").update({ drill_plan: next } as any).eq("id", athleteId);
+    await q.refetch();
+  }
+
+  async function handleGenerate() {
+    if (!stats) return;
+    setLoading(true);
+    setErr(null);
+    try {
+      const result = await generate({
+        data: {
+          athleteName,
+          athleteAge,
+          sessionCount: stats.analyzedCount,
+          avgPeakSpeed: stats.avgPeakSpeed,
+          avgAdvanceSpeed: stats.avgAdvanceSpeed,
+          avgRetreatSpeed: stats.avgRetreatSpeed,
+          avgSpeed: stats.avgSpeed,
+          actionSuccessRates: stats.actionSuccessRates,
+        },
+      });
+      const next: AthleteDrillPlan = {
+        ...result,
+        completed: plan?.completed ?? {},
+      };
+      await savePlan(next);
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to generate drill plan");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function markComplete(drill: AthleteDrillPrescription) {
+    if (!plan) return;
+    const next: AthleteDrillPlan = {
+      ...plan,
+      drills: plan.drills.filter((d) => d.name !== drill.name),
+      completed: {
+        ...plan.completed,
+        [drill.name]: { completedAt: new Date().toISOString(), drill },
+      },
+    };
+    await savePlan(next);
+  }
+
+  async function unarchive(name: string) {
+    if (!plan) return;
+    const entry = plan.completed[name];
+    if (!entry) return;
+    const { [name]: _omit, ...rest } = plan.completed;
+    const next: AthleteDrillPlan = {
+      ...plan,
+      drills: [...plan.drills, entry.drill].sort((a, b) => a.priority - b.priority),
+      completed: rest,
+    };
+    await savePlan(next);
+  }
+
+  if (q.isLoading) {
+    return <div className="surface p-10 text-center text-sm text-[var(--text-secondary)]">Loading…</div>;
+  }
+
+  const newSessionsSinceGen =
+    plan && stats ? Math.max(0, stats.sessionCount - plan.sessionCountAtGeneration) : 0;
+  const completedList = plan ? Object.entries(plan.completed) : [];
+
+  return (
+    <div className="space-y-4">
+      <div className="surface p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="metric-label">Drill Plan</div>
+            <h2 className="mt-1 text-lg font-semibold">Personalized training plan</h2>
+            <div className="mt-2 space-y-0.5 text-xs text-[var(--text-secondary)]">
+              {plan ? (
+                <>
+                  <div>Last generated: <span className="text-[var(--text-primary)]">{format(new Date(plan.generatedAt), "PPP")}</span></div>
+                  <div>
+                    Based on {plan.sessionCountAtGeneration} session{plan.sessionCountAtGeneration === 1 ? "" : "s"}.
+                    {newSessionsSinceGen > 0 && (
+                      <span className="ml-1 text-[var(--data-warning)]">
+                        {newSessionsSinceGen} new session{newSessionsSinceGen === 1 ? "" : "s"} since last update.
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div>
+                  No drill plan yet. {stats?.analyzedCount ?? 0} session{stats?.analyzedCount === 1 ? "" : "s"} with speed analysis available.
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={handleGenerate}
+            disabled={loading || !stats || stats.analyzedCount === 0}
+            className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
+          >
+            {plan ? <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} /> : <Sparkles className="h-3.5 w-3.5" />}
+            {loading ? "Generating…" : plan ? "Regenerate" : "Generate Drill Plan"}
+          </button>
+        </div>
+        {stats && stats.analyzedCount === 0 && (
+          <div className="mt-3 text-xs text-[var(--text-secondary)]">
+            Analyze at least one session video to enable drill generation.
+          </div>
+        )}
+        {err && <div className="mt-3 text-xs text-[var(--data-negative)]">{err}</div>}
+      </div>
+
+      {loading && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="surface p-4">
+              <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--bg-elevated)]" />
+              <div className="mt-3 h-2 w-1/2 animate-pulse rounded bg-[var(--bg-elevated)]" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {plan && !loading && plan.drills.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {plan.drills.map((d) => {
+            const isOpen = !!expanded[d.name];
+            return (
+              <div key={d.name} className="surface p-4" style={{ borderLeft: "4px solid var(--accent)" }}>
+                <button
+                  onClick={() => setExpanded((p) => ({ ...p, [d.name]: !isOpen }))}
+                  className="flex w-full items-start justify-between gap-2 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                        Priority {d.priority}
+                      </span>
+                      <div className="text-sm font-semibold">{d.name}</div>
+                    </div>
+                    <div className="mt-1.5 text-[11px] text-[var(--text-secondary)]">{d.addresses}</div>
+                    <div className="mt-1 text-[11px]"><span className="text-[var(--text-muted)]">Target:</span> <span className="text-[var(--text-primary)]">{d.target}</span></div>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--text-secondary)] transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {isOpen && (
+                  <div className="mt-3 space-y-3 border-t border-[var(--border-subtle)] pt-3">
+                    <div>
+                      <div className="metric-label mb-1">Instructions</div>
+                      <ol className="list-decimal space-y-1 pl-4 text-xs text-[var(--text-secondary)]">
+                        {d.instructions.map((step, i) => <li key={i}>{step}</li>)}
+                      </ol>
+                    </div>
+                    <div className="text-[11px] text-[var(--text-secondary)]">
+                      Duration: <span className="text-[var(--text-primary)]">{d.duration}</span>
+                    </div>
+                    <button
+                      onClick={() => markComplete(d)}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-[var(--data-positive)] px-3 py-1.5 text-xs font-medium text-black hover:opacity-90"
+                    >
+                      <Check className="h-3.5 w-3.5" /> Mark Complete
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {plan && plan.drills.length === 0 && !loading && (
+        <div className="surface p-6 text-center text-sm text-[var(--text-secondary)]">
+          All drills completed. Regenerate for a fresh plan based on new sessions.
+        </div>
+      )}
+
+      {completedList.length > 0 && (
+        <div className="surface">
+          <button
+            onClick={() => setShowCompleted((v) => !v)}
+            className="flex w-full items-center justify-between px-5 py-3 text-left"
+          >
+            <span className="text-sm font-medium">
+              Completed Drills <span className="text-[var(--text-secondary)]">({completedList.length})</span>
+            </span>
+            <ChevronDown className={`h-4 w-4 text-[var(--text-secondary)] transition-transform ${showCompleted ? "rotate-180" : ""}`} />
+          </button>
+          {showCompleted && (
+            <ul className="divide-y divide-[var(--border-subtle)] border-t border-[var(--border-subtle)]">
+              {completedList.map(([name, entry]) => (
+                <li key={name} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Check className="h-3.5 w-3.5 text-[var(--data-positive)]" />
+                      <span className="text-sm font-medium">{name}</span>
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                      Completed {format(new Date(entry.completedAt), "PP")}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => unarchive(name)}
+                    className="text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  >
+                    Restore
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
