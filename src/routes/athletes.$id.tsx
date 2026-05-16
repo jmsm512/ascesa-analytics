@@ -2274,3 +2274,83 @@ function ComparisonCard({
     </div>
   );
 }
+
+function ActionComparisonTable({
+  athleteName,
+  benchmarkName,
+  athleteActions,
+  benchmarkActions,
+}: {
+  athleteName: string;
+  benchmarkName: string;
+  athleteActions: Record<string, number>;
+  benchmarkActions: Record<string, number>;
+}) {
+  const shared = BENCH_ACTION_TYPES.filter(
+    (a) => athleteActions[a] != null && benchmarkActions[a] != null,
+  );
+
+  if (shared.length === 0) {
+    return (
+      <div className="surface p-5">
+        <div className="metric-label mb-2">Action Comparison</div>
+        <p className="text-xs text-[var(--text-secondary)]">
+          Tag actions in both {athleteName || "the athlete"}'s session videos and the benchmark video to see a side-by-side action comparison here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="surface overflow-hidden">
+      <div className="border-b border-[var(--border-subtle)] px-5 py-3">
+        <div className="metric-label">Action Comparison</div>
+        <p className="mt-1 text-xs text-[var(--text-secondary)]">
+          Avg speed at the moment each action was tagged. Green = within 10%, amber = 10–30% gap, red = more than 30% below.
+        </p>
+      </div>
+      <table className="w-full text-sm">
+        <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+          <tr>
+            <th className="px-5 py-2 text-left">Action</th>
+            <th className="px-5 py-2 text-right">{athleteName || "Athlete"}</th>
+            <th className="px-5 py-2 text-right">{benchmarkName}</th>
+            <th className="px-5 py-2 text-right">Gap</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--border-subtle)]">
+          {shared.map((a) => {
+            const ath = athleteActions[a];
+            const bm = benchmarkActions[a];
+            const gap = ath - bm;
+            const pct = bm > 0 ? (gap / bm) * 100 : 0;
+            let tone = "bg-emerald-500/10 text-emerald-400";
+            if (pct < -30) tone = "bg-rose-500/10 text-rose-400";
+            else if (pct < -10) tone = "bg-amber-500/10 text-amber-400";
+            return (
+              <tr key={a} className="row-hover">
+                <td className="px-5 py-2.5">
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                    style={{ background: BENCH_ACTION_COLORS[a] }}
+                  >
+                    {a}
+                  </span>
+                </td>
+                <td className="px-5 py-2.5 text-right tabular-nums">{ath.toFixed(2)} m/s</td>
+                <td className="px-5 py-2.5 text-right tabular-nums" style={{ color: BENCHMARK_COLOR }}>
+                  {bm.toFixed(2)} m/s
+                </td>
+                <td className="px-5 py-2.5 text-right">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${tone}`}>
+                    {gap >= 0 ? "+" : ""}{gap.toFixed(2)} m/s ({pct >= 0 ? "+" : ""}{pct.toFixed(0)}%)
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
