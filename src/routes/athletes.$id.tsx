@@ -19,8 +19,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
-import { ArrowLeft, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2, Upload, RotateCcw } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
+import { ArrowLeft, ArrowUpDown, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2, Upload, RotateCcw } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 
@@ -167,55 +168,177 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ProgressCharts({ athleteId, sport }: { athleteId: string; sport: string }) {
-  const sessions = useQuery({ queryKey: ["sessions", athleteId], queryFn: () => listSessionsForAthlete(athleteId) });
-  // Mock progress trend so charts always look real
-  const data = (sessions.data ?? []).slice(0, 8).reverse().map((s, i) => ({
-    date: format(new Date(s.session_date), "MMM d"),
-    metric1: sport === "hockey" ? 2.45 - i * 0.015 : Number(msToFps(2.9 + i * 0.05)!.toFixed(2)),
-    metric2: sport === "hockey" ? Number(kmhToMph(21 + i * 0.4)!.toFixed(2)) : 60 + i * 1.5,
-  }));
-  while (data.length < 6) {
-    data.unshift({
-      date: `S${6 - data.length}`,
-      metric1: sport === "hockey" ? 2.5 - data.length * 0.02 : Number(msToFps(2.8 + data.length * 0.05)!.toFixed(2)),
-      metric2: sport === "hockey" ? Number(kmhToMph(20 + data.length * 0.3)!.toFixed(2)) : 58 + data.length * 1.5,
+// Elite junior fencing benchmarks (m/s)
+const ELITE_BENCHMARKS = {
+  peakSpeed: 4.5,
+  peakAdvance: 4.2,
+  avgSpeed: 2.0,
+  peakRetreat: 3.5,
+} as const;
+
+type ProgressRow = {
+  sessionId: string;
+  date: string;
+  dateLabel: string;
+  opponent: string;
+  result: string;
+  peakSpeed: number;
+  avgSpeed: number;
+  peakAdvance: number;
+  peakRetreat: number;
+};
+
+async function loadProgressRows(athleteId: string): Promise<ProgressRow[]> {
+  const { data: sess } = await supabase
+    .from("sessions")
+    .select("id, session_date")
+    .eq("athlete_id", athleteId);
+  const sessions = sess ?? [];
+  if (!sessions.length) return [];
+  const ids = sessions.map((s) => s.id);
+  const { data: fsRows } = await supabase
+    .from("fencing_sessions")
+    .select("session_id, opponent, result, speed_analysis")
+    .in("session_id", ids);
+  const rows: ProgressRow[] = [];
+  for (const fs of fsRows ?? []) {
+    const readings = (fs as any)?.speed_analysis?.readings as Array<{ speed: number; direction: string }> | undefined;
+    if (!readings?.length) continue;
+    const s = sessions.find((x) => x.id === (fs as any).session_id);
+    if (!s) continue;
+    const speeds = readings.map((r) => r.speed);
+    const adv = readings.filter((r) => r.direction === "advance").map((r) => r.speed);
+    const ret = readings.filter((r) => r.direction === "retreat").map((r) => r.speed);
+    rows.push({
+      sessionId: s.id,
+      date: s.session_date,
+      dateLabel: format(new Date(s.session_date), "MMM d"),
+      opponent: (fs as any).opponent ?? "—",
+      result: (fs as any).result ?? "—",
+      peakSpeed: speeds.length ? Math.max(...speeds) : 0,
+      avgSpeed: speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0,
+      peakAdvance: adv.length ? Math.max(...adv) : 0,
+      peakRetreat: ret.length ? Math.max(...ret) : 0,
     });
   }
-  const color = sport === "hockey" ? "var(--hockey)" : "var(--fencing)";
-  const m1 = sport === "hockey" ? "Best 10yd (s)" : "Attack speed (ft/s)";
-  const m2 = sport === "hockey" ? "Top speed (mph)" : "Bout win rate (%)";
+  rows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  return rows;
+}
+
+function ProgressCharts({ athleteId, sport }: { athleteId: string; sport: string }) {
+  const q = useQuery({ queryKey: ["progress-rows", athleteId], queryFn: () => loadProgressRows(athleteId) });
+  const rows = q.data ?? [];
+  const [sortDesc, setSortDesc] = useState(true);
+  const navigate = useNavigate();
+
+  if (q.isLoading) {
+    return <div className="surface p-6 text-sm text-[var(--text-secondary)]">Loading progress…</div>;
+  }
+  if (!rows.length) {
+    return (
+      <div className="surface p-8 text-center text-sm text-[var(--text-secondary)]">
+        No sessions with speed analysis yet. Upload and analyze a session video to see progress trends.
+      </div>
+    );
+  }
+
+  const chartData = rows.map((r) => ({
+    date: r.dateLabel,
+    peakSpeed: Number(r.peakSpeed.toFixed(2)),
+    avgSpeed: Number(r.avgSpeed.toFixed(2)),
+    peakAdvance: Number(r.peakAdvance.toFixed(2)),
+    peakRetreat: Number(r.peakRetreat.toFixed(2)),
+  }));
+
+  const sortedRows = [...rows].sort((a, b) =>
+    sortDesc ? new Date(b.date).getTime() - new Date(a.date).getTime() : new Date(a.date).getTime() - new Date(b.date).getTime(),
+  );
+
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <ChartCard title={m1} data={data} dataKey="metric1" color={color} />
-      <ChartCard title={m2} data={data} dataKey="metric2" color={color} />
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <TrendChart title="Peak Speed (m/s)" data={chartData} dataKey="peakSpeed" benchmark={ELITE_BENCHMARKS.peakSpeed} />
+        <TrendChart title="Peak Advance (m/s)" data={chartData} dataKey="peakAdvance" benchmark={ELITE_BENCHMARKS.peakAdvance} />
+        <TrendChart title="Avg Speed (m/s)" data={chartData} dataKey="avgSpeed" benchmark={ELITE_BENCHMARKS.avgSpeed} />
+        <TrendChart title="Peak Retreat (m/s)" data={chartData} dataKey="peakRetreat" benchmark={ELITE_BENCHMARKS.peakRetreat} />
+      </div>
+
+      <div className="surface p-5">
+        <div className="metric-label mb-3">Session comparison</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border-subtle)] text-left text-xs uppercase tracking-wide text-[var(--text-secondary)]">
+                <th className="py-2 pr-3">
+                  <button
+                    onClick={() => setSortDesc((s) => !s)}
+                    className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]"
+                  >
+                    Date <ArrowUpDown className="h-3 w-3" />
+                  </button>
+                </th>
+                <th className="py-2 pr-3">Opponent</th>
+                <th className="py-2 pr-3">Result</th>
+                <th className="py-2 pr-3 text-right">Peak speed</th>
+                <th className="py-2 pr-3 text-right">Avg speed</th>
+                <th className="py-2 pr-3 text-right">Peak advance</th>
+                <th className="py-2 pr-3 text-right">Peak retreat</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map((r) => (
+                <tr
+                  key={r.sessionId}
+                  onClick={() => navigate({ to: "/sessions/fencing/$id", params: { id: r.sessionId } })}
+                  className="cursor-pointer border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-elevated)]"
+                >
+                  <td className="py-2 pr-3 whitespace-nowrap">{format(new Date(r.date), "MMM d, yyyy")}</td>
+                  <td className="py-2 pr-3">{r.opponent}</td>
+                  <td className="py-2 pr-3 capitalize">{r.result}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{r.peakSpeed.toFixed(2)}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{r.avgSpeed.toFixed(2)}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{r.peakAdvance.toFixed(2)}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{r.peakRetreat.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
 
-function ChartCard({ title, data, dataKey, color }: any) {
+function TrendChart({ title, data, dataKey, benchmark }: { title: string; data: any[]; dataKey: string; benchmark: number }) {
   return (
     <div className="surface p-5">
-      <div className="metric-label mb-3">{title}</div>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="metric-label">{title}</div>
+        <div className="flex items-center gap-3 text-[10px] text-[var(--text-secondary)]">
+          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "var(--fencing)" }} />Athlete</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-3" style={{ background: "var(--accent)" }} />Elite benchmark</span>
+        </div>
+      </div>
       <div className="h-56">
         <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
-            <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
-            <XAxis dataKey="date" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
-            <Tooltip
-              contentStyle={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border-default)",
-                borderRadius: 8,
-                fontSize: 12,
-              }}
-              labelStyle={{ color: "var(--text-secondary)" }}
-            />
-            <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2.5} dot={{ r: 3, fill: color }} />
-          </LineChart>
-        </ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+              <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                labelStyle={{ color: "var(--text-secondary)" }}
+              />
+              <ReferenceLine y={benchmark} stroke="var(--accent)" strokeDasharray="4 4" strokeWidth={1.5} />
+              <Line type="monotone" dataKey={dataKey} stroke="var(--fencing)" strokeWidth={2.5} dot={{ r: 3, fill: "var(--fencing)" }} />
+            </LineChart>
+          </ResponsiveContainer>
         </ClientOnly>
       </div>
     </div>
