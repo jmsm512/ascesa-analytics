@@ -15,6 +15,7 @@ type SessionLite = {
   location: string | null;
   notes: string | null;
   session_type?: string | null;
+  name?: string | null;
 };
 
 type FencingFields = {
