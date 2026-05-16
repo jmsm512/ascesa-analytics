@@ -162,6 +162,7 @@ type Reading = { time: number; speed: number; direction: "advance" | "retreat" }
 
 
 function VideoSpeedAnalyzer() {
+  const analyzeFrame = useServerFn(analyzeFrameFn);
   const [stage, setStage] = useState<"upload" | "extracting" | "calibrate" | "analyzing" | "results">("upload");
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [firstFrame, setFirstFrame] = useState<string | null>(null);
