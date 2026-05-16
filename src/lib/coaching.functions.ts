@@ -40,7 +40,8 @@ export type DrillsInput = CoachingInput & {
   tagsSummary: string;
 };
 
-export type AthleteDrillPrescription = DrillPrescription & { priority: 1 | 2 | 3 };
+export type DrillKind = "solo" | "partner" | "footwork";
+export type AthleteDrillPrescription = DrillPrescription & { priority: 1 | 2 | 3; kind: DrillKind };
 
 export type AthleteDrillPlan = {
   drills: AthleteDrillPrescription[];
