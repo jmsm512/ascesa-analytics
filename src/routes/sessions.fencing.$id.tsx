@@ -194,8 +194,15 @@ function FencingSession() {
           <div className="surface mt-4 p-6" style={{ borderLeft: "4px solid var(--fencing)" }}>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="metric-label mb-2">Fencing Bout</div>
-                <h1 className="text-2xl font-bold tracking-tight">{format(new Date(session.session_date), "EEEE, MMM d")}</h1>
+                <div className="metric-label mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span>Fencing Bout</span>
+                  <span className="text-[var(--text-secondary)] normal-case tracking-normal">
+                    {format(new Date(session.session_date), "EEEE, MMM d")}
+                  </span>
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight">
+                  {(session as any).name?.trim() || format(new Date(session.session_date), "EEEE, MMM d")}
+                </h1>
                 <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-[var(--text-secondary)]">
                   <span>Weapon: <span className="text-[var(--text-primary)]">{fs.weapon}</span></span>
                   <span>Opponent: <span className="text-[var(--text-primary)]">{fs.opponent}</span></span>
