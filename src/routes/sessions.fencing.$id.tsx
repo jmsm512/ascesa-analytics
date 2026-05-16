@@ -19,6 +19,7 @@ import {
   Tooltip,
 } from "recharts";
 import { ArrowLeft, Check, X, Upload, RotateCcw, Download } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 
