@@ -1246,11 +1246,25 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
 type BenchPt = { x: number; y: number };
 type BenchReading = { time: number; speed: number; direction: "advance" | "retreat" };
 type BenchFrame = { time: number; nx: number; ny: number; detected: boolean };
+type BenchActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
+type BenchActionTag = { id: string; time: number; action: BenchActionType; success: boolean };
 type BenchAnalysis = {
   readings: BenchReading[];
   duration: number;
   points: BenchPt[];
   videoPath?: string | null;
+  tags?: BenchActionTag[];
+};
+
+const BENCH_ACTION_TYPES: BenchActionType[] = ["Attack", "Lunge", "Parry", "Riposte", "Advance", "Retreat", "Touch"];
+const BENCH_ACTION_COLORS: Record<BenchActionType, string> = {
+  Attack: "#ef4444",
+  Lunge: "#f97316",
+  Parry: "#3b82f6",
+  Riposte: "#06b6d4",
+  Advance: "#22c55e",
+  Retreat: "#ec4899",
+  Touch: "#eab308",
 };
 
 const BENCHMARK_COLOR = "#f59e0b";
