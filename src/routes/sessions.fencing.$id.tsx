@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
-import { getFencingSession } from "@/lib/data";
+import { getAthlete, getFencingSession } from "@/lib/data";
+import { generateCoachingSummary, type CoachingSummary } from "@/lib/coaching.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import {
