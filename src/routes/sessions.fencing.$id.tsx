@@ -33,7 +33,8 @@ const TABS = ["Overview", "Actions", "Video"] as const;
 
 function FencingSession() {
   const { id } = Route.useParams();
-  const [tab, setTab] = useState<(typeof TABS)[number]>("Overview");
+  const search = Route.useSearch();
+  const [tab, setTab] = useState<(typeof TABS)[number]>(search.tab ?? "Overview");
   const q = useQuery({ queryKey: ["fencing-session", id], queryFn: () => getFencingSession(id) });
   const session = q.data?.session;
   const fs = q.data?.fs;
