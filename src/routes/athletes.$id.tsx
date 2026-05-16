@@ -143,6 +143,182 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <div className="px-5 py-10 text-center text-sm text-[var(--text-secondary)]">{children}</div>;
 }
 
+async function loadOverviewData(athleteId: string) {
+  const { data: sess } = await supabase
+    .from("sessions")
+    .select("id, session_date, sport, session_type")
+    .eq("athlete_id", athleteId)
+    .order("session_date", { ascending: false });
+  const sessions = sess ?? [];
+  const ids = sessions.map((s) => s.id);
+
+  let fsRows: any[] = [];
+  if (ids.length) {
+    const { data } = await supabase
+      .from("fencing_sessions")
+      .select("session_id, opponent, result, speed_analysis")
+      .in("session_id", ids);
+    fsRows = data ?? [];
+  }
+  const fsBySession = new Map(fsRows.map((r) => [r.session_id, r]));
+
+  // Aggregate speed metrics
+  const peakSpeeds: number[] = [];
+  const advSpeeds: number[] = [];
+  const retSpeeds: number[] = [];
+  let analyzedCount = 0;
+  for (const fs of fsRows) {
+    const readings = fs?.speed_analysis?.readings as Array<{ speed: number; direction: string }> | undefined;
+    if (!readings?.length) continue;
+    analyzedCount++;
+    const speeds = readings.map((r) => r.speed);
+    if (speeds.length) peakSpeeds.push(Math.max(...speeds));
+    const adv = readings.filter((r) => r.direction === "advance").map((r) => r.speed);
+    const ret = readings.filter((r) => r.direction === "retreat").map((r) => r.speed);
+    if (adv.length) advSpeeds.push(adv.reduce((a, b) => a + b, 0) / adv.length);
+    if (ret.length) retSpeeds.push(ret.reduce((a, b) => a + b, 0) / ret.length);
+  }
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+
+  const resulted = fsRows.filter((r) => r.result === "win" || r.result === "loss");
+  const wins = resulted.filter((r) => r.result === "win").length;
+  const winRate = resulted.length ? Math.round((wins / resulted.length) * 100) : null;
+
+  // Recent AI feedback for this athlete's videos
+  let recentFeedback: { feedback: string; created_at: string } | null = null;
+  const { data: vids } = await supabase.from("videos").select("id").eq("athlete_id", athleteId);
+  const vidIds = (vids ?? []).map((v) => v.id);
+  if (vidIds.length) {
+    const { data: fb } = await supabase
+      .from("video_ai_feedback")
+      .select("feedback, created_at")
+      .in("video_id", vidIds)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    recentFeedback = fb?.[0] ?? null;
+  }
+
+  const recent = sessions.slice(0, 3).map((s) => {
+    const fs = fsBySession.get(s.id);
+    const readings = fs?.speed_analysis?.readings as Array<{ speed: number }> | undefined;
+    const peak = readings?.length ? Math.max(...readings.map((r) => r.speed)) : null;
+    return {
+      id: s.id,
+      sport: s.sport,
+      date: s.session_date,
+      opponent: fs?.opponent ?? "—",
+      result: fs?.result ?? s.session_type,
+      peakSpeed: peak,
+    };
+  });
+
+  return {
+    totalSessions: sessions.length,
+    analyzedCount,
+    avgPeak: avg(peakSpeeds),
+    avgAdvance: avg(advSpeeds),
+    avgRetreat: avg(retSpeeds),
+    winRate,
+    winCount: wins,
+    boutCount: resulted.length,
+    recentFeedback,
+    recent,
+  };
+}
+
+function OverviewTab({ athleteId, athleteName: _athleteName }: { athleteId: string; athleteName: string }) {
+  const q = useQuery({ queryKey: ["overview", athleteId], queryFn: () => loadOverviewData(athleteId) });
+  const d = q.data;
+
+  if (q.isLoading || !d) {
+    return <div className="surface p-6 text-sm text-[var(--text-secondary)]">Loading overview…</div>;
+  }
+
+  if (d.totalSessions === 0) {
+    return (
+      <div className="surface flex flex-col items-center gap-4 px-6 py-16 text-center">
+        <div className="text-base font-medium">No sessions yet — let's change that.</div>
+        <p className="max-w-md text-sm text-[var(--text-secondary)]">
+          Log your first training session or bout to unlock speed analysis, AI coaching observations, and progress trends.
+        </p>
+        <Link
+          to="/sessions/new"
+          search={{ athlete: athleteId }}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[#001813] hover:bg-[var(--accent-dim)]"
+        >
+          + Start your first session
+        </Link>
+      </div>
+    );
+  }
+
+  const fmt = (n: number | null, suffix = " m/s") => (n == null ? "—" : `${n.toFixed(2)}${suffix}`);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <OverviewStat label="Sessions analyzed" value={`${d.analyzedCount}`} sub={`${d.totalSessions} total`} />
+        <OverviewStat label="Avg peak speed" value={fmt(d.avgPeak)} />
+        <OverviewStat label="Avg advance" value={fmt(d.avgAdvance)} />
+        <OverviewStat label="Avg retreat" value={fmt(d.avgRetreat)} />
+        <OverviewStat
+          label="Bout win rate"
+          value={d.winRate == null ? "—" : `${d.winRate}%`}
+          sub={d.boutCount ? `${d.winCount}W / ${d.boutCount - d.winCount}L` : undefined}
+        />
+      </div>
+
+      {d.recentFeedback && (
+        <div className="surface p-5" style={{ borderLeft: "3px solid var(--accent)" }}>
+          <div className="metric-label mb-2 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> Latest AI coaching observation
+          </div>
+          <p className="text-sm leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
+            {d.recentFeedback.feedback}
+          </p>
+          <div className="mt-3 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+            {format(new Date(d.recentFeedback.created_at), "PP")}
+          </div>
+        </div>
+      )}
+
+      <div className="surface p-5">
+        <div className="metric-label mb-3">Recent sessions</div>
+        <div className="divide-y divide-[var(--border-subtle)]">
+          {d.recent.map((s) => (
+            <Link
+              key={s.id}
+              to={s.sport === "hockey" ? "/sessions/hockey/$id" : "/sessions/fencing/$id"}
+              params={{ id: s.id }}
+              className="row-hover flex items-center gap-4 py-3"
+            >
+              <div className="flex-1">
+                <div className="text-sm font-medium">{s.opponent}</div>
+                <div className="text-xs text-[var(--text-secondary)]">{format(new Date(s.date), "PP")}</div>
+              </div>
+              <div className="text-xs capitalize text-[var(--text-secondary)]">{s.result}</div>
+              <div className="w-20 text-right text-sm tabular-nums">
+                {s.peakSpeed == null ? <span className="text-[var(--text-muted)]">—</span> : `${s.peakSpeed.toFixed(2)} m/s`}
+              </div>
+              <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverviewStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="surface p-5">
+      <div className="metric-label">{label}</div>
+      <div className="metric-num-md mt-2">{value}</div>
+      {sub && <div className="mt-1 text-xs text-[var(--text-secondary)]">{sub}</div>}
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     pending: "bg-[var(--bg-hover)] text-[var(--text-secondary)]",
