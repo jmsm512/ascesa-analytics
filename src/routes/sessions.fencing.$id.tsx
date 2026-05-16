@@ -260,6 +260,7 @@ function VideoSpeedAnalyzer({
   const [points, setPoints] = useState<Pt[]>(existingAnalysis?.points ?? []);
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
   const [readings, setReadings] = useState<Reading[]>(existingAnalysis?.readings ?? []);
+  const [tags, setTags] = useState<ActionTag[]>(existingAnalysis?.tags ?? []);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
