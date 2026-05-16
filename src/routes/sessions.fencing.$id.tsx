@@ -1,12 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { getFencingSession } from "@/lib/data";
 import { format } from "date-fns";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
-import { ArrowLeft, Check, X } from "lucide-react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+import { ArrowLeft, Check, X, Upload, RotateCcw, Download } from "lucide-react";
 import { msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
