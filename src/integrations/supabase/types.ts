@@ -150,6 +150,36 @@ export type Database = {
         }
         Relationships: []
       }
+      benchmarks: {
+        Row: {
+          athlete_id: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          speed_analysis: Json | null
+          user_id: string
+        }
+        Insert: {
+          athlete_id: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          speed_analysis?: Json | null
+          user_id: string
+        }
+        Update: {
+          athlete_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          speed_analysis?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       fencing_actions: {
         Row: {
           action_type: string
