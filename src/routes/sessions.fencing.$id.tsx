@@ -767,14 +767,48 @@ function VideoSpeedAnalyzer({
               {ACTION_TYPES.map((a) => (
                 <button
                   key={a}
-                  onClick={() => addTag(a)}
-                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90"
+                  onClick={() => startTag(a)}
+                  disabled={!!pendingTag}
+                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
                   style={{ background: ACTION_COLORS[a] }}
                 >
                   {a}
                 </button>
               ))}
             </div>
+            {pendingTag && (
+              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2">
+                <span className="text-xs text-[var(--text-secondary)]">
+                  <span
+                    className="mr-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                    style={{ background: ACTION_COLORS[pendingTag.action] }}
+                  >
+                    {pendingTag.action}
+                  </span>
+                  at {pendingTag.time.toFixed(2)}s — Successful?
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={() => confirmTag(true)}
+                    className="rounded-md bg-[var(--data-positive)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={() => confirmTag(false)}
+                    className="rounded-md bg-[var(--data-negative)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={cancelPending}
+                    className="rounded-md border border-[var(--border-default)] px-3 py-1 text-xs hover:bg-[var(--bg-elevated)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="surface p-5">
