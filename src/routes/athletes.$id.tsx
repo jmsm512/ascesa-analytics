@@ -2164,6 +2164,16 @@ function ComparisonSection({
         ))}
       </div>
 
+      <ActionComparisonTable
+        athleteName={athleteName}
+        benchmarkName={primary.name}
+        athleteActions={athleteStats.actionAvgSpeeds}
+        benchmarkActions={actionAvgFromAnalysis(
+          primary.speed_analysis.readings as BenchReading[],
+          primary.speed_analysis.tags as BenchActionTag[] | undefined,
+        )}
+      />
+
       <div className="surface p-5">
         <div className="metric-label mb-3">Speed Profile Overlay</div>
         <div className="h-72">
