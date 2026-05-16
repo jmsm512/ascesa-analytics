@@ -109,19 +109,23 @@ export async function getFencingSession(sessionId: string) {
     sensors = s.data ?? [];
   }
 
-  // Latest video attached to this session
-  const { data: video } = await supabase
-    .from("videos")
-    .select("*")
-    .eq("session_id", sessionId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Prefer video stored on the fencing_sessions row; fall back to videos table
+  let videoPath: string | null = (fs as any)?.video_url ?? null;
+  if (!videoPath) {
+    const { data: video } = await supabase
+      .from("videos")
+      .select("*")
+      .eq("session_id", sessionId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    videoPath = video?.video_url ?? null;
+  }
   let videoUrl: string | null = null;
-  if (video?.video_url) {
+  if (videoPath) {
     const { data: signed } = await supabase.storage
       .from("videos")
-      .createSignedUrl(video.video_url, 60 * 60);
+      .createSignedUrl(videoPath, 60 * 60);
     videoUrl = signed?.signedUrl ?? null;
   }
 
