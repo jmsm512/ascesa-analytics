@@ -1,13 +1,16 @@
 import { createFileRoute, Link, ClientOnly } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
 import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals, listVideosForAthlete } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
+import { generateAthleteDrillPlan, type AthleteDrillPlan, type AthleteDrillPrescription } from "@/lib/coaching.functions";
 import { format } from "date-fns";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check } from "lucide-react";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/athletes/$id")({
@@ -15,7 +18,7 @@ export const Route = createFileRoute("/athletes/$id")({
   component: AthletePage,
 });
 
-const TABS = ["Overview", "Sessions", "Videos", "Progress", "Goals"] as const;
+const TABS = ["Overview", "Sessions", "Videos", "Progress", "Goals", "Drills"] as const;
 
 function AthletePage() {
   const { id } = Route.useParams();
