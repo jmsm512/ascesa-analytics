@@ -185,7 +185,7 @@ async function loadOverviewData(athleteId: string) {
   const winRate = resulted.length ? Math.round((wins / resulted.length) * 100) : null;
 
   // Recent AI feedback for this athlete's videos
-  let recentFeedback: { feedback: string; created_at: string } | null = null;
+  let recentFeedback: { feedback: string | null; created_at: string } | null = null;
   const { data: vids } = await supabase.from("videos").select("id").eq("athlete_id", athleteId);
   const vidIds = (vids ?? []).map((v) => v.id);
   if (vidIds.length) {
