@@ -59,6 +59,9 @@ export type AthleteDrillsInput = {
   avgRetreatSpeed: number;
   avgSpeed: number;
   actionSuccessRates: string;
+  allowedKinds?: DrillKind[];
+  equipment?: string;
+  focusArea?: string;
 };
 
 async function callAnthropic(prompt: string): Promise<string> {
