@@ -960,6 +960,23 @@ type BenchAnalysis = {
 const BENCHMARK_COLOR = "#f59e0b";
 const RIE_COLOR = "var(--fencing)";
 
+const UNSUPPORTED_VIDEO_MESSAGE =
+  "Video format not supported. Please convert to MP4 and try again, or use QuickTime Player → Export As → 1080p to convert on Mac.";
+
+function attachVideoSources(v: HTMLVideoElement, url: string) {
+  // Set src as fallback, and add explicit <source> children so the browser
+  // can pick the first supported MIME (mp4 / quicktime for .mov files).
+  v.src = url;
+  const mp4 = document.createElement("source");
+  mp4.src = url;
+  mp4.type = "video/mp4";
+  const mov = document.createElement("source");
+  mov.src = url;
+  mov.type = "video/quicktime";
+  v.appendChild(mp4);
+  v.appendChild(mov);
+}
+
 function benchUid() {
   return (typeof crypto !== "undefined" && (crypto as any).randomUUID?.()) || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
