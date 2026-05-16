@@ -282,6 +282,21 @@ function AthleteCard({
             />
           </Field>
         </div>
+
+        {form.sport === "fencing" && (
+          <Field label="FencingTracker profile URL (optional)">
+            <input
+              type="url"
+              placeholder="https://fencingtracker.com/p/.../Name"
+              value={form.fencing_tracker_url}
+              onChange={(e) => onChange({ fencing_tracker_url: e.target.value })}
+              className={inputCls}
+            />
+            <div className="mt-1 text-[11px] text-[var(--text-muted)]">
+              Pull in current rating, tournament history, and podium finishes.
+            </div>
+          </Field>
+        )}
       </div>
     </div>
   );
