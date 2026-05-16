@@ -299,8 +299,11 @@ function OverviewTab({ athleteId, athleteName: _athleteName }: { athleteId: stri
               className="row-hover flex items-center gap-4 py-3"
             >
               <div className="flex-1">
-                <div className="text-sm font-medium">{s.opponent}</div>
-                <div className="text-xs text-[var(--text-secondary)]">{format(new Date(s.date), "PP")}</div>
+                <div className="text-sm font-medium">{s.name?.trim() || s.opponent}</div>
+                <div className="text-xs text-[var(--text-secondary)]">
+                  {format(new Date(s.date), "PP")}
+                  {s.name?.trim() && s.opponent && s.opponent !== "—" ? ` · vs ${s.opponent}` : ""}
+                </div>
               </div>
               <div className="text-xs capitalize text-[var(--text-secondary)]">{s.result}</div>
               <div className="w-20 text-right text-sm tabular-nums">
