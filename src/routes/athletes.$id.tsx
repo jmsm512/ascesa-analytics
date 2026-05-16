@@ -95,7 +95,7 @@ function AthletePage() {
         </div>
 
         <div className="mt-6">
-          {tab === "Overview" && a && <OverviewTab athleteId={id} athleteName={a.name} />}
+          {tab === "Overview" && a && <OverviewTab athleteId={id} athleteName={a.name} sport={a.sport} />}
 
           {tab === "Sessions" && (
             <div className="surface divide-y divide-[var(--border-subtle)] overflow-hidden">
