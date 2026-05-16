@@ -334,6 +334,7 @@ function VideoSpeedAnalyzer({
       savedAt: new Date().toISOString(),
       tags: tagList,
       coaching: coaching ?? undefined,
+      drills: drills ?? undefined,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
     onSaved?.();
@@ -348,6 +349,7 @@ function VideoSpeedAnalyzer({
       savedAt: new Date().toISOString(),
       tags: next,
       coaching: coaching ?? undefined,
+      drills: drills ?? undefined,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
   }
@@ -361,6 +363,7 @@ function VideoSpeedAnalyzer({
       savedAt: new Date().toISOString(),
       tags,
       coaching: c,
+      drills: drills ?? undefined,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
   }
