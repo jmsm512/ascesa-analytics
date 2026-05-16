@@ -1322,6 +1322,7 @@ async function aggregateAthleteStats(athleteId: string) {
     peakAdvance: 0,
     peakRetreat: 0,
     readings: [] as BenchReading[],
+    actionAvgSpeeds: {} as Record<string, number>,
   };
   if (!sessionIds.length) return result;
   const { data: fsRows } = await supabase
@@ -1333,6 +1334,7 @@ async function aggregateAthleteStats(athleteId: string) {
   const retPeaks: number[] = [];
   const all: number[] = [];
   const allReadings: BenchReading[] = [];
+  const actionSpeeds: Record<string, number[]> = {};
   for (const r of (fsRows ?? []) as any[]) {
     const readings = r?.speed_analysis?.readings as BenchReading[] | undefined;
     if (!readings?.length) continue;
@@ -1344,6 +1346,19 @@ async function aggregateAthleteStats(athleteId: string) {
     const ret = readings.filter((x) => x.direction === "retreat").map((x) => x.speed);
     if (ret.length) retPeaks.push(Math.max(...ret));
     allReadings.push(...readings);
+    const tags = r?.speed_analysis?.tags as BenchActionTag[] | undefined;
+    if (tags?.length) {
+      for (const tg of tags) {
+        // find nearest reading
+        let best = readings[0];
+        let bestDiff = Math.abs(best.time - tg.time);
+        for (const rd of readings) {
+          const d = Math.abs(rd.time - tg.time);
+          if (d < bestDiff) { best = rd; bestDiff = d; }
+        }
+        (actionSpeeds[tg.action] ||= []).push(best.speed);
+      }
+    }
   }
   const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
   result.peakSpeed = mean(peaks);
@@ -1351,6 +1366,9 @@ async function aggregateAthleteStats(athleteId: string) {
   result.peakAdvance = mean(advPeaks);
   result.peakRetreat = mean(retPeaks);
   result.readings = allReadings;
+  result.actionAvgSpeeds = Object.fromEntries(
+    Object.entries(actionSpeeds).map(([k, v]) => [k, mean(v)]),
+  );
   return result;
 }
 
@@ -1366,6 +1384,22 @@ function statsFromReadings(readings: BenchReading[]) {
     peakAdvance: adv.length ? Math.max(...adv) : 0,
     peakRetreat: ret.length ? Math.max(...ret) : 0,
   };
+}
+
+function actionAvgFromAnalysis(readings: BenchReading[], tags: BenchActionTag[] | undefined): Record<string, number> {
+  if (!tags?.length || !readings.length) return {};
+  const speeds: Record<string, number[]> = {};
+  for (const tg of tags) {
+    let best = readings[0];
+    let bestDiff = Math.abs(best.time - tg.time);
+    for (const r of readings) {
+      const d = Math.abs(r.time - tg.time);
+      if (d < bestDiff) { best = r; bestDiff = d; }
+    }
+    (speeds[tg.action] ||= []).push(best.speed);
+  }
+  const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+  return Object.fromEntries(Object.entries(speeds).map(([k, v]) => [k, mean(v)]));
 }
 
 // Bin readings into N evenly-spaced buckets across normalized 0..100% timeline
