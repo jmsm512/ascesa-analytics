@@ -932,7 +932,7 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
                 disabled={saving || !target}
                 className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
               >
-                {saving ? "Saving…" : "Save Goal"}
+                {saving ? "Saving…" : editingId ? "Save Changes" : "Save Goal"}
               </button>
             </div>
           </div>
