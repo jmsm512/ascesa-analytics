@@ -11,6 +11,7 @@ import {
   Line,
   AreaChart,
   Area,
+  ReferenceLine,
   XAxis,
   YAxis,
   CartesianGrid,
