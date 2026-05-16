@@ -141,6 +141,8 @@ function AthletePage() {
             </div>
           )}
 
+          {tab === "Drills" && a && <DrillsTab athleteId={id} athleteName={a.name} athleteAge={a.age} />}
+
           {tab === "Progress" && <ProgressCharts athleteId={id} sport={a?.sport ?? "hockey"} />}
 
           {tab === "Goals" && (
