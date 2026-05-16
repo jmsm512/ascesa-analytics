@@ -32,6 +32,7 @@ function NewSessionPage() {
   const [fencingScore, setFencingScore] = useState({ scored: 0, received: 0 });
   const [actions, setActions] = useState<FencingAction[]>([]);
   const [saving, setSaving] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
 
   const athlete = athletes.data?.find((a) => a.id === athleteId);
   const isHockey = athlete?.sport === "hockey";
