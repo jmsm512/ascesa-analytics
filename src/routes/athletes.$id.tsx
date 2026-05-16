@@ -486,7 +486,7 @@ function DrillsTab({ athleteId, athleteName, athleteAge }: { athleteId: string; 
             </div>
           </div>
           <button
-            onClick={handleGenerate}
+            onClick={() => setModalOpen(true)}
             disabled={loading || !stats || stats.analyzedCount === 0}
             className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
           >
