@@ -999,7 +999,8 @@ function extractBenchFirstFrame(url: string): Promise<{ frame: string; dur: numb
       ctx.drawImage(v, 0, 0);
       resolve({ frame: c.toDataURL("image/jpeg", 0.9), dur: v.duration });
     }, { once: true });
-    v.addEventListener("error", () => reject(new Error("Video load error")));
+    v.addEventListener("error", () => reject(new Error(UNSUPPORTED_VIDEO_MESSAGE)));
+    attachVideoSources(v, url);
   });
 }
 
