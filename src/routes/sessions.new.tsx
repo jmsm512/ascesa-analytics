@@ -279,25 +279,6 @@ function NewSessionPage() {
           )}
 
           {step === 3 && (
-            <div className="surface flex flex-col items-center justify-center p-12 text-center">
-              <Upload className="mb-3 h-8 w-8 text-[var(--text-muted)]" />
-              <div className="font-semibold">Upload video (optional)</div>
-              <div className="mt-1 text-xs text-[var(--text-secondary)]">
-                {videoFile ? `Selected: ${videoFile.name}` : "Drop a clip here or skip for now"}
-              </div>
-              <input
-                type="file"
-                accept="video/*"
-                onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)}
-                className="mt-4 text-xs text-[var(--text-secondary)]"
-              />
-              <div className="mt-6">
-                <NavBtns onBack={() => setStep(2)} onNext={() => setStep(4)} />
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
             <div className="surface space-y-3 p-6">
               <div className="metric-label">Summary</div>
               <Row k="Athlete" v={athlete?.name ?? ""} />
@@ -307,7 +288,7 @@ function NewSessionPage() {
               {!isHockey && <Row k="Score" v={`${fencingScore.scored} - ${fencingScore.received}`} />}
               {!isHockey && <Row k="Actions logged" v={String(actions.length)} />}
               <div className="flex justify-between pt-3">
-                <button onClick={() => setStep(3)} className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                <button onClick={() => setStep(2)} className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                   ← Back
                 </button>
                 <button
