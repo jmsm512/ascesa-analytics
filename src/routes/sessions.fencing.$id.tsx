@@ -398,6 +398,11 @@ function VideoSpeedAnalyzer({
       }
       setReadings(out);
       setStage("results");
+      if (pendingFile) {
+        void persistVideo(pendingFile).then(() => persistAnalysis(out, points, v.duration));
+      } else {
+        void persistAnalysis(out, points, v.duration);
+      }
     } catch (e: any) {
       setError(e?.message ?? "Analysis failed");
       setStage("calibrate");
