@@ -1435,6 +1435,8 @@ function binByTime(readings: BenchReading[], bins = 30): { t: number; speed: num
     speed: b.length ? +(b.reduce((s, x) => s + x, 0) / b.length).toFixed(2) : 0,
   }));
 }
+
+function BenchmarksTab({ athleteId, athleteName }: { athleteId: string; athleteName: string }) {
   const benchmarks = useQuery({
     queryKey: ["athlete-benchmarks-records", athleteId],
     queryFn: async () => {
