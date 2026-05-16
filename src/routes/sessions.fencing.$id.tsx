@@ -159,7 +159,7 @@ type Pt = { x: number; y: number };
 type Frame = { time: number; nx: number; ny: number; detected: boolean };
 type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
 
-const MP_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
+
 
 function VideoSpeedAnalyzer() {
   const [stage, setStage] = useState<"upload" | "extracting" | "calibrate" | "analyzing" | "results">("upload");
