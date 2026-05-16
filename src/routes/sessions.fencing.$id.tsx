@@ -366,11 +366,26 @@ function VideoSpeedAnalyzer({
     return best;
   }
 
-  function addTag(action: ActionType) {
+  const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
+
+  function startTag(action: ActionType) {
     const t = playbackRef.current?.currentTime ?? currentTime;
-    const next = [...tags, { id: crypto.randomUUID(), time: t, action }].sort((a, b) => a.time - b.time);
+    setPendingTag({ action, time: t });
+  }
+
+  function confirmTag(success: boolean) {
+    if (!pendingTag) return;
+    const next = [
+      ...tags,
+      { id: crypto.randomUUID(), time: pendingTag.time, action: pendingTag.action, success },
+    ].sort((a, b) => a.time - b.time);
     setTags(next);
+    setPendingTag(null);
     void persistTags(next);
+  }
+
+  function cancelPending() {
+    setPendingTag(null);
   }
 
   function removeTag(id: string) {
