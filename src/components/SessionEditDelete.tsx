@@ -151,6 +151,10 @@ export function SessionEditDelete({
           </DialogHeader>
           <div className="space-y-3">
             <div>
+              <Label>Name</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tuesday open bout" />
+            </div>
+            <div>
               <Label>Date</Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
