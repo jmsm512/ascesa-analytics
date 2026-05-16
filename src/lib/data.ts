@@ -125,7 +125,7 @@ export async function getFencingSession(sessionId: string) {
     videoUrl = signed?.signedUrl ?? null;
   }
 
-  return { session, fs, actions, sensors, videoUrl };
+  return { session, fs, actions, sensors, videoUrl, speedAnalysis: (fs as any)?.speed_analysis ?? null };
 }
 
 export async function listVideosForAthlete(athleteId: string) {

@@ -6,7 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
 import { listAthletes } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, Trash2, Upload, Check } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check } from "lucide-react";
 import { mphToKmh } from "@/lib/units";
 
 export const Route = createFileRoute("/sessions/new")({
@@ -32,7 +32,7 @@ function NewSessionPage() {
   const [fencingScore, setFencingScore] = useState({ scored: 0, received: 0 });
   const [actions, setActions] = useState<FencingAction[]>([]);
   const [saving, setSaving] = useState(false);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
+  
 
   const athlete = athletes.data?.find((a) => a.id === athleteId);
   const isHockey = athlete?.sport === "hockey";
@@ -58,25 +58,6 @@ function NewSessionPage() {
       setSaving(false);
       return;
     }
-
-    if (videoFile) {
-      const ext = videoFile.name.split(".").pop() || "mp4";
-      const path = `${userId}/${session.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("videos")
-        .upload(path, videoFile, { contentType: videoFile.type || "video/mp4", upsert: false });
-      if (!upErr) {
-        await supabase.from("videos").insert({
-          user_id: userId,
-          session_id: session.id,
-          athlete_id: athlete.id,
-          label: videoFile.name,
-          video_url: path,
-          status: "ready",
-        });
-      }
-    }
-
     if (isHockey) {
       const { data: hss } = await supabase
         .from("hockey_sprint_sessions")
@@ -122,7 +103,7 @@ function NewSessionPage() {
           })),
         );
       }
-      navigate({ to: "/sessions/fencing/$id", params: { id: session.id } });
+      navigate({ to: "/sessions/fencing/$id", params: { id: session.id }, search: { tab: "Video" } });
     }
   };
 
@@ -135,11 +116,11 @@ function NewSessionPage() {
 
         <div className="mt-4">
           <div className="metric-label mb-1">New Session</div>
-          <h1 className="text-2xl font-bold tracking-tight">Step {step} of 4</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Step {step} of 3</h1>
         </div>
 
         <div className="mt-4 flex gap-1.5">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div key={s} className={`h-1 flex-1 rounded-full ${s <= step ? "bg-[var(--accent)]" : "bg-[var(--bg-elevated)]"}`} />
           ))}
         </div>
@@ -298,25 +279,6 @@ function NewSessionPage() {
           )}
 
           {step === 3 && (
-            <div className="surface flex flex-col items-center justify-center p-12 text-center">
-              <Upload className="mb-3 h-8 w-8 text-[var(--text-muted)]" />
-              <div className="font-semibold">Upload video (optional)</div>
-              <div className="mt-1 text-xs text-[var(--text-secondary)]">
-                {videoFile ? `Selected: ${videoFile.name}` : "Drop a clip here or skip for now"}
-              </div>
-              <input
-                type="file"
-                accept="video/*"
-                onChange={(e) => setVideoFile(e.target.files?.[0] ?? null)}
-                className="mt-4 text-xs text-[var(--text-secondary)]"
-              />
-              <div className="mt-6">
-                <NavBtns onBack={() => setStep(2)} onNext={() => setStep(4)} />
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
             <div className="surface space-y-3 p-6">
               <div className="metric-label">Summary</div>
               <Row k="Athlete" v={athlete?.name ?? ""} />
@@ -326,7 +288,7 @@ function NewSessionPage() {
               {!isHockey && <Row k="Score" v={`${fencingScore.scored} - ${fencingScore.received}`} />}
               {!isHockey && <Row k="Actions logged" v={String(actions.length)} />}
               <div className="flex justify-between pt-3">
-                <button onClick={() => setStep(3)} className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                <button onClick={() => setStep(2)} className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                   ← Back
                 </button>
                 <button
