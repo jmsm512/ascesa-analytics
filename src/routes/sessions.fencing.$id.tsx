@@ -284,7 +284,11 @@ function VideoSpeedAnalyzer({
   const [coaching, setCoaching] = useState<CoachingSummary | null>(existingAnalysis?.coaching ?? null);
   const [coachingLoading, setCoachingLoading] = useState(false);
   const [coachingError, setCoachingError] = useState<string | null>(null);
+  const [drills, setDrills] = useState<DrillsPlan | null>(existingAnalysis?.drills ?? null);
+  const [drillsLoading, setDrillsLoading] = useState(false);
+  const [drillsError, setDrillsError] = useState<string | null>(null);
   const generateCoaching = useServerFn(generateCoachingSummary);
+  const generateDrillsFn = useServerFn(generateDrills);
   const athleteQuery = useQuery({
     queryKey: ["athlete", athleteId],
     queryFn: () => (athleteId ? getAthlete(athleteId) : Promise.resolve(null)),
