@@ -661,7 +661,14 @@ function PeriodSection({
     return best;
   }
 
+  const MAX_VIDEO_MB = 150;
+
   function onFile(file: File) {
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > MAX_VIDEO_MB) {
+      setError(`This video is too large (${Math.round(sizeMB)}MB). Please trim to under 2 minutes or compress using QuickTime Player → Export As → 1080p before uploading. Most videos compress to under 100MB this way.`);
+      return;
+    }
     setError(null);
     setStage("extracting");
     setPendingFile(file);
