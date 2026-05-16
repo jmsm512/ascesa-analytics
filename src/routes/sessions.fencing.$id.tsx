@@ -209,6 +209,7 @@ function VideoSpeedAnalyzer({
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
 
@@ -217,11 +218,11 @@ function VideoSpeedAnalyzer({
       const { data: u } = await supabase.auth.getUser();
       const userId = u.user?.id;
       if (!userId) return null;
-      const ext = file.name.split(".").pop() || "mp4";
-      const path = `${userId}/${sessionId}/${Date.now()}.${ext}`;
+      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+      const path = `${userId}/${sessionId}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("videos")
-        .upload(path, file, { contentType: file.type || "video/mp4", upsert: false });
+        .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
       if (upErr) return null;
       await supabase.from("videos").insert({
         user_id: userId,
@@ -231,6 +232,9 @@ function VideoSpeedAnalyzer({
         video_url: path,
         status: "ready",
       });
+      if (fencingSessionId) {
+        await supabase.from("fencing_sessions").update({ video_url: path } as any).eq("id", fencingSessionId);
+      }
       return path;
     } catch {
       return null;
@@ -398,10 +402,12 @@ function VideoSpeedAnalyzer({
       }
       setReadings(out);
       setStage("results");
-      if (pendingFile) {
-        void persistVideo(pendingFile).then(() => persistAnalysis(out, points, v.duration));
-      } else {
-        void persistAnalysis(out, points, v.duration);
+      setSaving(true);
+      try {
+        if (pendingFile) await persistVideo(pendingFile);
+        await persistAnalysis(out, points, v.duration);
+      } finally {
+        setSaving(false);
       }
     } catch (e: any) {
       setError(e?.message ?? "Analysis failed");
@@ -547,6 +553,12 @@ function VideoSpeedAnalyzer({
 
       {stage === "results" && (
         <>
+          {saving && (
+            <div className="surface flex items-center gap-3 p-3 text-xs text-[var(--text-secondary)]">
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />
+              Saving analysis…
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-4">
             <StatCard label="Peak speed (m/s)" value={peak.toFixed(2)} />
             <StatCard label="Avg speed (m/s)" value={avg.toFixed(2)} />
