@@ -217,7 +217,7 @@ type Pt = { x: number; y: number };
 type Frame = { time: number; nx: number; ny: number; detected: boolean };
 type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
 type ActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
-type ActionTag = { id: string; time: number; action: ActionType };
+type ActionTag = { id: string; time: number; action: ActionType; success: boolean };
 
 const ACTION_COLORS: Record<ActionType, string> = {
   Attack: "#ef4444",
