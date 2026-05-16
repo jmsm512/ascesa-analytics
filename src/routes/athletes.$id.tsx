@@ -19,7 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
+import { LineChart, Line, AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
 import { ArrowLeft, ArrowUpDown, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2, Upload, RotateCcw, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
@@ -1419,6 +1419,23 @@ function binReadings(readings: BenchReading[], bins = 20): { t: number; speed: n
   }));
 }
 
+// Bin readings into N evenly-spaced time buckets keyed by absolute seconds
+function binByTime(readings: BenchReading[], bins = 30): { t: number; speed: number }[] {
+  if (!readings.length) return [];
+  const tMax = Math.max(...readings.map((r) => r.time));
+  const tMin = Math.min(...readings.map((r) => r.time));
+  const span = tMax - tMin || 1;
+  const buckets: number[][] = Array.from({ length: bins }, () => []);
+  for (const r of readings) {
+    const idx = Math.min(bins - 1, Math.floor(((r.time - tMin) / span) * bins));
+    buckets[idx].push(r.speed);
+  }
+  return buckets.map((b, i) => ({
+    t: +(tMin + (i / (bins - 1)) * span).toFixed(1),
+    speed: b.length ? +(b.reduce((s, x) => s + x, 0) / b.length).toFixed(2) : 0,
+  }));
+}
+
 function BenchmarksTab({ athleteId, athleteName }: { athleteId: string; athleteName: string }) {
   const benchmarks = useQuery({
     queryKey: ["athlete-benchmarks-records", athleteId],
@@ -2227,9 +2244,88 @@ function ComparisonSection({
           </ClientOnly>
         </div>
       </div>
+
+      <SpeedProfileChart
+        title={`${primary.name} — Speed Profile`}
+        data={binByTime(primary.speed_analysis.readings as BenchReading[])}
+        color={BENCHMARK_COLOR}
+        yMax={Math.max(primaryStats.peakSpeed, athleteStats.peakSpeed) * 1.1}
+      />
+      <SpeedProfileChart
+        title={`${athleteName || "Athlete"} — Average Speed Profile`}
+        data={binByTime(athleteStats.readings)}
+        color="var(--accent)"
+        yMax={Math.max(primaryStats.peakSpeed, athleteStats.peakSpeed) * 1.1}
+      />
     </div>
   );
 }
+
+function SpeedProfileChart({
+  title,
+  data,
+  color,
+  yMax,
+}: {
+  title: string;
+  data: { t: number; speed: number }[];
+  color: string;
+  yMax: number;
+}) {
+  const gradId = `grad-${title.replace(/[^a-z0-9]/gi, "")}`;
+  return (
+    <div className="surface p-5">
+      <div className="metric-label mb-3">{title}</div>
+      <div className="h-56">
+        <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data} margin={{ top: 10, right: 10, bottom: 5, left: -10 }}>
+              <defs>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.55} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+              <XAxis
+                dataKey="t"
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                label={{ value: "Time (s)", position: "insideBottom", offset: -2, fill: "var(--text-secondary)", fontSize: 11 }}
+              />
+              <YAxis
+                domain={[0, yMax || "auto"]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                label={{ value: "Speed (m/s)", angle: -90, position: "insideLeft", fill: "var(--text-secondary)", fontSize: 11 }}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                formatter={(v: any) => (typeof v === "number" ? `${v.toFixed(2)} m/s` : v)}
+                labelFormatter={(v: any) => `t = ${v}s`}
+              />
+              <Area
+                type="monotone"
+                dataKey="speed"
+                stroke={color}
+                strokeWidth={2}
+                fill={`url(#${gradId})`}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ClientOnly>
+      </div>
+    </div>
+  );
+}
+
 
 function ComparisonCard({
   label,
