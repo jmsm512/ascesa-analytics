@@ -2118,7 +2118,7 @@ function ComparisonSection({
   benchmarks,
 }: {
   athleteName: string;
-  athleteStats: { peakSpeed: number; avgSpeed: number; peakAdvance: number; peakRetreat: number; readings: BenchReading[] };
+  athleteStats: { peakSpeed: number; avgSpeed: number; peakAdvance: number; peakRetreat: number; readings: BenchReading[]; actionAvgSpeeds: Record<string, number> };
   benchmarks: any[];
 }) {
   const primary = benchmarks[0];
