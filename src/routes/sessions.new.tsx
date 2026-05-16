@@ -57,6 +57,7 @@ function NewSessionPage() {
         sport: athlete.sport,
         session_type: sessionType,
         session_date: sessionDate.toISOString(),
+        name: sessionName.trim() || null,
       })
       .select()
       .single();
