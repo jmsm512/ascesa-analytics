@@ -23,7 +23,6 @@ export const Route = createFileRoute("/sessions/new")({
 });
 
 type HockeyRep = { rep_number: number; time_10m: string; peak_kmh: string };
-type FencingAction = { action_type: string; successful: boolean };
 
 function NewSessionPage() {
   const navigate = useNavigate();
@@ -37,7 +36,6 @@ function NewSessionPage() {
   const [hockeyReps, setHockeyReps] = useState<HockeyRep[]>([{ rep_number: 1, time_10m: "", peak_kmh: "" }]);
   const [fencingOpponent, setFencingOpponent] = useState("");
   const [fencingScore, setFencingScore] = useState({ scored: 0, received: 0 });
-  const [actions, setActions] = useState<FencingAction[]>([]);
   const [saving, setSaving] = useState(false);
   
 
@@ -86,7 +84,7 @@ function NewSessionPage() {
       }
       navigate({ to: "/sessions/hockey/$id", params: { id: session.id } });
     } else {
-      const { data: fs } = await supabase
+      await supabase
         .from("fencing_sessions")
         .insert({
           session_id: session.id,
@@ -96,20 +94,7 @@ function NewSessionPage() {
           touches_scored: fencingScore.scored,
           touches_received: fencingScore.received,
           result: fencingScore.scored > fencingScore.received ? "win" : fencingScore.scored < fencingScore.received ? "loss" : "draw",
-        })
-        .select()
-        .single();
-      if (fs && actions.length) {
-        await supabase.from("fencing_actions").insert(
-          actions.map((a, i) => ({
-            fencing_session_id: fs.id,
-            user_id: userId,
-            action_type: a.action_type,
-            successful: a.successful,
-            timestamp_seconds: i * 30,
-          })),
-        );
-      }
+        });
       navigate({ to: "/sessions/fencing/$id", params: { id: session.id }, search: { tab: "Video" } });
     }
   };
@@ -279,39 +264,6 @@ function NewSessionPage() {
                 />
               </div>
 
-              <div className="metric-label">Quick-add actions</div>
-              <div className="flex flex-wrap gap-2">
-                {["attack", "parry", "lunge", "riposte"].map((t) => (
-                  <div key={t} className="flex gap-1 rounded-md bg-[var(--bg-elevated)] p-1">
-                    <span className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-[var(--text-secondary)]">{t}</span>
-                    <button
-                      onClick={() => setActions((a) => [...a, { action_type: t, successful: true }])}
-                      className="rounded bg-[var(--accent-glow)] px-2 py-1 text-xs text-[var(--accent)]"
-                    >
-                      ✓
-                    </button>
-                    <button
-                      onClick={() => setActions((a) => [...a, { action_type: t, successful: false }])}
-                      className="rounded bg-[var(--data-negative)]/15 px-2 py-1 text-xs text-[var(--data-negative)]"
-                    >
-                      ✗
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="surface divide-y divide-[var(--border-subtle)]">
-                {actions.length === 0 && <div className="px-4 py-6 text-center text-xs text-[var(--text-secondary)]">No actions yet.</div>}
-                {actions.map((a, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2 text-sm">
-                    <span className="metric-label w-10">#{i + 1}</span>
-                    <span className="capitalize">{a.action_type}</span>
-                    <span className={a.successful ? "text-[var(--data-positive)]" : "text-[var(--data-negative)]"}>
-                      {a.successful ? "Success" : "Missed"}
-                    </span>
-                  </div>
-                ))}
-              </div>
               <NavBtns onBack={() => setStep(1)} onNext={() => setStep(3)} />
             </div>
           )}
@@ -325,7 +277,7 @@ function NewSessionPage() {
               <Row k="Date" v={sessionDate ? format(sessionDate, "PPP") : ""} />
               {isHockey && <Row k="Reps" v={String(hockeyReps.length)} />}
               {!isHockey && <Row k="Score" v={`${fencingScore.scored} - ${fencingScore.received}`} />}
-              {!isHockey && <Row k="Actions logged" v={String(actions.length)} />}
+              
               <div className="flex justify-between pt-3">
                 <button onClick={() => setStep(2)} className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                   ← Back

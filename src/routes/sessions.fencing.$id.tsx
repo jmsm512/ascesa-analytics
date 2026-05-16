@@ -176,6 +176,7 @@ function FencingSession() {
   const q = useQuery({ queryKey: ["fencing-session", id], queryFn: () => getFencingSession(id) });
   const session = q.data?.session;
   const fs = q.data?.fs;
+  const sensors = q.data?.sensors ?? [];
   const analysis = useMemo(
     () => normalizeAnalysis(q.data?.speedAnalysis ?? null, (q.data as any)?.videoPath ?? null),
     [q.data?.speedAnalysis, (q.data as any)?.videoPath],
@@ -242,33 +243,6 @@ function FencingSession() {
               onGoToVideo={() => setTab("Video")}
             />
           </>
-        )}
-
-        {tab === "Actions" && (
-          <div className="mt-6 surface overflow-hidden">
-            {actions.length === 0 && <div className="px-5 py-10 text-center text-sm text-[var(--text-secondary)]">No actions logged.</div>}
-            <ul className="divide-y divide-[var(--border-subtle)]">
-              {actions.map((a: any) => (
-                <li key={a.id} className="row-hover flex items-center gap-4 px-5 py-3">
-                  <div className="w-12 text-xs text-[var(--text-secondary)] tabular-nums">
-                    {Math.floor(a.timestamp_seconds / 60)}:{String(Math.floor(a.timestamp_seconds % 60)).padStart(2, "0")}
-                  </div>
-                  <span className="rounded-full bg-[var(--bg-elevated)] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-                    {a.action_type}
-                  </span>
-                  {a.successful ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-glow)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
-                      <Check className="h-3 w-3" /> Success
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--data-negative)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--data-negative)]">
-                      <X className="h-3 w-3" /> Missed
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
         )}
 
         {tab === "Video" && (
