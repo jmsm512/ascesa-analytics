@@ -19,6 +19,7 @@ import {
   Tooltip,
 } from "recharts";
 import { ArrowLeft, Check, X, Upload, RotateCcw, Download } from "lucide-react";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 
@@ -145,6 +146,47 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
       <div className="metric-label">{label}</div>
       <div className="metric-num-md mt-2" style={color ? { color } : undefined}>{value}</div>
     </div>
+  );
+}
+
+function getBenchmarkColor(value: number, eliteMin: number): string {
+  if (value >= eliteMin) return "var(--data-positive)";
+  if (value >= eliteMin * 0.8) return "var(--data-warning)";
+  return "var(--data-negative)";
+}
+
+function BenchmarkStatCard({
+  label,
+  value,
+  numericValue,
+  benchmarkText,
+  eliteMin,
+}: {
+  label: string;
+  value: string;
+  numericValue: number;
+  benchmarkText: string;
+  eliteMin: number;
+}) {
+  const color = getBenchmarkColor(numericValue, eliteMin);
+  return (
+    <TooltipProvider delayDuration={100}>
+      <UITooltip>
+        <TooltipTrigger asChild>
+          <div className="surface p-5 cursor-help" style={{ borderTop: `2px solid ${color}` }}>
+            <div className="metric-label">{label}</div>
+            <div className="metric-num-md mt-2" style={{ color }}>{value}</div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={8}
+          className="max-w-[240px] bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[var(--text-primary)] p-3 rounded-lg shadow-lg"
+        >
+          <p className="text-xs leading-relaxed">{benchmarkText}</p>
+        </TooltipContent>
+      </UITooltip>
+    </TooltipProvider>
   );
 }
 
@@ -560,10 +602,10 @@ function VideoSpeedAnalyzer({
             </div>
           )}
           <div className="grid gap-4 sm:grid-cols-4">
-            <StatCard label="Peak speed (m/s)" value={peak.toFixed(2)} />
-            <StatCard label="Avg speed (m/s)" value={avg.toFixed(2)} />
-            <StatCard label="Peak advance (m/s)" value={peakAdv.toFixed(2)} accent="positive" />
-            <StatCard label="Peak retreat (m/s)" value={peakRet.toFixed(2)} accent="negative" />
+            <BenchmarkStatCard label="Peak speed (m/s)" value={peak.toFixed(2)} numericValue={peak} benchmarkText="Elite junior fencers: 4–6 m/s. Olympic level: 6–8 m/s" eliteMin={4} />
+            <BenchmarkStatCard label="Avg speed (m/s)" value={avg.toFixed(2)} numericValue={avg} benchmarkText="Higher average means more aggressive pressure footwork. Elite avg: 1.2–2.0 m/s" eliteMin={1.2} />
+            <BenchmarkStatCard label="Peak advance (m/s)" value={peakAdv.toFixed(2)} numericValue={peakAdv} benchmarkText="Explosive advance drives attacks. Elite junior: 3.5–5.0 m/s" eliteMin={3.5} />
+            <BenchmarkStatCard label="Peak retreat (m/s)" value={peakRet.toFixed(2)} numericValue={peakRet} benchmarkText="Fast retreat indicates good defensive instincts. Elite junior: 3.0–4.5 m/s" eliteMin={3.0} />
           </div>
 
           <div className="surface p-5">
