@@ -15,6 +15,7 @@ type SessionLite = {
   location: string | null;
   notes: string | null;
   session_type?: string | null;
+  name?: string | null;
 };
 
 type FencingFields = {
@@ -42,6 +43,7 @@ export function SessionEditDelete({
   const [err, setErr] = useState<string | null>(null);
 
   const [date, setDate] = useState(session.session_date.slice(0, 10));
+  const [name, setName] = useState(session.name ?? "");
   const [sessionType, setSessionType] = useState(session.session_type ?? "");
   const [location, setLocation] = useState(session.location ?? "");
   const [notes, setNotes] = useState(session.notes ?? "");
@@ -61,6 +63,7 @@ export function SessionEditDelete({
           session_type: sessionType || (session.session_type ?? "bout"),
           location: location || null,
           notes: notes || null,
+          name: name.trim() || null,
         })
         .eq("id", session.id);
       if (e1) throw e1;
@@ -147,6 +150,10 @@ export function SessionEditDelete({
             <DialogTitle>Edit session</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <div>
+              <Label>Name</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tuesday open bout" />
+            </div>
             <div>
               <Label>Date</Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />

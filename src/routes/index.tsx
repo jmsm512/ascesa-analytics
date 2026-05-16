@@ -86,7 +86,9 @@ function Dashboard() {
                 />
               </div>
               <div className="flex-1">
-                <div className="text-sm font-medium">{s.athletes?.name} — {s.session_type}</div>
+                <div className="text-sm font-medium">
+                  {s.athletes?.name} — {s.name?.trim() || s.session_type}
+                </div>
                 <div className="text-xs text-[var(--text-secondary)]">
                   {formatDistanceToNow(new Date(s.session_date), { addSuffix: true })}
                   {s.location ? ` · ${s.location}` : ""}

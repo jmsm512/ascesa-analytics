@@ -108,8 +108,13 @@ function AthletePage() {
                   className="row-hover flex items-center gap-4 px-5 py-4"
                 >
                   <div className="flex-1">
-                    <div className="text-sm font-medium capitalize">{s.session_type}</div>
-                    <div className="text-xs text-[var(--text-secondary)]">{format(new Date(s.session_date), "PP")}</div>
+                    <div className="text-sm font-medium">
+                      {s.name?.trim() || <span className="capitalize">{s.session_type}</span>}
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)]">
+                      {format(new Date(s.session_date), "PP")}
+                      {s.name?.trim() ? <span className="capitalize"> · {s.session_type}</span> : null}
+                    </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
                 </Link>
@@ -146,7 +151,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 async function loadOverviewData(athleteId: string) {
   const { data: sess } = await supabase
     .from("sessions")
-    .select("id, session_date, sport, session_type")
+    .select("id, session_date, sport, session_type, name")
     .eq("athlete_id", athleteId)
     .order("session_date", { ascending: false });
   const sessions = sess ?? [];
@@ -206,6 +211,7 @@ async function loadOverviewData(athleteId: string) {
       id: s.id,
       sport: s.sport,
       date: s.session_date,
+      name: (s as any).name ?? null,
       opponent: fs?.opponent ?? "—",
       result: fs?.result ?? s.session_type,
       peakSpeed: peak,
@@ -293,8 +299,11 @@ function OverviewTab({ athleteId, athleteName: _athleteName }: { athleteId: stri
               className="row-hover flex items-center gap-4 py-3"
             >
               <div className="flex-1">
-                <div className="text-sm font-medium">{s.opponent}</div>
-                <div className="text-xs text-[var(--text-secondary)]">{format(new Date(s.date), "PP")}</div>
+                <div className="text-sm font-medium">{s.name?.trim() || s.opponent}</div>
+                <div className="text-xs text-[var(--text-secondary)]">
+                  {format(new Date(s.date), "PP")}
+                  {s.name?.trim() && s.opponent && s.opponent !== "—" ? ` · vs ${s.opponent}` : ""}
+                </div>
               </div>
               <div className="text-xs capitalize text-[var(--text-secondary)]">{s.result}</div>
               <div className="w-20 text-right text-sm tabular-nums">

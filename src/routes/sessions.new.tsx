@@ -32,6 +32,7 @@ function NewSessionPage() {
   const [step, setStep] = useState(1);
   const [athleteId, setAthleteId] = useState<string>(preselectedAthleteId ?? "");
   const [sessionType, setSessionType] = useState<string>("");
+  const [sessionName, setSessionName] = useState<string>("");
   const [sessionDate, setSessionDate] = useState<Date>(new Date());
   const [hockeyReps, setHockeyReps] = useState<HockeyRep[]>([{ rep_number: 1, time_10m: "", peak_kmh: "" }]);
   const [fencingOpponent, setFencingOpponent] = useState("");
@@ -56,6 +57,7 @@ function NewSessionPage() {
         sport: athlete.sport,
         session_type: sessionType,
         session_date: sessionDate.toISOString(),
+        name: sessionName.trim() || null,
       })
       .select()
       .single();
@@ -170,6 +172,13 @@ function NewSessionPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <div className="metric-label mt-4">Session name <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
+                  <input
+                    value={sessionName}
+                    onChange={(e) => setSessionName(e.target.value)}
+                    placeholder="e.g. Tuesday open bout vs Marco"
+                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                  />
                   <div className="metric-label mt-4">Session date</div>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -274,6 +283,7 @@ function NewSessionPage() {
               <Row k="Athlete" v={athlete?.name ?? ""} />
               <Row k="Sport" v={athlete?.sport ?? ""} />
               <Row k="Session type" v={sessionType} />
+              {sessionName.trim() && <Row k="Name" v={sessionName.trim()} />}
               <Row k="Date" v={sessionDate ? format(sessionDate, "PPP") : ""} />
               {isHockey && <Row k="Reps" v={String(hockeyReps.length)} />}
               {!isHockey && <Row k="Score" v={`${fencingScore.scored} - ${fencingScore.received}`} />}
