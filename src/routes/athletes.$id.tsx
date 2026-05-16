@@ -394,7 +394,9 @@ function DrillsTab({ athleteId, athleteName, athleteAge }: { athleteId: string; 
     if (!stats) return;
     setLoading(true);
     setErr(null);
+    setModalOpen(false);
     try {
+      const kinds = (Object.keys(allowedKinds) as DrillKind[]).filter((k) => allowedKinds[k]);
       const result = await generate({
         data: {
           athleteName,
@@ -405,6 +407,9 @@ function DrillsTab({ athleteId, athleteName, athleteAge }: { athleteId: string; 
           avgRetreatSpeed: stats.avgRetreatSpeed,
           avgSpeed: stats.avgSpeed,
           actionSuccessRates: stats.actionSuccessRates,
+          allowedKinds: kinds.length ? kinds : undefined,
+          equipment: equipment.trim() || undefined,
+          focusArea: focusArea.trim() || undefined,
         },
       });
       const next: AthleteDrillPlan = {
