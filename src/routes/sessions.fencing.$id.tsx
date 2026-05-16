@@ -217,7 +217,7 @@ type Pt = { x: number; y: number };
 type Frame = { time: number; nx: number; ny: number; detected: boolean };
 type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
 type ActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
-type ActionTag = { id: string; time: number; action: ActionType };
+type ActionTag = { id: string; time: number; action: ActionType; success: boolean };
 
 const ACTION_COLORS: Record<ActionType, string> = {
   Attack: "#ef4444",
@@ -366,11 +366,26 @@ function VideoSpeedAnalyzer({
     return best;
   }
 
-  function addTag(action: ActionType) {
+  const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
+
+  function startTag(action: ActionType) {
     const t = playbackRef.current?.currentTime ?? currentTime;
-    const next = [...tags, { id: crypto.randomUUID(), time: t, action }].sort((a, b) => a.time - b.time);
+    setPendingTag({ action, time: t });
+  }
+
+  function confirmTag(success: boolean) {
+    if (!pendingTag) return;
+    const next = [
+      ...tags,
+      { id: crypto.randomUUID(), time: pendingTag.time, action: pendingTag.action, success },
+    ].sort((a, b) => a.time - b.time);
     setTags(next);
+    setPendingTag(null);
     void persistTags(next);
+  }
+
+  function cancelPending() {
+    setPendingTag(null);
   }
 
   function removeTag(id: string) {
@@ -752,14 +767,48 @@ function VideoSpeedAnalyzer({
               {ACTION_TYPES.map((a) => (
                 <button
                   key={a}
-                  onClick={() => addTag(a)}
-                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90"
+                  onClick={() => startTag(a)}
+                  disabled={!!pendingTag}
+                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
                   style={{ background: ACTION_COLORS[a] }}
                 >
                   {a}
                 </button>
               ))}
             </div>
+            {pendingTag && (
+              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2">
+                <span className="text-xs text-[var(--text-secondary)]">
+                  <span
+                    className="mr-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                    style={{ background: ACTION_COLORS[pendingTag.action] }}
+                  >
+                    {pendingTag.action}
+                  </span>
+                  at {pendingTag.time.toFixed(2)}s — Successful?
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={() => confirmTag(true)}
+                    className="rounded-md bg-[var(--data-positive)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={() => confirmTag(false)}
+                    className="rounded-md bg-[var(--data-negative)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
+                  >
+                    No
+                  </button>
+                  <button
+                    onClick={cancelPending}
+                    className="rounded-md border border-[var(--border-default)] px-3 py-1 text-xs hover:bg-[var(--bg-elevated)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="surface p-5">
@@ -819,6 +868,7 @@ function VideoSpeedAnalyzer({
                   <tr>
                     <th className="px-5 py-2 text-left">Time (s)</th>
                     <th className="px-5 py-2 text-left">Action</th>
+                    <th className="px-5 py-2 text-left">Result</th>
                     <th className="px-5 py-2 text-left">Speed (m/s)</th>
                     <th className="px-5 py-2 text-left">Direction</th>
                     <th className="px-5 py-2 w-10" />
@@ -850,6 +900,14 @@ function VideoSpeedAnalyzer({
                             {tg.action}
                           </span>
                         </td>
+                        <td className="px-5 py-2">
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                            style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}
+                          >
+                            {tg.success ? "Success" : "Fail"}
+                          </span>
+                        </td>
                         <td className="px-5 py-2 tabular-nums">{r ? r.speed.toFixed(3) : "—"}</td>
                         <td className="px-5 py-2 text-[var(--text-secondary)]">{r?.direction ?? "—"}</td>
                         <td className="px-5 py-2 text-right">
@@ -878,12 +936,15 @@ function VideoSpeedAnalyzer({
                 <div className="grid gap-3">
                   {Object.entries(
                     tags.reduce<Record<string, ActionTag[]>>((acc, t) => {
-                      (acc[t.action] ||= []).push(t);
+                      const key = `${t.action}|${t.success ? "success" : "fail"}`;
+                      (acc[key] ||= []).push(t);
                       return acc;
                     }, {})
                   )
                     .sort((a, b) => a[0].localeCompare(b[0]))
-                    .map(([action, actionTags]) => {
+                    .map(([key, actionTags]) => {
+                      const [action, outcome] = key.split("|") as [ActionType, "success" | "fail"];
+                      const isSuccess = outcome === "success";
                       const bench = ACTION_BENCHMARKS[action];
                       const speeds = actionTags
                         .map((t) => speedAt(t.time)?.speed)
@@ -895,13 +956,21 @@ function VideoSpeedAnalyzer({
                       const barColor = bench ? getBenchmarkColor(value, bench.eliteMin) : "var(--text-muted)";
                       const barWidth = bench ? Math.min((value / bench.eliteMax) * 100, 100) : 0;
                       return (
-                        <div key={action} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                          <span
-                            className="shrink-0 self-start rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
-                            style={{ background: ACTION_COLORS[action as ActionType] }}
-                          >
-                            {action}
-                          </span>
+                        <div key={key} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                          <div className="flex shrink-0 items-center gap-2 self-start">
+                            <span
+                              className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
+                              style={{ background: ACTION_COLORS[action] }}
+                            >
+                              {action}
+                            </span>
+                            <span
+                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                              style={{ background: isSuccess ? "var(--data-positive)" : "var(--data-negative)" }}
+                            >
+                              {isSuccess ? "Success" : "Fail"}
+                            </span>
+                          </div>
                           <div className="flex-1 min-w-0 grid grid-cols-3 gap-4 text-sm">
                             <div>
                               <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Count</div>
