@@ -1,6 +1,6 @@
 import { createFileRoute, Link, ClientOnly } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
-import { ArrowLeft, ArrowUpDown, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2, Upload, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2, Upload, RotateCcw, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
@@ -1246,11 +1246,25 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
 type BenchPt = { x: number; y: number };
 type BenchReading = { time: number; speed: number; direction: "advance" | "retreat" };
 type BenchFrame = { time: number; nx: number; ny: number; detected: boolean };
+type BenchActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
+type BenchActionTag = { id: string; time: number; action: BenchActionType; success: boolean };
 type BenchAnalysis = {
   readings: BenchReading[];
   duration: number;
   points: BenchPt[];
   videoPath?: string | null;
+  tags?: BenchActionTag[];
+};
+
+const BENCH_ACTION_TYPES: BenchActionType[] = ["Attack", "Lunge", "Parry", "Riposte", "Advance", "Retreat", "Touch"];
+const BENCH_ACTION_COLORS: Record<BenchActionType, string> = {
+  Attack: "#ef4444",
+  Lunge: "#f97316",
+  Parry: "#3b82f6",
+  Riposte: "#06b6d4",
+  Advance: "#22c55e",
+  Retreat: "#ec4899",
+  Touch: "#eab308",
 };
 
 const BENCHMARK_COLOR = "#f59e0b";
@@ -1308,6 +1322,7 @@ async function aggregateAthleteStats(athleteId: string) {
     peakAdvance: 0,
     peakRetreat: 0,
     readings: [] as BenchReading[],
+    actionAvgSpeeds: {} as Record<string, number>,
   };
   if (!sessionIds.length) return result;
   const { data: fsRows } = await supabase
@@ -1319,6 +1334,7 @@ async function aggregateAthleteStats(athleteId: string) {
   const retPeaks: number[] = [];
   const all: number[] = [];
   const allReadings: BenchReading[] = [];
+  const actionSpeeds: Record<string, number[]> = {};
   for (const r of (fsRows ?? []) as any[]) {
     const readings = r?.speed_analysis?.readings as BenchReading[] | undefined;
     if (!readings?.length) continue;
@@ -1330,6 +1346,19 @@ async function aggregateAthleteStats(athleteId: string) {
     const ret = readings.filter((x) => x.direction === "retreat").map((x) => x.speed);
     if (ret.length) retPeaks.push(Math.max(...ret));
     allReadings.push(...readings);
+    const tags = r?.speed_analysis?.tags as BenchActionTag[] | undefined;
+    if (tags?.length) {
+      for (const tg of tags) {
+        // find nearest reading
+        let best = readings[0];
+        let bestDiff = Math.abs(best.time - tg.time);
+        for (const rd of readings) {
+          const d = Math.abs(rd.time - tg.time);
+          if (d < bestDiff) { best = rd; bestDiff = d; }
+        }
+        (actionSpeeds[tg.action] ||= []).push(best.speed);
+      }
+    }
   }
   const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
   result.peakSpeed = mean(peaks);
@@ -1337,6 +1366,9 @@ async function aggregateAthleteStats(athleteId: string) {
   result.peakAdvance = mean(advPeaks);
   result.peakRetreat = mean(retPeaks);
   result.readings = allReadings;
+  result.actionAvgSpeeds = Object.fromEntries(
+    Object.entries(actionSpeeds).map(([k, v]) => [k, mean(v)]),
+  );
   return result;
 }
 
@@ -1352,6 +1384,22 @@ function statsFromReadings(readings: BenchReading[]) {
     peakAdvance: adv.length ? Math.max(...adv) : 0,
     peakRetreat: ret.length ? Math.max(...ret) : 0,
   };
+}
+
+function actionAvgFromAnalysis(readings: BenchReading[], tags: BenchActionTag[] | undefined): Record<string, number> {
+  if (!tags?.length || !readings.length) return {};
+  const speeds: Record<string, number[]> = {};
+  for (const tg of tags) {
+    let best = readings[0];
+    let bestDiff = Math.abs(best.time - tg.time);
+    for (const r of readings) {
+      const d = Math.abs(r.time - tg.time);
+      if (d < bestDiff) { best = r; bestDiff = d; }
+    }
+    (speeds[tg.action] ||= []).push(best.speed);
+  }
+  const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+  return Object.fromEntries(Object.entries(speeds).map(([k, v]) => [k, mean(v)]));
 }
 
 // Bin readings into N evenly-spaced buckets across normalized 0..100% timeline
@@ -1488,9 +1536,70 @@ function BenchmarkCard({
   const [points, setPoints] = useState<BenchPt[]>(analysis?.points ?? []);
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
   const [readings, setReadings] = useState<BenchReading[]>(analysis?.readings ?? []);
+  const [tags, setTags] = useState<BenchActionTag[]>(analysis?.tags ?? []);
+  const [pendingTag, setPendingTag] = useState<{ action: BenchActionType; time: number } | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const playbackRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  // Sign existing video URL for playback in the results stage
+  useEffect(() => {
+    let cancelled = false;
+    const path = analysis?.videoPath;
+    if (path && !dataUrl) {
+      supabase.storage
+        .from("videos")
+        .createSignedUrl(path, 60 * 60)
+        .then(({ data }) => {
+          if (!cancelled && data?.signedUrl) setDataUrl(data.signedUrl);
+        });
+    }
+    return () => { cancelled = true; };
+  }, [analysis?.videoPath]);
+
+  function speedAt(t: number): BenchReading | null {
+    if (!readings.length) return null;
+    let best = readings[0];
+    let bestDiff = Math.abs(best.time - t);
+    for (const r of readings) {
+      const d = Math.abs(r.time - t);
+      if (d < bestDiff) { best = r; bestDiff = d; }
+    }
+    return best;
+  }
+
+  function startTag(action: BenchActionType) {
+    const t = playbackRef.current?.currentTime ?? currentTime;
+    setPendingTag({ action, time: t });
+  }
+  async function confirmTag(success: boolean) {
+    if (!pendingTag) return;
+    const next = [
+      ...tags,
+      { id: benchUid(), time: pendingTag.time, action: pendingTag.action, success },
+    ].sort((a, b) => a.time - b.time);
+    setTags(next);
+    setPendingTag(null);
+    await persistTags(next);
+  }
+  async function removeTag(id: string) {
+    const next = tags.filter((t) => t.id !== id);
+    setTags(next);
+    await persistTags(next);
+  }
+  async function persistTags(next: BenchActionTag[]) {
+    const payload: BenchAnalysis = {
+      readings,
+      duration: analysis?.duration ?? 0,
+      points: analysis?.points ?? points,
+      videoPath: analysis?.videoPath ?? null,
+      tags: next,
+    };
+    await supabase.from("benchmarks" as any).update({ speed_analysis: payload }).eq("id", benchmark.id);
+    onUpdated();
+  }
 
   async function saveMeta() {
     setSavingMeta(true);
@@ -1677,6 +1786,7 @@ function BenchmarkCard({
         duration: v.duration,
         points,
         videoPath,
+        tags,
       };
       await supabase.from("benchmarks" as any).update({ speed_analysis: payload }).eq("id", benchmark.id);
       onUpdated();
@@ -1694,6 +1804,8 @@ function BenchmarkCard({
     setDuration(0);
     setPoints([]);
     setReadings([]);
+    setTags([]);
+    setPendingTag(null);
     setProgress({ cur: 0, total: 0 });
     setError(null);
     await supabase.from("benchmarks" as any).update({ speed_analysis: null }).eq("id", benchmark.id);
@@ -1840,6 +1952,139 @@ function BenchmarkCard({
               <BenchStatBox label="Peak Advance" value={stats.peakAdvance} unit="m/s" />
               <BenchStatBox label="Peak Retreat" value={stats.peakRetreat} unit="m/s" />
             </div>
+
+            {dataUrl && (
+              <div className="overflow-hidden rounded-lg">
+                <video
+                  ref={playbackRef}
+                  src={dataUrl}
+                  controls
+                  playsInline
+                  onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                  onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                  className="w-full rounded-md bg-black"
+                  style={{ maxHeight: 480 }}
+                />
+              </div>
+            )}
+
+            <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+              <div className="metric-label mb-3">Tag action at {currentTime.toFixed(2)}s</div>
+              <div className="flex flex-wrap gap-2">
+                {BENCH_ACTION_TYPES.map((a) => (
+                  <button
+                    key={a}
+                    onClick={() => startTag(a)}
+                    disabled={!!pendingTag}
+                    className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
+                    style={{ background: BENCH_ACTION_COLORS[a] }}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+              {pendingTag && (
+                <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--border-default)] bg-[var(--bg-default)] px-3 py-2">
+                  <span className="text-xs text-[var(--text-secondary)]">
+                    <span
+                      className="mr-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                      style={{ background: BENCH_ACTION_COLORS[pendingTag.action] }}
+                    >
+                      {pendingTag.action}
+                    </span>
+                    at {pendingTag.time.toFixed(2)}s — Successful?
+                  </span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={() => confirmTag(true)}
+                      className="rounded-md bg-[var(--data-positive)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => confirmTag(false)}
+                      className="rounded-md bg-[var(--data-negative)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
+                    >
+                      No
+                    </button>
+                    <button
+                      onClick={() => setPendingTag(null)}
+                      className="rounded-md border border-[var(--border-default)] px-3 py-1 text-xs hover:bg-[var(--bg-elevated)]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {tags.length > 0 && (
+              <div className="overflow-hidden rounded-md border border-[var(--border-subtle)]">
+                <div className="bg-[var(--bg-elevated)] px-5 py-2 metric-label">Tagged actions ({tags.length})</div>
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+                    <tr>
+                      <th className="px-5 py-2 text-left">Time (s)</th>
+                      <th className="px-5 py-2 text-left">Action</th>
+                      <th className="px-5 py-2 text-left">Result</th>
+                      <th className="px-5 py-2 text-left">Speed (m/s)</th>
+                      <th className="px-5 py-2 text-left">Direction</th>
+                      <th className="px-5 py-2 w-10" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-subtle)]">
+                    {tags.map((tg) => {
+                      const r = speedAt(tg.time);
+                      return (
+                        <tr key={tg.id} className="row-hover">
+                          <td className="px-5 py-2 tabular-nums">
+                            <button
+                              onClick={() => {
+                                if (playbackRef.current) {
+                                  playbackRef.current.currentTime = tg.time;
+                                  setCurrentTime(tg.time);
+                                }
+                              }}
+                              className="underline-offset-2 hover:underline"
+                            >
+                              {tg.time.toFixed(2)}
+                            </button>
+                          </td>
+                          <td className="px-5 py-2">
+                            <span
+                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                              style={{ background: BENCH_ACTION_COLORS[tg.action] }}
+                            >
+                              {tg.action}
+                            </span>
+                          </td>
+                          <td className="px-5 py-2">
+                            <span
+                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                              style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}
+                            >
+                              {tg.success ? "Success" : "Fail"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-2 tabular-nums">{r ? r.speed.toFixed(3) : "—"}</td>
+                          <td className="px-5 py-2 text-[var(--text-secondary)]">{r?.direction ?? "—"}</td>
+                          <td className="px-5 py-2 text-right">
+                            <button
+                              onClick={() => removeTag(tg.id)}
+                              className="inline-flex items-center justify-center rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]"
+                              aria-label="Delete tag"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             <div className="flex justify-end">
               <button
                 onClick={resetAnalysis}
@@ -1873,7 +2118,7 @@ function ComparisonSection({
   benchmarks,
 }: {
   athleteName: string;
-  athleteStats: { peakSpeed: number; avgSpeed: number; peakAdvance: number; peakRetreat: number; readings: BenchReading[] };
+  athleteStats: { peakSpeed: number; avgSpeed: number; peakAdvance: number; peakRetreat: number; readings: BenchReading[]; actionAvgSpeeds: Record<string, number> };
   benchmarks: any[];
 }) {
   const primary = benchmarks[0];
@@ -1918,6 +2163,16 @@ function ComparisonSection({
           />
         ))}
       </div>
+
+      <ActionComparisonTable
+        athleteName={athleteName}
+        benchmarkName={primary.name}
+        athleteActions={athleteStats.actionAvgSpeeds}
+        benchmarkActions={actionAvgFromAnalysis(
+          primary.speed_analysis.readings as BenchReading[],
+          primary.speed_analysis.tags as BenchActionTag[] | undefined,
+        )}
+      />
 
       <div className="surface p-5">
         <div className="metric-label mb-3">Speed Profile Overlay</div>
@@ -2016,6 +2271,86 @@ function ComparisonCard({
           {gap >= 0 ? "+" : ""}{gap.toFixed(2)} m/s ({pctGap >= 0 ? "+" : ""}{pctGap.toFixed(0)}%)
         </span>
       </div>
+    </div>
+  );
+}
+
+function ActionComparisonTable({
+  athleteName,
+  benchmarkName,
+  athleteActions,
+  benchmarkActions,
+}: {
+  athleteName: string;
+  benchmarkName: string;
+  athleteActions: Record<string, number>;
+  benchmarkActions: Record<string, number>;
+}) {
+  const shared = BENCH_ACTION_TYPES.filter(
+    (a) => athleteActions[a] != null && benchmarkActions[a] != null,
+  );
+
+  if (shared.length === 0) {
+    return (
+      <div className="surface p-5">
+        <div className="metric-label mb-2">Action Comparison</div>
+        <p className="text-xs text-[var(--text-secondary)]">
+          Tag actions in both {athleteName || "the athlete"}'s session videos and the benchmark video to see a side-by-side action comparison here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="surface overflow-hidden">
+      <div className="border-b border-[var(--border-subtle)] px-5 py-3">
+        <div className="metric-label">Action Comparison</div>
+        <p className="mt-1 text-xs text-[var(--text-secondary)]">
+          Avg speed at the moment each action was tagged. Green = within 10%, amber = 10–30% gap, red = more than 30% below.
+        </p>
+      </div>
+      <table className="w-full text-sm">
+        <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+          <tr>
+            <th className="px-5 py-2 text-left">Action</th>
+            <th className="px-5 py-2 text-right">{athleteName || "Athlete"}</th>
+            <th className="px-5 py-2 text-right">{benchmarkName}</th>
+            <th className="px-5 py-2 text-right">Gap</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--border-subtle)]">
+          {shared.map((a) => {
+            const ath = athleteActions[a];
+            const bm = benchmarkActions[a];
+            const gap = ath - bm;
+            const pct = bm > 0 ? (gap / bm) * 100 : 0;
+            let tone = "bg-emerald-500/10 text-emerald-400";
+            if (pct < -30) tone = "bg-rose-500/10 text-rose-400";
+            else if (pct < -10) tone = "bg-amber-500/10 text-amber-400";
+            return (
+              <tr key={a} className="row-hover">
+                <td className="px-5 py-2.5">
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                    style={{ background: BENCH_ACTION_COLORS[a] }}
+                  >
+                    {a}
+                  </span>
+                </td>
+                <td className="px-5 py-2.5 text-right tabular-nums">{ath.toFixed(2)} m/s</td>
+                <td className="px-5 py-2.5 text-right tabular-nums" style={{ color: BENCHMARK_COLOR }}>
+                  {bm.toFixed(2)} m/s
+                </td>
+                <td className="px-5 py-2.5 text-right">
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${tone}`}>
+                    {gap >= 0 ? "+" : ""}{gap.toFixed(2)} m/s ({pct >= 0 ? "+" : ""}{pct.toFixed(0)}%)
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
