@@ -368,6 +368,77 @@ function VideoSpeedAnalyzer({
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
   }
 
+  async function persistDrills(d: DrillsPlan | null) {
+    if (!fencingSessionId) return;
+    const payload: SavedAnalysis = {
+      readings,
+      duration,
+      points,
+      savedAt: new Date().toISOString(),
+      tags,
+      coaching: coaching ?? undefined,
+      drills: d ?? undefined,
+    };
+    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+  }
+
+  function buildTagsSummary(): string {
+    if (!tags.length) return "none";
+    const groups = tags.reduce<Record<string, { count: number; success: number }>>((acc, t) => {
+      const k = t.action;
+      if (!acc[k]) acc[k] = { count: 0, success: 0 };
+      acc[k].count++;
+      if (t.success) acc[k].success++;
+      return acc;
+    }, {});
+    return Object.entries(groups)
+      .map(([a, v]) => `${a} x${v.count} (${v.success}/${v.count} successful)`)
+      .join(", ");
+  }
+
+  async function handleGenerateDrills() {
+    if (drillsLoading) return;
+    const athlete = athleteQuery.data;
+    if (!athlete || !readings.length) return;
+    const peakD = readings.reduce((m, r) => Math.max(m, r.speed), 0);
+    const avgD = readings.reduce((s, r) => s + r.speed, 0) / readings.length;
+    const peakAdvD = readings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
+    const peakRetD = readings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
+    setDrillsLoading(true);
+    setDrillsError(null);
+    try {
+      const plan = await generateDrillsFn({
+        data: {
+          athleteName: athlete.name,
+          athleteAge: athlete.age,
+          peakSpeed: peakD,
+          avgSpeed: avgD,
+          peakAdvance: peakAdvD,
+          peakRetreat: peakRetD,
+          readingCount: readings.length,
+          duration,
+          tagsSummary: buildTagsSummary(),
+        },
+      });
+      setDrills(plan);
+      void persistDrills(plan);
+    } catch (e: any) {
+      setDrillsError(e?.message ?? "Failed to generate drills");
+    } finally {
+      setDrillsLoading(false);
+    }
+  }
+
+  function toggleDrillComplete(name: string) {
+    if (!drills) return;
+    const completed = { ...drills.completed };
+    if (completed[name]) delete completed[name];
+    else completed[name] = new Date().toISOString();
+    const next = { ...drills, completed };
+    setDrills(next);
+    void persistDrills(next);
+  }
+
   function speedAt(t: number): Reading | null {
     if (!readings.length) return null;
     let best = readings[0];
