@@ -296,16 +296,53 @@ function VideoSpeedAnalyzer({
     }
   }
 
-  async function persistAnalysis(out: Reading[], pts: Pt[], dur: number) {
+  async function persistAnalysis(out: Reading[], pts: Pt[], dur: number, tagList: ActionTag[] = tags) {
     if (!fencingSessionId) return;
     const payload: SavedAnalysis = {
       readings: out,
       duration: dur,
       points: pts,
       savedAt: new Date().toISOString(),
+      tags: tagList,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
     onSaved?.();
+  }
+
+  async function persistTags(next: ActionTag[]) {
+    if (!fencingSessionId) return;
+    const payload: SavedAnalysis = {
+      readings,
+      duration,
+      points,
+      savedAt: new Date().toISOString(),
+      tags: next,
+    };
+    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+  }
+
+  function speedAt(t: number): Reading | null {
+    if (!readings.length) return null;
+    let best = readings[0];
+    let bestDiff = Math.abs(best.time - t);
+    for (const r of readings) {
+      const d = Math.abs(r.time - t);
+      if (d < bestDiff) { best = r; bestDiff = d; }
+    }
+    return best;
+  }
+
+  function addTag(action: ActionType) {
+    const t = playbackRef.current?.currentTime ?? currentTime;
+    const next = [...tags, { id: crypto.randomUUID(), time: t, action }].sort((a, b) => a.time - b.time);
+    setTags(next);
+    void persistTags(next);
+  }
+
+  function removeTag(id: string) {
+    const next = tags.filter((t) => t.id !== id);
+    setTags(next);
+    void persistTags(next);
   }
 
   function onFile(file: File) {
