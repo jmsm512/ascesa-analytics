@@ -413,6 +413,7 @@ function VideoSpeedAnalyzer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, readings, athleteQuery.data]);
 
+  function onFile(file: File) {
     setError(null);
     setStage("extracting");
     setPendingFile(file);
