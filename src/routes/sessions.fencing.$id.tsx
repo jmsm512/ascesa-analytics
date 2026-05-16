@@ -234,18 +234,6 @@ function VideoSpeedAnalyzer() {
     setStage("analyzing");
     setError(null);
     try {
-      const vision: any = await import(/* @vite-ignore */ `${MP_URL}/vision_bundle.mjs`);
-      const fileset = await vision.FilesetResolver.forVisionTasks(`${MP_URL}/wasm`);
-      const landmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
-        baseOptions: {
-          modelAssetPath:
-            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-          delegate: "GPU",
-        },
-        runningMode: "VIDEO",
-        numPoses: 1,
-      });
-
       const v = document.createElement("video");
       v.muted = true;
       v.playsInline = true;
@@ -272,13 +260,16 @@ function VideoSpeedAnalyzer() {
           v.currentTime = t;
         });
         ctx.drawImage(v, 0, 0);
-        const result = landmarker.detectForVideo(c, Math.round(t * 1000));
-        const lm = result.landmarks?.[0];
-        if (lm && lm[23] && lm[24]) {
-          const nx = (lm[23].x + lm[24].x) / 2;
-          const ny = (lm[23].y + lm[24].y) / 2;
-          frames.push({ time: t, nx, ny, detected: true });
-        } else {
+        const dataURL = c.toDataURL("image/jpeg", 0.7);
+        const b64 = dataURL.split(",")[1] ?? "";
+        try {
+          const result = await analyzeFrame({ data: { imageBase64: b64 } });
+          if (result.found) {
+            frames.push({ time: t, nx: result.nx, ny: result.ny, detected: true });
+          } else {
+            frames.push({ time: t, nx: 0, ny: 0, detected: false });
+          }
+        } catch (err) {
           frames.push({ time: t, nx: 0, ny: 0, detected: false });
         }
         setProgress({ cur: i + 1, total: times.length });
