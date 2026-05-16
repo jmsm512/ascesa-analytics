@@ -45,11 +45,11 @@ import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 export const Route = createFileRoute("/sessions/fencing/$id")({
   component: FencingSession,
   validateSearch: (s: Record<string, unknown>) => ({
-    tab: s.tab === "Video" || s.tab === "Actions" || s.tab === "Overview" ? (s.tab as "Video" | "Actions" | "Overview") : undefined,
+    tab: s.tab === "Video" || s.tab === "Overview" ? (s.tab as "Video" | "Overview") : undefined,
   }),
 });
 
-const TABS = ["Overview", "Actions", "Video"] as const;
+const TABS = ["Overview", "Video"] as const;
 
 // ============= Types =============
 
