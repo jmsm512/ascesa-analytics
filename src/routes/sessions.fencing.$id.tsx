@@ -936,12 +936,15 @@ function VideoSpeedAnalyzer({
                 <div className="grid gap-3">
                   {Object.entries(
                     tags.reduce<Record<string, ActionTag[]>>((acc, t) => {
-                      (acc[t.action] ||= []).push(t);
+                      const key = `${t.action}|${t.success ? "success" : "fail"}`;
+                      (acc[key] ||= []).push(t);
                       return acc;
                     }, {})
                   )
                     .sort((a, b) => a[0].localeCompare(b[0]))
-                    .map(([action, actionTags]) => {
+                    .map(([key, actionTags]) => {
+                      const [action, outcome] = key.split("|") as [ActionType, "success" | "fail"];
+                      const isSuccess = outcome === "success";
                       const bench = ACTION_BENCHMARKS[action];
                       const speeds = actionTags
                         .map((t) => speedAt(t.time)?.speed)
@@ -953,13 +956,21 @@ function VideoSpeedAnalyzer({
                       const barColor = bench ? getBenchmarkColor(value, bench.eliteMin) : "var(--text-muted)";
                       const barWidth = bench ? Math.min((value / bench.eliteMax) * 100, 100) : 0;
                       return (
-                        <div key={action} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                          <span
-                            className="shrink-0 self-start rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
-                            style={{ background: ACTION_COLORS[action as ActionType] }}
-                          >
-                            {action}
-                          </span>
+                        <div key={key} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                          <div className="flex shrink-0 items-center gap-2 self-start">
+                            <span
+                              className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
+                              style={{ background: ACTION_COLORS[action] }}
+                            >
+                              {action}
+                            </span>
+                            <span
+                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                              style={{ background: isSuccess ? "var(--data-positive)" : "var(--data-negative)" }}
+                            >
+                              {isSuccess ? "Success" : "Fail"}
+                            </span>
+                          </div>
                           <div className="flex-1 min-w-0 grid grid-cols-3 gap-4 text-sm">
                             <div>
                               <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Count</div>
