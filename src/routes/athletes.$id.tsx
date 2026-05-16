@@ -377,6 +377,10 @@ function DrillsTab({ athleteId, athleteName, athleteAge }: { athleteId: string; 
   const [err, setErr] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showCompleted, setShowCompleted] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [allowedKinds, setAllowedKinds] = useState<Record<DrillKind, boolean>>({ solo: true, partner: true, footwork: true });
+  const [equipment, setEquipment] = useState("");
+  const [focusArea, setFocusArea] = useState("");
 
   const plan = q.data?.plan ?? null;
   const stats = q.data?.stats;
