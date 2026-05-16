@@ -511,10 +511,24 @@ function DrillsTab({ athleteId, athleteName, athleteAge }: { athleteId: string; 
                   className="flex w-full items-start justify-between gap-2 text-left"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
                         Priority {d.priority}
                       </span>
+                      {(() => {
+                        const kind = (d as { kind?: string }).kind ?? "solo";
+                        const styles: Record<string, string> = {
+                          solo: "bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-[var(--accent)]",
+                          partner: "bg-[color-mix(in_oklab,var(--data-positive)_18%,transparent)] text-[var(--data-positive)]",
+                          footwork: "bg-[color-mix(in_oklab,var(--data-warning,#f59e0b)_18%,transparent)] text-[var(--data-warning,#f59e0b)]",
+                        };
+                        const label = kind === "partner" ? "Partner" : kind === "footwork" ? "Footwork" : "Solo";
+                        return (
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${styles[kind] ?? styles.solo}`}>
+                            {label}
+                          </span>
+                        );
+                      })()}
                       <div className="text-sm font-semibold">{d.name}</div>
                     </div>
                     <div className="mt-1.5 text-[11px] text-[var(--text-secondary)]">{d.addresses}</div>
