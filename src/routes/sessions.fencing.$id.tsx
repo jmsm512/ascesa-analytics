@@ -123,7 +123,16 @@ function FencingSession() {
           </div>
         )}
 
-        {tab === "Video" && <VideoSpeedAnalyzer sessionId={id} athleteId={session?.athlete_id ?? null} existingVideoUrl={q.data?.videoUrl ?? null} />}
+        {tab === "Video" && (
+          <VideoSpeedAnalyzer
+            sessionId={id}
+            fencingSessionId={fs?.id ?? null}
+            athleteId={session?.athlete_id ?? null}
+            existingVideoUrl={q.data?.videoUrl ?? null}
+            existingAnalysis={q.data?.speedAnalysis ?? null}
+            onSaved={() => q.refetch()}
+          />
+        )}
       </AppShell>
     </RequireAuth>
   );
