@@ -315,6 +315,7 @@ function NewSessionPage() {
               <Row k="Athlete" v={athlete?.name ?? ""} />
               <Row k="Sport" v={athlete?.sport ?? ""} />
               <Row k="Session type" v={sessionType} />
+              <Row k="Date" v={sessionDate ? format(sessionDate, "PPP") : ""} />
               {isHockey && <Row k="Reps" v={String(hockeyReps.length)} />}
               {!isHockey && <Row k="Score" v={`${fencingScore.scored} - ${fencingScore.received}`} />}
               {!isHockey && <Row k="Actions logged" v={String(actions.length)} />}
