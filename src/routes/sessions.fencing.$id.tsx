@@ -275,6 +275,15 @@ function VideoSpeedAnalyzer({
   const [currentTime, setCurrentTime] = useState(0);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [coaching, setCoaching] = useState<CoachingSummary | null>(existingAnalysis?.coaching ?? null);
+  const [coachingLoading, setCoachingLoading] = useState(false);
+  const [coachingError, setCoachingError] = useState<string | null>(null);
+  const generateCoaching = useServerFn(generateCoachingSummary);
+  const athleteQuery = useQuery({
+    queryKey: ["athlete", athleteId],
+    queryFn: () => (athleteId ? getAthlete(athleteId) : Promise.resolve(null)),
+    enabled: !!athleteId,
+  });
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
 
