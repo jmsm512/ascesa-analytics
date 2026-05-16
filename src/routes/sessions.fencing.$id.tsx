@@ -144,6 +144,30 @@ function uid() {
   return (typeof crypto !== "undefined" && (crypto as any).randomUUID?.()) || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function extractFirstFrame(url: string): Promise<{ frame: string; dur: number }> {
+  return new Promise((resolve, reject) => {
+    const v = document.createElement("video");
+    v.preload = "auto";
+    v.muted = true;
+    v.playsInline = true;
+    v.crossOrigin = "anonymous";
+    v.src = url;
+    v.addEventListener("loadeddata", () => {
+      v.currentTime = 0.05;
+    });
+    v.addEventListener("seeked", () => {
+      const c = document.createElement("canvas");
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      const ctx = c.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas 2D unavailable"));
+      ctx.drawImage(v, 0, 0);
+      resolve({ frame: c.toDataURL("image/jpeg", 0.9), dur: v.duration });
+    }, { once: true });
+    v.addEventListener("error", () => reject(new Error("Video load error")));
+  });
+}
+
 // ============= Route Component =============
 
 function FencingSession() {
