@@ -989,3 +989,56 @@ function VideoSpeedAnalyzer({
     </div>
   );
 }
+
+function CoachingCards({
+  coaching,
+  loading,
+  error,
+}: {
+  coaching: CoachingSummary | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (!coaching && !loading && !error) return null;
+
+  const sentimentColor = (s: "positive" | "warning" | "critical") =>
+    s === "positive" ? "var(--data-positive)" : s === "critical" ? "var(--data-negative)" : "var(--data-warning)";
+
+  return (
+    <div className="space-y-3">
+      <div className="metric-label">AI Coaching Summary</div>
+      {loading && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="surface p-4" style={{ borderLeft: "4px solid var(--border-default)" }}>
+              <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--bg-elevated)]" />
+              <div className="mt-3 space-y-2">
+                <div className="h-2 w-full animate-pulse rounded bg-[var(--bg-elevated)]" />
+                <div className="h-2 w-5/6 animate-pulse rounded bg-[var(--bg-elevated)]" />
+                <div className="h-2 w-4/6 animate-pulse rounded bg-[var(--bg-elevated)]" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {error && !loading && (
+        <div className="surface p-3 text-xs text-[var(--data-negative)]">{error}</div>
+      )}
+      {coaching && !loading && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {coaching.observations.map((o, i) => (
+            <div
+              key={i}
+              className="surface p-4"
+              style={{ borderLeft: `4px solid ${sentimentColor(o.sentiment)}` }}
+            >
+              <div className="text-sm font-semibold text-[var(--text-primary)]">{o.title}</div>
+              <div className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">{o.detail}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
