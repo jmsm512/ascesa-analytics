@@ -172,6 +172,13 @@ function NewSessionPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <div className="metric-label mt-4">Session name <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
+                  <input
+                    value={sessionName}
+                    onChange={(e) => setSessionName(e.target.value)}
+                    placeholder="e.g. Tuesday open bout vs Marco"
+                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                  />
                   <div className="metric-label mt-4">Session date</div>
                   <Popover>
                     <PopoverTrigger asChild>
