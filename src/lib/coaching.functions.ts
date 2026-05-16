@@ -59,6 +59,9 @@ export type AthleteDrillsInput = {
   avgRetreatSpeed: number;
   avgSpeed: number;
   actionSuccessRates: string;
+  allowedKinds?: DrillKind[];
+  equipment?: string;
+  focusArea?: string;
 };
 
 async function callAnthropic(prompt: string): Promise<string> {
@@ -135,7 +138,23 @@ export const generateAthleteDrillPlan = createServerFn({ method: "POST" })
   .inputValidator((input: AthleteDrillsInput) => input)
   .handler(async ({ data }): Promise<Omit<AthleteDrillPlan, "completed">> => {
     const ageStr = data.athleteAge ? String(data.athleteAge) : "teenage";
-    const prompt = `You are an expert fencing coach. Athlete: ${data.athleteName}, age ${ageStr}, épée fencer. Aggregate performance across ${data.sessionCount} sessions: Average peak speed ${data.avgPeakSpeed.toFixed(2)} m/s, Average advance speed ${data.avgAdvanceSpeed.toFixed(2)} m/s, Average retreat speed ${data.avgRetreatSpeed.toFixed(2)} m/s, Average speed ${data.avgSpeed.toFixed(2)} m/s. Tagged action success rates: ${data.actionSuccessRates}. Elite junior benchmarks: Peak Speed 4-6 m/s, Avg Speed 1.2-2.0 m/s, Peak Advance 3.5-5.0 m/s, Peak Retreat 3.0-4.5 m/s. Based on the biggest gaps between current performance and benchmarks, and the action success rate data, prescribe between 3 and 5 targeted drills in priority order. CRITICAL MIX REQUIREMENT: the set MUST include at least one drill of EACH of these kinds: "solo" (individual drill, no partner needed, can be done alone at home or in a gym, weapon optional), "partner" (requires a training partner or coach), and "footwork" (footwork-only, no weapon required). Mark each drill with a "kind" field set to exactly one of "solo", "partner", or "footwork". For each drill: name, what weakness it addresses, step by step instructions in plain language for a 14 year old, duration or reps, and a target the athlete can measure themselves using only a phone stopwatch or a training partner — no sensors or equipment. Format as JSON: {drills: [{name: string, addresses: string, instructions: string[], duration: string, target: string, priority: 1|2|3, kind: "solo"|"partner"|"footwork"}]}. Respond with ONLY the JSON, no markdown fences or commentary.`;
+    const allKinds: DrillKind[] = ["solo", "partner", "footwork"];
+    const allowed = (data.allowedKinds && data.allowedKinds.length ? data.allowedKinds : allKinds).filter((k, i, a) => a.indexOf(k) === i);
+    const kindLabels: Record<DrillKind, string> = {
+      solo: '"solo" (individual drill, no partner needed, can be done alone at home or in a gym, weapon optional)',
+      partner: '"partner" (requires a training partner or coach)',
+      footwork: '"footwork" (footwork-only, no weapon required)',
+    };
+    const mixRequirement = allowed.length === 1
+      ? `MIX REQUIREMENT: ALL drills MUST be of kind ${kindLabels[allowed[0]]}. Do NOT prescribe any other kind.`
+      : `CRITICAL MIX REQUIREMENT: only use these kinds and include at least one drill of EACH: ${allowed.map((k) => kindLabels[k]).join(", ")}. Do NOT prescribe any other kind.`;
+    const equipmentLine = data.equipment && data.equipment.trim()
+      ? `Equipment available to the athlete: ${data.equipment.trim()}. Prefer drills that make use of this equipment when relevant, and do not prescribe drills requiring equipment the athlete did not list.`
+      : `Assume no special equipment beyond standard fencing gear and a phone for timing.`;
+    const focusLine = data.focusArea && data.focusArea.trim()
+      ? `Athlete-requested focus area: ${data.focusArea.trim()}. Bias the plan so that at least 2 of the prescribed drills directly target this focus, while still respecting the mix requirement above.`
+      : "";
+    const prompt = `You are an expert fencing coach. Athlete: ${data.athleteName}, age ${ageStr}, épée fencer. Aggregate performance across ${data.sessionCount} sessions: Average peak speed ${data.avgPeakSpeed.toFixed(2)} m/s, Average advance speed ${data.avgAdvanceSpeed.toFixed(2)} m/s, Average retreat speed ${data.avgRetreatSpeed.toFixed(2)} m/s, Average speed ${data.avgSpeed.toFixed(2)} m/s. Tagged action success rates: ${data.actionSuccessRates}. Elite junior benchmarks: Peak Speed 4-6 m/s, Avg Speed 1.2-2.0 m/s, Peak Advance 3.5-5.0 m/s, Peak Retreat 3.0-4.5 m/s. Based on the biggest gaps between current performance and benchmarks, and the action success rate data, prescribe between 3 and 5 targeted drills in priority order. ${mixRequirement} Mark each drill with a "kind" field set to exactly one of "solo", "partner", or "footwork". ${equipmentLine} ${focusLine} For each drill: name, what weakness it addresses, step by step instructions in plain language for a 14 year old, duration or reps, and a target the athlete can measure themselves using only a phone stopwatch or a training partner. Format as JSON: {drills: [{name: string, addresses: string, instructions: string[], duration: string, target: string, priority: 1|2|3, kind: "solo"|"partner"|"footwork"}]}. Respond with ONLY the JSON, no markdown fences or commentary.`;
     const cleaned = await callAnthropic(prompt);
     const parsed = parseJsonLoose<{ drills: AthleteDrillPrescription[] }>(cleaned);
     const drills = (parsed.drills ?? []).slice(0, 5).map((d, i) => {
