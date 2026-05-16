@@ -162,7 +162,15 @@ type Reading = { time: number; speed: number; direction: "advance" | "retreat" }
 
 
 
-function VideoSpeedAnalyzer() {
+function VideoSpeedAnalyzer({
+  sessionId,
+  athleteId,
+  existingVideoUrl,
+}: {
+  sessionId: string;
+  athleteId: string | null;
+  existingVideoUrl: string | null;
+}) {
   const [stage, setStage] = useState<"upload" | "extracting" | "calibrate" | "analyzing" | "results">("upload");
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [firstFrame, setFirstFrame] = useState<string | null>(null);
@@ -172,12 +180,56 @@ function VideoSpeedAnalyzer() {
   const [readings, setReadings] = useState<Reading[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [showUpload, setShowUpload] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
+
+  // If a video is already stored for this session and the user hasn't asked
+  // to upload a replacement, just play it back.
+  if (existingVideoUrl && !showUpload && stage === "upload") {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="surface overflow-hidden rounded-lg p-3">
+          <video src={existingVideoUrl} controls playsInline className="w-full rounded-md bg-black" style={{ maxHeight: 520 }} />
+        </div>
+        <button
+          onClick={() => setShowUpload(true)}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+        >
+          <Upload className="h-3.5 w-3.5" /> Upload a new video
+        </button>
+      </div>
+    );
+  }
+
+  async function persistVideo(file: File) {
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u.user?.id;
+      if (!userId) return;
+      const ext = file.name.split(".").pop() || "mp4";
+      const path = `${userId}/${sessionId}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("videos")
+        .upload(path, file, { contentType: file.type || "video/mp4", upsert: false });
+      if (upErr) return;
+      await supabase.from("videos").insert({
+        user_id: userId,
+        session_id: sessionId,
+        athlete_id: athleteId,
+        label: file.name,
+        video_url: path,
+        status: "ready",
+      });
+    } catch {
+      // non-blocking — local analysis still works
+    }
+  }
 
   function onFile(file: File) {
     setError(null);
     setStage("extracting");
+    void persistVideo(file);
     const reader = new FileReader();
     reader.onload = async () => {
       const url = reader.result as string;
