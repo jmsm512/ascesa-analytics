@@ -151,7 +151,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 async function loadOverviewData(athleteId: string) {
   const { data: sess } = await supabase
     .from("sessions")
-    .select("id, session_date, sport, session_type")
+    .select("id, session_date, sport, session_type, name")
     .eq("athlete_id", athleteId)
     .order("session_date", { ascending: false });
   const sessions = sess ?? [];
