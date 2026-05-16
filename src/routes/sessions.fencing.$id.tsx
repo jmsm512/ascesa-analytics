@@ -18,6 +18,8 @@ import {
 } from "recharts";
 import { ArrowLeft, Check, X, Upload, RotateCcw, Download } from "lucide-react";
 import { msToFps } from "@/lib/units";
+import { useServerFn } from "@tanstack/react-start";
+import { analyzeFrameFn } from "@/lib/analyzeFrame.functions";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
   component: FencingSession,
