@@ -22,7 +22,7 @@ export const Route = createFileRoute("/athletes/$id")({
   component: AthletePage,
 });
 
-const TABS = ["Overview", "Sessions", "Videos", "Progress", "Goals", "Drills"] as const;
+const TABS = ["Overview", "Sessions", "Progress", "Goals", "Drills"] as const;
 
 function AthletePage() {
   const { id } = Route.useParams();
@@ -30,8 +30,6 @@ function AthletePage() {
   const athlete = useQuery({ queryKey: ["athlete", id], queryFn: () => getAthlete(id) });
   const sessions = useQuery({ queryKey: ["sessions", id], queryFn: () => listSessionsForAthlete(id) });
   const benchmarks = useQuery({ queryKey: ["benchmarks", id], queryFn: () => getBenchmarks(id) });
-  const goals = useQuery({ queryKey: ["goals", id], queryFn: () => getGoals(id) });
-  const videos = useQuery({ queryKey: ["videos", id], queryFn: () => listVideosForAthlete(id) });
 
   const a = athlete.data;
   const accent = a?.sport === "hockey" ? "var(--hockey)" : "var(--fencing)";
