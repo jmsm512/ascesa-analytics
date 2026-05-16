@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { ArrowLeft, TrendingUp } from "lucide-react";
 import { kmhToMph } from "@/lib/units";
+import { SessionEditDelete } from "@/components/SessionEditDelete";
 
 export const Route = createFileRoute("/sessions/hockey/$id")({
   component: HockeySession,
