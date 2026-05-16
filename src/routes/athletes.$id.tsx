@@ -1536,9 +1536,70 @@ function BenchmarkCard({
   const [points, setPoints] = useState<BenchPt[]>(analysis?.points ?? []);
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
   const [readings, setReadings] = useState<BenchReading[]>(analysis?.readings ?? []);
+  const [tags, setTags] = useState<BenchActionTag[]>(analysis?.tags ?? []);
+  const [pendingTag, setPendingTag] = useState<{ action: BenchActionType; time: number } | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const playbackRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  // Sign existing video URL for playback in the results stage
+  useEffect(() => {
+    let cancelled = false;
+    const path = analysis?.videoPath;
+    if (path && !dataUrl) {
+      supabase.storage
+        .from("videos")
+        .createSignedUrl(path, 60 * 60)
+        .then(({ data }) => {
+          if (!cancelled && data?.signedUrl) setDataUrl(data.signedUrl);
+        });
+    }
+    return () => { cancelled = true; };
+  }, [analysis?.videoPath]);
+
+  function speedAt(t: number): BenchReading | null {
+    if (!readings.length) return null;
+    let best = readings[0];
+    let bestDiff = Math.abs(best.time - t);
+    for (const r of readings) {
+      const d = Math.abs(r.time - t);
+      if (d < bestDiff) { best = r; bestDiff = d; }
+    }
+    return best;
+  }
+
+  function startTag(action: BenchActionType) {
+    const t = playbackRef.current?.currentTime ?? currentTime;
+    setPendingTag({ action, time: t });
+  }
+  async function confirmTag(success: boolean) {
+    if (!pendingTag) return;
+    const next = [
+      ...tags,
+      { id: benchUid(), time: pendingTag.time, action: pendingTag.action, success },
+    ].sort((a, b) => a.time - b.time);
+    setTags(next);
+    setPendingTag(null);
+    await persistTags(next);
+  }
+  async function removeTag(id: string) {
+    const next = tags.filter((t) => t.id !== id);
+    setTags(next);
+    await persistTags(next);
+  }
+  async function persistTags(next: BenchActionTag[]) {
+    const payload: BenchAnalysis = {
+      readings,
+      duration: analysis?.duration ?? 0,
+      points: analysis?.points ?? points,
+      videoPath: analysis?.videoPath ?? null,
+      tags: next,
+    };
+    await supabase.from("benchmarks" as any).update({ speed_analysis: payload }).eq("id", benchmark.id);
+    onUpdated();
+  }
 
   async function saveMeta() {
     setSavingMeta(true);
