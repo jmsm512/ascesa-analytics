@@ -176,9 +176,6 @@ function FencingSession() {
   const q = useQuery({ queryKey: ["fencing-session", id], queryFn: () => getFencingSession(id) });
   const session = q.data?.session;
   const fs = q.data?.fs;
-  const actions = q.data?.actions ?? [];
-  const sensors = q.data?.sensors ?? [];
-
   const analysis = useMemo(
     () => normalizeAnalysis(q.data?.speedAnalysis ?? null, (q.data as any)?.videoPath ?? null),
     [q.data?.speedAnalysis, (q.data as any)?.videoPath],
