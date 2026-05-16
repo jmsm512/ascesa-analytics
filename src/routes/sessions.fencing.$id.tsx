@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
-import { getFencingSession } from "@/lib/data";
+import { getAthlete, getFencingSession } from "@/lib/data";
+import { generateCoachingSummary, type CoachingSummary } from "@/lib/coaching.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import {
@@ -241,6 +243,7 @@ type SavedAnalysis = {
   points: Pt[];
   savedAt: string;
   tags?: ActionTag[];
+  coaching?: CoachingSummary;
 };
 
 function VideoSpeedAnalyzer({
@@ -272,6 +275,15 @@ function VideoSpeedAnalyzer({
   const [currentTime, setCurrentTime] = useState(0);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [coaching, setCoaching] = useState<CoachingSummary | null>(existingAnalysis?.coaching ?? null);
+  const [coachingLoading, setCoachingLoading] = useState(false);
+  const [coachingError, setCoachingError] = useState<string | null>(null);
+  const generateCoaching = useServerFn(generateCoachingSummary);
+  const athleteQuery = useQuery({
+    queryKey: ["athlete", athleteId],
+    queryFn: () => (athleteId ? getAthlete(athleteId) : Promise.resolve(null)),
+    enabled: !!athleteId,
+  });
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
 
@@ -311,6 +323,7 @@ function VideoSpeedAnalyzer({
       points: pts,
       savedAt: new Date().toISOString(),
       tags: tagList,
+      coaching: coaching ?? undefined,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
     onSaved?.();
@@ -324,6 +337,20 @@ function VideoSpeedAnalyzer({
       points,
       savedAt: new Date().toISOString(),
       tags: next,
+      coaching: coaching ?? undefined,
+    };
+    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+  }
+
+  async function persistCoaching(c: CoachingSummary) {
+    if (!fencingSessionId) return;
+    const payload: SavedAnalysis = {
+      readings,
+      duration,
+      points,
+      savedAt: new Date().toISOString(),
+      tags,
+      coaching: c,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
   }
@@ -351,6 +378,40 @@ function VideoSpeedAnalyzer({
     setTags(next);
     void persistTags(next);
   }
+
+  // Auto-generate coaching summary once readings + athlete are ready
+  useEffect(() => {
+    if (stage !== "results") return;
+    if (coaching || coachingLoading) return;
+    if (!readings.length) return;
+    if (!athleteQuery.data) return;
+    const athlete = athleteQuery.data;
+    const peak = readings.reduce((m, r) => Math.max(m, r.speed), 0);
+    const avg = readings.reduce((s, r) => s + r.speed, 0) / readings.length;
+    const peakAdv = readings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
+    const peakRet = readings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
+    setCoachingLoading(true);
+    setCoachingError(null);
+    generateCoaching({
+      data: {
+        athleteName: athlete.name,
+        athleteAge: athlete.age,
+        peakSpeed: peak,
+        avgSpeed: avg,
+        peakAdvance: peakAdv,
+        peakRetreat: peakRet,
+        readingCount: readings.length,
+        duration,
+      },
+    })
+      .then((c) => {
+        setCoaching(c);
+        void persistCoaching(c);
+      })
+      .catch((e: any) => setCoachingError(e?.message ?? "Failed to generate coaching summary"))
+      .finally(() => setCoachingLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, readings, athleteQuery.data]);
 
   function onFile(file: File) {
     setError(null);
@@ -524,6 +585,8 @@ function VideoSpeedAnalyzer({
     setTags([]);
     setProgress({ cur: 0, total: 0 });
     setError(null);
+    setCoaching(null);
+    setCoachingError(null);
   }
 
   function downloadCsv() {
@@ -665,6 +728,8 @@ function VideoSpeedAnalyzer({
             <BenchmarkStatCard label="Peak advance (m/s)" value={peakAdv.toFixed(2)} numericValue={peakAdv} benchmarkText="Explosive advance drives attacks. Elite junior: 3.5–5.0 m/s" eliteMin={3.5} />
             <BenchmarkStatCard label="Peak retreat (m/s)" value={peakRet.toFixed(2)} numericValue={peakRet} benchmarkText="Fast retreat indicates good defensive instincts. Elite junior: 3.0–4.5 m/s" eliteMin={3.0} />
           </div>
+
+          <CoachingCards coaching={coaching} loading={coachingLoading} error={coachingError} />
 
           {dataUrl && (
             <div className="surface overflow-hidden rounded-lg p-3">
@@ -924,3 +989,56 @@ function VideoSpeedAnalyzer({
     </div>
   );
 }
+
+function CoachingCards({
+  coaching,
+  loading,
+  error,
+}: {
+  coaching: CoachingSummary | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (!coaching && !loading && !error) return null;
+
+  const sentimentColor = (s: "positive" | "warning" | "critical") =>
+    s === "positive" ? "var(--data-positive)" : s === "critical" ? "var(--data-negative)" : "var(--data-warning)";
+
+  return (
+    <div className="space-y-3">
+      <div className="metric-label">AI Coaching Summary</div>
+      {loading && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="surface p-4" style={{ borderLeft: "4px solid var(--border-default)" }}>
+              <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--bg-elevated)]" />
+              <div className="mt-3 space-y-2">
+                <div className="h-2 w-full animate-pulse rounded bg-[var(--bg-elevated)]" />
+                <div className="h-2 w-5/6 animate-pulse rounded bg-[var(--bg-elevated)]" />
+                <div className="h-2 w-4/6 animate-pulse rounded bg-[var(--bg-elevated)]" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {error && !loading && (
+        <div className="surface p-3 text-xs text-[var(--data-negative)]">{error}</div>
+      )}
+      {coaching && !loading && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {coaching.observations.map((o, i) => (
+            <div
+              key={i}
+              className="surface p-4"
+              style={{ borderLeft: `4px solid ${sentimentColor(o.sentiment)}` }}
+            >
+              <div className="text-sm font-semibold text-[var(--text-primary)]">{o.title}</div>
+              <div className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">{o.detail}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
