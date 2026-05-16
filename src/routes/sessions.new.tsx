@@ -58,25 +58,6 @@ function NewSessionPage() {
       setSaving(false);
       return;
     }
-
-    if (videoFile) {
-      const ext = videoFile.name.split(".").pop() || "mp4";
-      const path = `${userId}/${session.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("videos")
-        .upload(path, videoFile, { contentType: videoFile.type || "video/mp4", upsert: false });
-      if (!upErr) {
-        await supabase.from("videos").insert({
-          user_id: userId,
-          session_id: session.id,
-          athlete_id: athlete.id,
-          label: videoFile.name,
-          video_url: path,
-          status: "ready",
-        });
-      }
-    }
-
     if (isHockey) {
       const { data: hss } = await supabase
         .from("hockey_sprint_sessions")
