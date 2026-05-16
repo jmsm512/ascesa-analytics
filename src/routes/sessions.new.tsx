@@ -1,13 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { format } from "date-fns";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
 import { listAthletes } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, Trash2, Check } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, CalendarIcon } from "lucide-react";
 import { mphToKmh } from "@/lib/units";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/sessions/new")({
   component: NewSessionPage,
