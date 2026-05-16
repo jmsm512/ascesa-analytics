@@ -43,6 +43,7 @@ export function SessionEditDelete({
   const [err, setErr] = useState<string | null>(null);
 
   const [date, setDate] = useState(session.session_date.slice(0, 10));
+  const [name, setName] = useState(session.name ?? "");
   const [sessionType, setSessionType] = useState(session.session_type ?? "");
   const [location, setLocation] = useState(session.location ?? "");
   const [notes, setNotes] = useState(session.notes ?? "");
