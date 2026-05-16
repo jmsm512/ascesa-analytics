@@ -1278,72 +1278,109 @@ function TaggedActionSummary({ tags, speedAt }: { tags: ActionTag[]; speedAt: (t
       <div className="bg-[var(--bg-elevated)] px-5 py-2 metric-label">Tagged Action Summary</div>
       <div className="px-5 py-4">
         <div className="grid gap-3">
-          {Object.entries(
-            tags.reduce<Record<string, ActionTag[]>>((acc, t) => {
-              const key = `${t.action}|${t.success ? "success" : "fail"}`;
-              (acc[key] ||= []).push(t);
+          {(() => {
+            const byAction = tags.reduce<Record<string, ActionTag[]>>((acc, t) => {
+              (acc[t.action] ||= []).push(t);
               return acc;
-            }, {})
-          )
-            .sort((a, b) => a[0].localeCompare(b[0]))
-            .map(([key, actionTags]) => {
-              const [action, outcome] = key.split("|") as [ActionType, "success" | "fail"];
-              const isSuccess = outcome === "success";
-              const bench = ACTION_BENCHMARKS[action];
-              const speeds = actionTags
-                .map((t) => speedAt(t.time)?.speed)
-                .filter((s): s is number => typeof s === "number");
-              const count = actionTags.length;
-              const peak = speeds.length ? Math.max(...speeds) : 0;
-              const avg = speeds.length ? speeds.reduce((s, v) => s + v, 0) / speeds.length : 0;
-              const value = bench?.metric === "avg" ? avg : peak;
-              const barColor = bench ? getBenchmarkColor(value, bench.eliteMin) : "var(--text-muted)";
-              const barWidth = bench ? Math.min((value / bench.eliteMax) * 100, 100) : 0;
-              return (
-                <div key={key} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                  <div className="flex shrink-0 items-center gap-2 self-start">
-                    <span
-                      className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
-                      style={{ background: ACTION_COLORS[action] }}
+            }, {});
+            const speedOf = (t: ActionTag) => speedAt(t.time)?.speed;
+            return Object.keys(byAction)
+              .sort()
+              .flatMap((action) => {
+                const actionTagsAll = byAction[action];
+                const successTags = actionTagsAll.filter((t) => t.success);
+                const failTags = actionTagsAll.filter((t) => !t.success);
+                const successSpeeds = successTags.map(speedOf).filter((s): s is number => typeof s === "number");
+                const failSpeeds = failTags.map(speedOf).filter((s): s is number => typeof s === "number");
+                const avgOf = (a: number[]) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
+                const avgSuccess = avgOf(successSpeeds);
+                const avgFail = avgOf(failSpeeds);
+
+                const rows: React.ReactNode[] = [];
+                (["success", "fail"] as const).forEach((outcome) => {
+                  const actionTags = outcome === "success" ? successTags : failTags;
+                  if (!actionTags.length) return;
+                  const isSuccess = outcome === "success";
+                  const bench = ACTION_BENCHMARKS[action as ActionType];
+                  const speeds = actionTags
+                    .map((t) => speedAt(t.time)?.speed)
+                    .filter((s): s is number => typeof s === "number");
+                  const count = actionTags.length;
+                  const peak = speeds.length ? Math.max(...speeds) : 0;
+                  const avg = speeds.length ? speeds.reduce((s, v) => s + v, 0) / speeds.length : 0;
+                  const value = bench?.metric === "avg" ? avg : peak;
+                  const barColor = bench ? getBenchmarkColor(value, bench.eliteMin) : "var(--text-muted)";
+                  const barWidth = bench ? Math.min((value / bench.eliteMax) * 100, 100) : 0;
+                  rows.push(
+                    <div key={`${action}|${outcome}`} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                      <div className="flex shrink-0 items-center gap-2 self-start">
+                        <span
+                          className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
+                          style={{ background: ACTION_COLORS[action as ActionType] }}
+                        >
+                          {action}
+                        </span>
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                          style={{ background: isSuccess ? "var(--data-positive)" : "var(--data-negative)" }}
+                        >
+                          {isSuccess ? "Success" : "Fail"}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0 grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Count</div>
+                          <div className="font-semibold tabular-nums">{count}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Avg Speed</div>
+                          <div className="font-semibold tabular-nums">{avg.toFixed(3)} m/s</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Peak Speed</div>
+                          <div className="font-semibold tabular-nums">{peak.toFixed(3)} m/s</div>
+                        </div>
+                      </div>
+                      <div className="w-full sm:w-32 shrink-0">
+                        <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)] mb-1">
+                          <span>{bench ? bench.label : "No benchmark"}</span>
+                          <span style={{ color: barColor }} className="font-medium">{value.toFixed(2)}</span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-[var(--bg-elevated)] overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${barWidth}%`, background: barColor }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+
+                if (successSpeeds.length >= 2 && failSpeeds.length >= 2 && avgSuccess > avgFail) {
+                  const threshold = (avgSuccess + avgFail) / 2;
+                  const allWithSpeed = actionTagsAll
+                    .map((t) => ({ s: speedOf(t), ok: t.success }))
+                    .filter((x): x is { s: number; ok: boolean } => typeof x.s === "number");
+                  const above = allWithSpeed.filter((x) => x.s >= threshold);
+                  const aboveSuccessRate = above.length
+                    ? Math.round((above.filter((x) => x.ok).length / above.length) * 100)
+                    : 0;
+                  rows.push(
+                    <div
+                      key={`${action}|insight`}
+                      className="rounded-md border border-[var(--accent)]/30 bg-[var(--accent)]/5 px-3 py-2 text-xs text-[var(--text-secondary)]"
                     >
-                      {action}
-                    </span>
-                    <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                      style={{ background: isSuccess ? "var(--data-positive)" : "var(--data-negative)" }}
-                    >
-                      {isSuccess ? "Success" : "Fail"}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0 grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Count</div>
-                      <div className="font-semibold tabular-nums">{count}</div>
+                      <span className="font-semibold text-[var(--accent)]">Speed threshold:</span>{" "}
+                      ~{threshold.toFixed(2)} m/s — actions above this speed succeed{" "}
+                      <span className="font-semibold tabular-nums text-[var(--text-primary)]">{aboveSuccessRate}%</span> of the time.
                     </div>
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Avg Speed</div>
-                      <div className="font-semibold tabular-nums">{avg.toFixed(3)} m/s</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Peak Speed</div>
-                      <div className="font-semibold tabular-nums">{peak.toFixed(3)} m/s</div>
-                    </div>
-                  </div>
-                  <div className="w-full sm:w-32 shrink-0">
-                    <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)] mb-1">
-                      <span>{bench ? bench.label : "No benchmark"}</span>
-                      <span style={{ color: barColor }} className="font-medium">{value.toFixed(2)}</span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-[var(--bg-elevated)] overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${barWidth}%`, background: barColor }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                }
+
+                return rows;
+              });
+          })()}
         </div>
       </div>
     </div>
