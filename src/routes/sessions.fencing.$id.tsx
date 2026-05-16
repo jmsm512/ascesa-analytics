@@ -804,6 +804,73 @@ function VideoSpeedAnalyzer({
             )}
           </div>
 
+          {tags.length > 0 && (
+            <div className="surface overflow-hidden">
+              <div className="px-5 py-3 border-b border-[var(--border-subtle)]">
+                <div className="metric-label">Tagged Action Summary</div>
+              </div>
+              <div className="px-5 py-4">
+                <div className="grid gap-3">
+                  {Object.entries(
+                    tags.reduce<Record<string, ActionTag[]>>((acc, t) => {
+                      (acc[t.action] ||= []).push(t);
+                      return acc;
+                    }, {})
+                  )
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([action, actionTags]) => {
+                      const bench = ACTION_BENCHMARKS[action];
+                      const speeds = actionTags
+                        .map((t) => speedAt(t.time)?.speed)
+                        .filter((s): s is number => typeof s === "number");
+                      const count = actionTags.length;
+                      const peak = speeds.length ? Math.max(...speeds) : 0;
+                      const avg = speeds.length ? speeds.reduce((s, v) => s + v, 0) / speeds.length : 0;
+                      const value = bench?.metric === "avg" ? avg : peak;
+                      const barColor = bench ? getBenchmarkColor(value, bench.eliteMin) : "var(--text-muted)";
+                      const barWidth = bench ? Math.min((value / bench.eliteMax) * 100, 100) : 0;
+                      return (
+                        <div key={action} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                          <span
+                            className="shrink-0 self-start rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
+                            style={{ background: ACTION_COLORS[action as ActionType] }}
+                          >
+                            {action}
+                          </span>
+                          <div className="flex-1 min-w-0 grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Count</div>
+                              <div className="font-semibold tabular-nums">{count}</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Avg Speed</div>
+                              <div className="font-semibold tabular-nums">{avg.toFixed(3)} m/s</div>
+                            </div>
+                            <div>
+                              <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Peak Speed</div>
+                              <div className="font-semibold tabular-nums">{peak.toFixed(3)} m/s</div>
+                            </div>
+                          </div>
+                          <div className="w-full sm:w-32 shrink-0">
+                            <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)] mb-1">
+                              <span>{bench ? bench.label : "No benchmark"}</span>
+                              <span style={{ color: barColor }} className="font-medium">{value.toFixed(2)}</span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-[var(--bg-elevated)] overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all"
+                                style={{ width: `${barWidth}%`, background: barColor }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="surface overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--border-subtle)]">
               <div className="metric-label">Readings ({readings.length})</div>
