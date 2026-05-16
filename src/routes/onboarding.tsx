@@ -84,6 +84,7 @@ function OnboardingPage() {
         weapon: null,
         team: null,
         club: null,
+        fencing_tracker_url: f.sport === "fencing" && f.fencing_tracker_url.trim() ? f.fencing_tracker_url.trim() : null,
       };
       row[cfg.role.column] = f.role || null;
       row[cfg.group.column] = f.group || null;
