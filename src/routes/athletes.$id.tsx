@@ -1193,6 +1193,7 @@ function BenchmarkCard({
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
   const [readings, setReadings] = useState<BenchReading[]>(analysis?.readings ?? []);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   async function saveMeta() {
@@ -1240,10 +1241,13 @@ function BenchmarkCard({
   function onFile(file: File) {
     const sizeMB = file.size / (1024 * 1024);
     if (sizeMB > MAX_VIDEO_MB) {
-      setError(`This video is too large (${Math.round(sizeMB)}MB). Please trim to under 2 minutes or compress using QuickTime Player → Export As → 1080p before uploading. Most videos compress to under 100MB this way.`);
+      setError(`File too large (${Math.round(sizeMB)} MB). Trim to under 2 minutes or compress: QuickTime → Export As → 1080p.`);
+      setWarning(null);
       return;
     }
     setError(null);
+    const isMov = /\.mov$/i.test(file.name) || file.type === "video/quicktime";
+    setWarning(isMov ? "MOV files may not be supported. If upload fails, open in QuickTime → Export As → 1080p to convert to MP4." : null);
     setStage("extracting");
     setPendingFile(file);
     const reader = new FileReader();
@@ -1439,6 +1443,11 @@ function BenchmarkCard({
             {error}
           </div>
         )}
+        {warning && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-500">
+            {warning}
+          </div>
+        )}
 
         {stage === "upload" && (
           <label
@@ -1447,7 +1456,7 @@ function BenchmarkCard({
           >
             <Upload className="h-7 w-7 text-[var(--text-secondary)]" />
             <div className="text-sm font-medium">Upload benchmark video</div>
-            <div className="text-xs text-[var(--text-secondary)]">MP4, MOV, WebM — analysed in your browser</div>
+            <div className="text-xs text-[var(--text-secondary)]">MP4 recommended · MOV may need conversion</div>
             <input
               type="file"
               accept="video/*"
