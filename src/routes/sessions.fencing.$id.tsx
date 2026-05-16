@@ -379,7 +379,40 @@ function VideoSpeedAnalyzer({
     void persistTags(next);
   }
 
-  function onFile(file: File) {
+  // Auto-generate coaching summary once readings + athlete are ready
+  useEffect(() => {
+    if (stage !== "results") return;
+    if (coaching || coachingLoading) return;
+    if (!readings.length) return;
+    if (!athleteQuery.data) return;
+    const athlete = athleteQuery.data;
+    const peak = readings.reduce((m, r) => Math.max(m, r.speed), 0);
+    const avg = readings.reduce((s, r) => s + r.speed, 0) / readings.length;
+    const peakAdv = readings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
+    const peakRet = readings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
+    setCoachingLoading(true);
+    setCoachingError(null);
+    generateCoaching({
+      data: {
+        athleteName: athlete.name,
+        athleteAge: athlete.age,
+        peakSpeed: peak,
+        avgSpeed: avg,
+        peakAdvance: peakAdv,
+        peakRetreat: peakRet,
+        readingCount: readings.length,
+        duration,
+      },
+    })
+      .then((c) => {
+        setCoaching(c);
+        void persistCoaching(c);
+      })
+      .catch((e: any) => setCoachingError(e?.message ?? "Failed to generate coaching summary"))
+      .finally(() => setCoachingLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, readings, athleteQuery.data]);
+
     setError(null);
     setStage("extracting");
     setPendingFile(file);
