@@ -129,3 +129,30 @@ export const generateDrills = createServerFn({ method: "POST" })
     }));
     return { drills, generatedAt: new Date().toISOString(), completed: {} };
   });
+
+export const generateAthleteDrillPlan = createServerFn({ method: "POST" })
+  .inputValidator((input: AthleteDrillsInput) => input)
+  .handler(async ({ data }): Promise<Omit<AthleteDrillPlan, "completed">> => {
+    const ageStr = data.athleteAge ? String(data.athleteAge) : "teenage";
+    const prompt = `You are an expert fencing coach. Athlete: ${data.athleteName}, age ${ageStr}, épée fencer. Aggregate performance across ${data.sessionCount} sessions: Average peak speed ${data.avgPeakSpeed.toFixed(2)} m/s, Average advance speed ${data.avgAdvanceSpeed.toFixed(2)} m/s, Average retreat speed ${data.avgRetreatSpeed.toFixed(2)} m/s, Average speed ${data.avgSpeed.toFixed(2)} m/s. Tagged action success rates: ${data.actionSuccessRates}. Elite junior benchmarks: Peak Speed 4-6 m/s, Avg Speed 1.2-2.0 m/s, Peak Advance 3.5-5.0 m/s, Peak Retreat 3.0-4.5 m/s. Based on the biggest gaps between current performance and benchmarks, and the action success rate data, prescribe exactly 3 targeted drills in priority order. For each drill: name, what weakness it addresses, step by step instructions in plain language for a 14 year old, duration or reps, and a target the athlete can measure themselves using only a phone stopwatch or a training partner — no sensors or equipment. Format as JSON: {drills: [{name: string, addresses: string, instructions: string[], duration: string, target: string, priority: 1|2|3}]}. Respond with ONLY the JSON, no markdown fences or commentary.`;
+    const cleaned = await callAnthropic(prompt);
+    const parsed = parseJsonLoose<{ drills: AthleteDrillPrescription[] }>(cleaned);
+    const drills = (parsed.drills ?? []).slice(0, 5).map((d, i) => {
+      const pRaw = Number(d.priority);
+      const priority = (pRaw === 1 || pRaw === 2 || pRaw === 3 ? pRaw : Math.min(3, i + 1)) as 1 | 2 | 3;
+      return {
+        name: String(d.name ?? `Drill ${i + 1}`),
+        addresses: String(d.addresses ?? ""),
+        instructions: Array.isArray(d.instructions) ? d.instructions.map((s) => String(s)) : [],
+        duration: String(d.duration ?? ""),
+        target: String(d.target ?? ""),
+        priority,
+      };
+    });
+    drills.sort((a, b) => a.priority - b.priority);
+    return {
+      drills,
+      generatedAt: new Date().toISOString(),
+      sessionCountAtGeneration: data.sessionCount,
+    };
+  });
