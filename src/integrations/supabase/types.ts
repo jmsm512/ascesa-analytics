@@ -237,6 +237,7 @@ export type Database = {
           touches_received: number | null
           touches_scored: number | null
           user_id: string
+          video_url: string | null
           weapon: string | null
         }
         Insert: {
@@ -249,6 +250,7 @@ export type Database = {
           touches_received?: number | null
           touches_scored?: number | null
           user_id: string
+          video_url?: string | null
           weapon?: string | null
         }
         Update: {
@@ -261,6 +263,7 @@ export type Database = {
           touches_received?: number | null
           touches_scored?: number | null
           user_id?: string
+          video_url?: string | null
           weapon?: string | null
         }
         Relationships: [
