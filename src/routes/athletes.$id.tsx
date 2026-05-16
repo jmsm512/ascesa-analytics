@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
-import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals, listVideosForAthlete } from "@/lib/data";
+import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 import { generateAthleteDrillPlan, type AthleteDrillPlan, type AthleteDrillPrescription, type DrillKind } from "@/lib/coaching.functions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
