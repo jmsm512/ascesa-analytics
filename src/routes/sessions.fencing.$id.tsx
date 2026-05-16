@@ -1,13 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { getAthlete, getFencingSession } from "@/lib/data";
 import {
   generateCoachingSummary,
-  generateDrills,
   type CoachingSummary,
   type DrillsPlan,
 } from "@/lib/coaching.functions";
@@ -24,8 +23,22 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
 } from "recharts";
-import { ArrowLeft, Check, X, Upload, RotateCcw, Download, Trash2, ChevronDown, RefreshCw, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  X,
+  Upload,
+  RotateCcw,
+  Download,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  Plus,
+  Pencil,
+} from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
@@ -39,6 +52,124 @@ export const Route = createFileRoute("/sessions/fencing/$id")({
 
 const TABS = ["Overview", "Actions", "Video"] as const;
 
+// ============= Types =============
+
+type Pt = { x: number; y: number };
+type Frame = { time: number; nx: number; ny: number; detected: boolean };
+type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
+type ActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
+type ActionTag = { id: string; time: number; action: ActionType; success: boolean };
+
+type Period = {
+  id: string;
+  label: string;
+  videoPath: string | null;
+  readings: Reading[];
+  duration: number;
+  points: Pt[];
+  tags: ActionTag[];
+  savedAt: string;
+};
+
+type SavedAnalysis = {
+  periods: Period[];
+  coaching?: CoachingSummary;
+  drills?: DrillsPlan;
+};
+
+const ACTION_COLORS: Record<ActionType, string> = {
+  Attack: "#ef4444",
+  Lunge: "#f97316",
+  Parry: "#3b82f6",
+  Riposte: "#06b6d4",
+  Advance: "#22c55e",
+  Retreat: "#ec4899",
+  Touch: "#eab308",
+};
+const ACTION_TYPES: ActionType[] = ["Attack", "Lunge", "Parry", "Riposte", "Advance", "Retreat", "Touch"];
+
+const ACTION_BENCHMARKS: Record<string, { metric: "peak" | "avg"; eliteMin: number; eliteMax: number; label: string }> = {
+  Lunge: { metric: "peak", eliteMin: 3.5, eliteMax: 5.0, label: "Elite junior: 3.5–5.0 m/s" },
+  Attack: { metric: "peak", eliteMin: 3.0, eliteMax: 4.5, label: "Elite junior: 3.0–4.5 m/s" },
+  Advance: { metric: "avg", eliteMin: 1.5, eliteMax: 2.5, label: "Elite junior: 1.5–2.5 m/s" },
+  Retreat: { metric: "peak", eliteMin: 3.0, eliteMax: 4.5, label: "Elite junior: 3.0–4.5 m/s" },
+};
+
+// Violet shades for combined chart (lightest → darkest)
+const PERIOD_COLORS = [
+  "#c4b5fd", // violet-300
+  "#a78bfa", // violet-400
+  "#8b5cf6", // violet-500
+  "#7c3aed", // violet-600
+  "#6d28d9", // violet-700
+  "#5b21b6", // violet-800
+];
+function periodColor(i: number) {
+  return PERIOD_COLORS[i % PERIOD_COLORS.length];
+}
+
+function normalizeAnalysis(raw: any, legacyVideoPath: string | null): SavedAnalysis {
+  if (!raw || typeof raw !== "object") return { periods: [] };
+  if (Array.isArray(raw.periods)) {
+    return {
+      periods: raw.periods as Period[],
+      coaching: raw.coaching,
+      drills: raw.drills,
+    };
+  }
+  if (Array.isArray(raw.readings)) {
+    return {
+      periods: [
+        {
+          id:
+            (typeof crypto !== "undefined" && (crypto as any).randomUUID?.()) ||
+            `p-${Date.now()}`,
+          label: "Period 1",
+          videoPath: legacyVideoPath,
+          readings: raw.readings,
+          duration: raw.duration ?? 0,
+          points: raw.points ?? [],
+          tags: raw.tags ?? [],
+          savedAt: raw.savedAt ?? new Date().toISOString(),
+        },
+      ],
+      coaching: raw.coaching,
+      drills: raw.drills,
+    };
+  }
+  return { periods: [], coaching: raw.coaching, drills: raw.drills };
+}
+
+function uid() {
+  return (typeof crypto !== "undefined" && (crypto as any).randomUUID?.()) || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function extractFirstFrame(url: string): Promise<{ frame: string; dur: number }> {
+  return new Promise((resolve, reject) => {
+    const v = document.createElement("video");
+    v.preload = "auto";
+    v.muted = true;
+    v.playsInline = true;
+    v.crossOrigin = "anonymous";
+    v.src = url;
+    v.addEventListener("loadeddata", () => {
+      v.currentTime = 0.05;
+    });
+    v.addEventListener("seeked", () => {
+      const c = document.createElement("canvas");
+      c.width = v.videoWidth;
+      c.height = v.videoHeight;
+      const ctx = c.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas 2D unavailable"));
+      ctx.drawImage(v, 0, 0);
+      resolve({ frame: c.toDataURL("image/jpeg", 0.9), dur: v.duration });
+    }, { once: true });
+    v.addEventListener("error", () => reject(new Error("Video load error")));
+  });
+}
+
+// ============= Route Component =============
+
 function FencingSession() {
   const { id } = Route.useParams();
   const search = Route.useSearch();
@@ -48,6 +179,11 @@ function FencingSession() {
   const fs = q.data?.fs;
   const actions = q.data?.actions ?? [];
   const sensors = q.data?.sensors ?? [];
+
+  const analysis = useMemo(
+    () => normalizeAnalysis(q.data?.speedAnalysis ?? null, (q.data as any)?.videoPath ?? null),
+    [q.data?.speedAnalysis, (q.data as any)?.videoPath],
+  );
 
   return (
     <RequireAuth>
@@ -105,7 +241,7 @@ function FencingSession() {
             <SpeedInsights
               fencingSessionId={fs.id}
               athleteId={session?.athlete_id ?? null}
-              analysis={q.data?.speedAnalysis ?? null}
+              analysis={analysis}
               onSaved={() => q.refetch()}
               onGoToVideo={() => setTab("Video")}
             />
@@ -140,12 +276,11 @@ function FencingSession() {
         )}
 
         {tab === "Video" && (
-          <VideoSpeedAnalyzer
+          <VideoTab
             sessionId={id}
             fencingSessionId={fs?.id ?? null}
             athleteId={session?.athlete_id ?? null}
-            existingVideoUrl={q.data?.videoUrl ?? null}
-            existingAnalysis={q.data?.speedAnalysis ?? null}
+            analysis={analysis}
             onSaved={() => q.refetch()}
           />
         )}
@@ -224,86 +359,269 @@ function SensorChart({ title, data, dataKey }: { title: string; data: any[]; dat
   );
 }
 
-// ============= Video Speed Analyzer =============
+// ============= Video Tab =============
 
-type Pt = { x: number; y: number };
-type Frame = { time: number; nx: number; ny: number; detected: boolean };
-type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
-type ActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
-type ActionTag = { id: string; time: number; action: ActionType; success: boolean };
-
-const ACTION_COLORS: Record<ActionType, string> = {
-  Attack: "#ef4444",
-  Lunge: "#f97316",
-  Parry: "#3b82f6",
-  Riposte: "#06b6d4",
-  Advance: "#22c55e",
-  Retreat: "#ec4899",
-  Touch: "#eab308",
-};
-const ACTION_TYPES: ActionType[] = ["Attack", "Lunge", "Parry", "Riposte", "Advance", "Retreat", "Touch"];
-
-const ACTION_BENCHMARKS: Record<string, { metric: "peak" | "avg"; eliteMin: number; eliteMax: number; label: string }> = {
-  Lunge: { metric: "peak", eliteMin: 3.5, eliteMax: 5.0, label: "Elite junior: 3.5–5.0 m/s" },
-  Attack: { metric: "peak", eliteMin: 3.0, eliteMax: 4.5, label: "Elite junior: 3.0–4.5 m/s" },
-  Advance: { metric: "avg", eliteMin: 1.5, eliteMax: 2.5, label: "Elite junior: 1.5–2.5 m/s" },
-  Retreat: { metric: "peak", eliteMin: 3.0, eliteMax: 4.5, label: "Elite junior: 3.0–4.5 m/s" },
-};
-
-type SavedAnalysis = {
-  readings: Reading[];
-  duration: number;
-  points: Pt[];
-  savedAt: string;
-  tags?: ActionTag[];
-  coaching?: CoachingSummary;
-  drills?: DrillsPlan;
-};
-
-function VideoSpeedAnalyzer({
+function VideoTab({
   sessionId,
   fencingSessionId,
   athleteId,
-  existingVideoUrl,
-  existingAnalysis,
+  analysis,
   onSaved,
 }: {
   sessionId: string;
   fencingSessionId: string | null;
   athleteId: string | null;
-  existingVideoUrl: string | null;
-  existingAnalysis: SavedAnalysis | null;
-  onSaved?: () => void;
+  analysis: SavedAnalysis;
+  onSaved: () => void;
 }) {
-  type Stage = "upload" | "extracting" | "calibrate" | "analyzing" | "results";
-  const initialStage: Stage = existingAnalysis && existingVideoUrl ? "results" : "upload";
+  const [periods, setPeriods] = useState<Period[]>(analysis.periods);
+  const [draftPeriodId, setDraftPeriodId] = useState<string | null>(null);
+
+  // Resync if upstream analysis changes (e.g. after refetch)
+  useEffect(() => {
+    setPeriods(analysis.periods);
+  }, [analysis]);
+
+  async function persist(next: Period[]) {
+    if (!fencingSessionId) return;
+    const payload: SavedAnalysis = {
+      periods: next,
+      coaching: analysis.coaching,
+      drills: analysis.drills,
+    };
+    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+    onSaved();
+  }
+
+  function updatePeriod(p: Period) {
+    const next = periods.some((x) => x.id === p.id)
+      ? periods.map((x) => (x.id === p.id ? p : x))
+      : [...periods, p];
+    setPeriods(next);
+    void persist(next);
+  }
+
+  function deletePeriod(id: string) {
+    if (!confirm("Delete this period and its analysis?")) return;
+    const next = periods.filter((p) => p.id !== id);
+    setPeriods(next);
+    if (draftPeriodId === id) setDraftPeriodId(null);
+    void persist(next);
+  }
+
+  function addPeriod() {
+    const id = uid();
+    const nextIndex = periods.length + 1;
+    const draft: Period = {
+      id,
+      label: `Period ${nextIndex}`,
+      videoPath: null,
+      readings: [],
+      duration: 0,
+      points: [],
+      tags: [],
+      savedAt: new Date().toISOString(),
+    };
+    setPeriods([...periods, draft]);
+    setDraftPeriodId(id);
+  }
+
+  function cancelDraft(id: string) {
+    setPeriods((prev) => prev.filter((p) => p.id !== id));
+    setDraftPeriodId(null);
+  }
+
+  return (
+    <div className="mt-6 space-y-6">
+      <BoutSummary periods={periods} />
+
+      <div className="space-y-4">
+        {periods.map((p, i) => (
+          <PeriodSection
+            key={p.id}
+            index={i}
+            period={p}
+            sessionId={sessionId}
+            isDraft={p.id === draftPeriodId}
+            onChange={updatePeriod}
+            onDelete={() => deletePeriod(p.id)}
+            onCancelDraft={() => cancelDraft(p.id)}
+            onAnalysisComplete={() => setDraftPeriodId(null)}
+          />
+        ))}
+
+        <button
+          onClick={addPeriod}
+          disabled={!fencingSessionId || !!draftPeriodId}
+          className="surface flex w-full items-center justify-center gap-2 p-4 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)] disabled:opacity-50"
+          style={{ borderStyle: "dashed", borderWidth: 2 }}
+        >
+          <Plus className="h-4 w-4" /> Add Video
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============= Bout Summary =============
+
+function BoutSummary({ periods }: { periods: Period[] }) {
+  const analyzed = periods.filter((p) => p.readings.length > 0);
+  if (!analyzed.length) {
+    return (
+      <div className="surface p-5">
+        <div className="metric-label mb-2">Bout Summary</div>
+        <div className="text-xs text-[var(--text-secondary)]">
+          Upload and analyze a clip below to see aggregated bout stats.
+        </div>
+      </div>
+    );
+  }
+
+  const all = analyzed.flatMap((p) => p.readings);
+  const peak = all.reduce((m, r) => Math.max(m, r.speed), 0);
+  const avg = all.reduce((s, r) => s + r.speed, 0) / all.length;
+  const peakAdv = all.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
+  const peakRet = all.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
+
+  // Build a combined chart: each period's readings on a shared time axis,
+  // shifted so periods are sequential (otherwise overlapping times muddle the chart).
+  let offset = 0;
+  const series = analyzed.map((p, i) => {
+    const points = p.readings.map((r) => ({
+      t: Number((r.time + offset).toFixed(2)),
+      [p.label]: Number(r.speed.toFixed(3)),
+    }));
+    offset += p.duration || (p.readings[p.readings.length - 1]?.time ?? 0);
+    return { period: p, color: periodColor(i), points };
+  });
+  const merged: Record<number, any> = {};
+  for (const s of series) {
+    for (const pt of s.points) {
+      merged[pt.t] = { ...(merged[pt.t] ?? { t: pt.t }), ...pt };
+    }
+  }
+  const chartData = Object.values(merged).sort((a: any, b: any) => a.t - b.t);
+
+  return (
+    <div className="surface p-5" style={{ borderTop: "3px solid #8b5cf6" }}>
+      <div className="flex items-center justify-between">
+        <div className="metric-label">Bout Summary</div>
+        <div className="text-[11px] text-[var(--text-secondary)]">
+          {analyzed.length} period{analyzed.length === 1 ? "" : "s"} analyzed
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-4">
+        <SummaryStat label="Overall peak" value={`${peak.toFixed(2)} m/s`} />
+        <SummaryStat label="Overall avg" value={`${avg.toFixed(2)} m/s`} />
+        <SummaryStat label="Peak advance" value={`${peakAdv.toFixed(2)} m/s`} />
+        <SummaryStat label="Peak retreat" value={`${peakRet.toFixed(2)} m/s`} />
+      </div>
+
+      <div className="mt-5 h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData}>
+            <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+            <XAxis
+              dataKey="t"
+              type="number"
+              domain={[0, "auto"]}
+              tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(v) => `${Number(v).toFixed(0)}s`}
+            />
+            <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)", borderRadius: 8, fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {series.map((s) => (
+              <Line
+                key={s.period.id}
+                type="monotone"
+                dataKey={s.period.label}
+                stroke={s.color}
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function SummaryStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+      <div className="text-[10px] uppercase tracking-wider text-[var(--text-muted)]">{label}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+// ============= Period Section =============
+
+type Stage = "upload" | "extracting" | "calibrate" | "analyzing" | "results";
+
+function PeriodSection({
+  index,
+  period,
+  sessionId,
+  isDraft,
+  onChange,
+  onDelete,
+  onCancelDraft,
+  onAnalysisComplete,
+}: {
+  index: number;
+  period: Period;
+  sessionId: string;
+  isDraft: boolean;
+  onChange: (p: Period) => void;
+  onDelete: () => void;
+  onCancelDraft: () => void;
+  onAnalysisComplete: () => void;
+}) {
+  const hasResults = period.readings.length > 0;
+  const initialStage: Stage = hasResults ? "results" : "upload";
   const [stage, setStage] = useState<Stage>(initialStage);
-  const [dataUrl, setDataUrl] = useState<string | null>(existingVideoUrl);
+  const [collapsed, setCollapsed] = useState(hasResults && index > 0);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState(period.label);
+
+  const [dataUrl, setDataUrl] = useState<string | null>(null); // playback URL (signed or blob)
   const [firstFrame, setFirstFrame] = useState<string | null>(null);
-  const [duration, setDuration] = useState(existingAnalysis?.duration ?? 0);
-  const [points, setPoints] = useState<Pt[]>(existingAnalysis?.points ?? []);
+  const [duration, setDuration] = useState(period.duration);
+  const [points, setPoints] = useState<Pt[]>(period.points);
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
-  const [readings, setReadings] = useState<Reading[]>(existingAnalysis?.readings ?? []);
-  const [tags, setTags] = useState<ActionTag[]>(existingAnalysis?.tags ?? []);
+  const [readings, setReadings] = useState<Reading[]>(period.readings);
+  const [tags, setTags] = useState<ActionTag[]>(period.tags);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-  const [coaching, setCoaching] = useState<CoachingSummary | null>(existingAnalysis?.coaching ?? null);
-  const [coachingLoading, setCoachingLoading] = useState(false);
-  const [coachingError, setCoachingError] = useState<string | null>(null);
-  const [drills, setDrills] = useState<DrillsPlan | null>(existingAnalysis?.drills ?? null);
-  const [drillsLoading, setDrillsLoading] = useState(false);
-  const [drillsError, setDrillsError] = useState<string | null>(null);
-  const generateCoaching = useServerFn(generateCoachingSummary);
-  const generateDrillsFn = useServerFn(generateDrills);
-  const athleteQuery = useQuery({
-    queryKey: ["athlete", athleteId],
-    queryFn: () => (athleteId ? getAthlete(athleteId) : Promise.resolve(null)),
-    enabled: !!athleteId,
-  });
+  const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
+
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
+
+  // Sign existing video for playback
+  useEffect(() => {
+    let cancelled = false;
+    if (period.videoPath && !dataUrl) {
+      supabase.storage
+        .from("videos")
+        .createSignedUrl(period.videoPath, 60 * 60)
+        .then(({ data }) => {
+          if (!cancelled && data?.signedUrl) setDataUrl(data.signedUrl);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [period.videoPath]);
 
   async function persistVideo(file: File): Promise<string | null> {
     try {
@@ -311,20 +629,13 @@ function VideoSpeedAnalyzer({
       const userId = u.user?.id;
       if (!userId) return null;
       const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
-      const path = `${userId}/${sessionId}.${ext}`;
+      const path = `${userId}/${sessionId}/${period.id}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("videos")
         .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
       if (upErr) {
         console.error("video upload failed", upErr);
         return null;
-      }
-      if (fencingSessionId) {
-        const { error: updErr } = await supabase
-          .from("fencing_sessions")
-          .update({ video_url: path } as any)
-          .eq("id", fencingSessionId);
-        if (updErr) console.error("fencing_sessions video_url update failed", updErr);
       }
       return path;
     } catch (e) {
@@ -333,118 +644,37 @@ function VideoSpeedAnalyzer({
     }
   }
 
-  async function persistAnalysis(out: Reading[], pts: Pt[], dur: number, tagList: ActionTag[] = tags) {
-    if (!fencingSessionId) return;
-    const payload: SavedAnalysis = {
-      readings: out,
-      duration: dur,
-      points: pts,
-      savedAt: new Date().toISOString(),
-      tags: tagList,
-      coaching: coaching ?? undefined,
-      drills: drills ?? undefined,
-    };
-    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
-    onSaved?.();
+  function commit(partial: Partial<Period>) {
+    onChange({ ...period, ...partial, savedAt: new Date().toISOString() });
   }
 
-  async function persistTags(next: ActionTag[]) {
-    if (!fencingSessionId) return;
-    const payload: SavedAnalysis = {
-      readings,
-      duration,
-      points,
-      savedAt: new Date().toISOString(),
-      tags: next,
-      coaching: coaching ?? undefined,
-      drills: drills ?? undefined,
-    };
-    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+  function saveLabel() {
+    const trimmed = labelDraft.trim() || `Period ${index + 1}`;
+    setEditingLabel(false);
+    if (trimmed !== period.label) commit({ label: trimmed });
   }
 
-  async function persistCoaching(c: CoachingSummary) {
-    if (!fencingSessionId) return;
-    const payload: SavedAnalysis = {
-      readings,
-      duration,
-      points,
-      savedAt: new Date().toISOString(),
-      tags,
-      coaching: c,
-      drills: drills ?? undefined,
-    };
-    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+  function startTag(action: ActionType) {
+    const t = playbackRef.current?.currentTime ?? currentTime;
+    setPendingTag({ action, time: t });
   }
-
-  async function persistDrills(d: DrillsPlan | null) {
-    if (!fencingSessionId) return;
-    const payload: SavedAnalysis = {
-      readings,
-      duration,
-      points,
-      savedAt: new Date().toISOString(),
-      tags,
-      coaching: coaching ?? undefined,
-      drills: d ?? undefined,
-    };
-    await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+  function confirmTag(success: boolean) {
+    if (!pendingTag) return;
+    const next = [
+      ...tags,
+      { id: uid(), time: pendingTag.time, action: pendingTag.action, success },
+    ].sort((a, b) => a.time - b.time);
+    setTags(next);
+    setPendingTag(null);
+    commit({ tags: next });
   }
-
-  function buildTagsSummary(): string {
-    if (!tags.length) return "none";
-    const groups = tags.reduce<Record<string, { count: number; success: number }>>((acc, t) => {
-      const k = t.action;
-      if (!acc[k]) acc[k] = { count: 0, success: 0 };
-      acc[k].count++;
-      if (t.success) acc[k].success++;
-      return acc;
-    }, {});
-    return Object.entries(groups)
-      .map(([a, v]) => `${a} x${v.count} (${v.success}/${v.count} successful)`)
-      .join(", ");
+  function cancelPending() {
+    setPendingTag(null);
   }
-
-  async function handleGenerateDrills() {
-    if (drillsLoading) return;
-    const athlete = athleteQuery.data;
-    if (!athlete || !readings.length) return;
-    const peakD = readings.reduce((m, r) => Math.max(m, r.speed), 0);
-    const avgD = readings.reduce((s, r) => s + r.speed, 0) / readings.length;
-    const peakAdvD = readings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
-    const peakRetD = readings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
-    setDrillsLoading(true);
-    setDrillsError(null);
-    try {
-      const plan = await generateDrillsFn({
-        data: {
-          athleteName: athlete.name,
-          athleteAge: athlete.age,
-          peakSpeed: peakD,
-          avgSpeed: avgD,
-          peakAdvance: peakAdvD,
-          peakRetreat: peakRetD,
-          readingCount: readings.length,
-          duration,
-          tagsSummary: buildTagsSummary(),
-        },
-      });
-      setDrills(plan);
-      void persistDrills(plan);
-    } catch (e: any) {
-      setDrillsError(e?.message ?? "Failed to generate drills");
-    } finally {
-      setDrillsLoading(false);
-    }
-  }
-
-  function toggleDrillComplete(name: string) {
-    if (!drills) return;
-    const completed = { ...drills.completed };
-    if (completed[name]) delete completed[name];
-    else completed[name] = new Date().toISOString();
-    const next = { ...drills, completed };
-    setDrills(next);
-    void persistDrills(next);
+  function removeTag(id: string) {
+    const next = tags.filter((t) => t.id !== id);
+    setTags(next);
+    commit({ tags: next });
   }
 
   function speedAt(t: number): Reading | null {
@@ -453,72 +683,13 @@ function VideoSpeedAnalyzer({
     let bestDiff = Math.abs(best.time - t);
     for (const r of readings) {
       const d = Math.abs(r.time - t);
-      if (d < bestDiff) { best = r; bestDiff = d; }
+      if (d < bestDiff) {
+        best = r;
+        bestDiff = d;
+      }
     }
     return best;
   }
-
-  const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
-
-  function startTag(action: ActionType) {
-    const t = playbackRef.current?.currentTime ?? currentTime;
-    setPendingTag({ action, time: t });
-  }
-
-  function confirmTag(success: boolean) {
-    if (!pendingTag) return;
-    const next = [
-      ...tags,
-      { id: crypto.randomUUID(), time: pendingTag.time, action: pendingTag.action, success },
-    ].sort((a, b) => a.time - b.time);
-    setTags(next);
-    setPendingTag(null);
-    void persistTags(next);
-  }
-
-  function cancelPending() {
-    setPendingTag(null);
-  }
-
-  function removeTag(id: string) {
-    const next = tags.filter((t) => t.id !== id);
-    setTags(next);
-    void persistTags(next);
-  }
-
-  // Auto-generate coaching summary once readings + athlete are ready
-  useEffect(() => {
-    if (stage !== "results") return;
-    if (coaching || coachingLoading) return;
-    if (!readings.length) return;
-    if (!athleteQuery.data) return;
-    const athlete = athleteQuery.data;
-    const peak = readings.reduce((m, r) => Math.max(m, r.speed), 0);
-    const avg = readings.reduce((s, r) => s + r.speed, 0) / readings.length;
-    const peakAdv = readings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
-    const peakRet = readings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
-    setCoachingLoading(true);
-    setCoachingError(null);
-    generateCoaching({
-      data: {
-        athleteName: athlete.name,
-        athleteAge: athlete.age,
-        peakSpeed: peak,
-        avgSpeed: avg,
-        peakAdvance: peakAdv,
-        peakRetreat: peakRet,
-        readingCount: readings.length,
-        duration,
-      },
-    })
-      .then((c) => {
-        setCoaching(c);
-        void persistCoaching(c);
-      })
-      .catch((e: any) => setCoachingError(e?.message ?? "Failed to generate coaching summary"))
-      .finally(() => setCoachingLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, readings, athleteQuery.data]);
 
   function onFile(file: File) {
     setError(null);
@@ -543,30 +714,6 @@ function VideoSpeedAnalyzer({
       setStage("upload");
     };
     reader.readAsDataURL(file);
-  }
-
-  function extractFirstFrame(url: string): Promise<{ frame: string; dur: number }> {
-    return new Promise((resolve, reject) => {
-      const v = document.createElement("video");
-      v.preload = "auto";
-      v.muted = true;
-      v.playsInline = true;
-      v.crossOrigin = "anonymous";
-      v.src = url;
-      v.addEventListener("loadeddata", () => {
-        v.currentTime = 0.05;
-      });
-      v.addEventListener("seeked", () => {
-        const c = document.createElement("canvas");
-        c.width = v.videoWidth;
-        c.height = v.videoHeight;
-        const ctx = c.getContext("2d");
-        if (!ctx) return reject(new Error("Canvas 2D unavailable"));
-        ctx.drawImage(v, 0, 0);
-        resolve({ frame: c.toDataURL("image/jpeg", 0.9), dur: v.duration });
-      }, { once: true });
-      v.addEventListener("error", () => reject(new Error("Video load error")));
-    });
   }
 
   function onImgClick(e: React.MouseEvent<HTMLImageElement>) {
@@ -639,7 +786,6 @@ function VideoSpeedAnalyzer({
 
       poseLandmarker.close();
 
-      // Speed calc — use canvas pixel space
       const W = v.videoWidth, H = v.videoHeight;
       const p0 = { x: points[0].x * W, y: points[0].y * H };
       const p1 = { x: points[1].x * W, y: points[1].y * H };
@@ -671,8 +817,20 @@ function VideoSpeedAnalyzer({
       setStage("results");
       setSaving(true);
       try {
-        if (pendingFile) await persistVideo(pendingFile);
-        await persistAnalysis(out, points, v.duration);
+        let videoPath = period.videoPath;
+        if (pendingFile) {
+          const newPath = await persistVideo(pendingFile);
+          if (newPath) videoPath = newPath;
+        }
+        onChange({
+          ...period,
+          readings: out,
+          points,
+          duration: v.duration,
+          videoPath,
+          savedAt: new Date().toISOString(),
+        });
+        onAnalysisComplete();
       } finally {
         setSaving(false);
       }
@@ -682,7 +840,8 @@ function VideoSpeedAnalyzer({
     }
   }
 
-  function reset() {
+  function resetAnalysis() {
+    if (!confirm("Reset this period? The video and analysis will be removed.")) return;
     setStage("upload");
     setDataUrl(null);
     setFirstFrame(null);
@@ -692,10 +851,15 @@ function VideoSpeedAnalyzer({
     setTags([]);
     setProgress({ cur: 0, total: 0 });
     setError(null);
-    setCoaching(null);
-    setCoachingError(null);
-    setDrills(null);
-    setDrillsError(null);
+    onChange({
+      ...period,
+      readings: [],
+      tags: [],
+      points: [],
+      duration: 0,
+      videoPath: null,
+      savedAt: new Date().toISOString(),
+    });
   }
 
   function downloadCsv() {
@@ -704,447 +868,503 @@ function VideoSpeedAnalyzer({
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "speed-readings.csv";
+    a.download = `${period.label.replace(/\s+/g, "-")}-speed.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
 
   const peak = readings.reduce((m, r) => Math.max(m, r.speed), 0);
   const avg = readings.length ? readings.reduce((s, r) => s + r.speed, 0) / readings.length : 0;
-  const peakAdv = readings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
-  const peakRet = readings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
+  const accent = periodColor(index);
 
   return (
-    <div className="mt-6 space-y-6">
-      {error && (
-        <div className="surface p-4 text-sm text-[var(--data-negative)]">{error}</div>
-      )}
-
-      {stage === "upload" && (
-        <label
-          className="surface flex cursor-pointer flex-col items-center justify-center gap-3 p-16 text-center transition-colors hover:border-[var(--accent)]"
-          style={{ borderWidth: 2, borderStyle: "dashed" }}
+    <div className="surface overflow-hidden" style={{ borderLeft: `4px solid ${accent}` }}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-[var(--border-subtle)]">
+        <button
+          onClick={() => setCollapsed((c) => !c)}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+          aria-label={collapsed ? "Expand" : "Collapse"}
         >
-          <Upload className="h-8 w-8 text-[var(--text-secondary)]" />
-          <div className="text-sm font-medium">Click to upload a fencing bout video</div>
-          <div className="text-xs text-[var(--text-secondary)]">MP4, MOV, WebM — analysed entirely in your browser</div>
+          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+        </button>
+        {editingLabel ? (
           <input
-            type="file"
-            accept="video/*"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+            value={labelDraft}
+            onChange={(e) => setLabelDraft(e.target.value)}
+            onBlur={saveLabel}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveLabel();
+              if (e.key === "Escape") {
+                setLabelDraft(period.label);
+                setEditingLabel(false);
+              }
+            }}
+            autoFocus
+            className="rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 py-0.5 text-sm font-semibold"
           />
-        </label>
-      )}
-
-      {stage === "extracting" && (
-        <div className="surface grid place-items-center p-16 text-sm text-[var(--text-secondary)]">
-          Extracting first frame…
-        </div>
-      )}
-
-      {stage === "calibrate" && firstFrame && (
-        <div className="surface p-5">
-          <div className="metric-label mb-2">Calibrate the piste</div>
-          <p className="mb-4 text-xs text-[var(--text-secondary)]">
-            Click the <span style={{ color: "var(--accent)" }}>0m end</span> of the piste, then the{" "}
-            <span style={{ color: "var(--fencing)" }}>14m end</span>. Duration: {duration.toFixed(1)}s.
-          </p>
-          <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
-            <img
-              ref={imgRef}
-              src={firstFrame}
-              alt="First frame"
-              onClick={onImgClick}
-              style={{ maxWidth: "100%", display: "block", cursor: points.length < 2 ? "crosshair" : "default" }}
-            />
-            {points.map((p, i) => (
-              <div
-                key={i}
-                style={{
-                  position: "absolute",
-                  left: `${p.x * 100}%`,
-                  top: `${p.y * 100}%`,
-                  width: 14,
-                  height: 14,
-                  borderRadius: "50%",
-                  background: i === 0 ? "var(--accent)" : "var(--fencing)",
-                  border: "2px solid white",
-                  transform: "translate(-50%, -50%)",
-                  pointerEvents: "none",
-                  boxShadow: "0 0 10px rgba(0,0,0,0.5)",
-                }}
-              />
-            ))}
-            {points.length === 2 && (
-              <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-                <line
-                  x1={`${points[0].x * 100}%`}
-                  y1={`${points[0].y * 100}%`}
-                  x2={`${points[1].x * 100}%`}
-                  y2={`${points[1].y * 100}%`}
-                  stroke="var(--accent)"
-                  strokeWidth={2}
-                  strokeDasharray="6 6"
-                />
-              </svg>
-            )}
-          </div>
-          <div className="mt-4 flex gap-3">
-            <button
-              onClick={() => setPoints([])}
-              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
-            >
-              <RotateCcw className="h-3.5 w-3.5" /> Reset
-            </button>
-            {points.length === 2 && (
-              <button
-                onClick={runAnalysis}
-                className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90"
-              >
-                Confirm — Analyze Video
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {stage === "analyzing" && (
-        <div className="surface p-8">
-          <div className="metric-label mb-3">
-            Analyzing frame {progress.cur} of {progress.total}
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-            <div
-              className="h-full bg-[var(--accent)] transition-all"
-              style={{ width: `${progress.total ? (progress.cur / progress.total) * 100 : 0}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {stage === "results" && (
-        <>
-          {saving && (
-            <div className="surface flex items-center gap-3 p-3 text-xs text-[var(--text-secondary)]">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />
-              Saving analysis…
-            </div>
-          )}
-
-
-          {dataUrl && (
-            <div className="surface overflow-hidden rounded-lg p-3">
-              <video
-                ref={playbackRef}
-                src={dataUrl}
-                controls
-                playsInline
-                onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                className="w-full rounded-md bg-black"
-                style={{ maxHeight: 480 }}
-              />
-            </div>
-          )}
-
-          <div className="surface p-4">
-            <div className="metric-label mb-3">Tag action at {currentTime.toFixed(2)}s</div>
-            <div className="flex flex-wrap gap-2">
-              {ACTION_TYPES.map((a) => (
-                <button
-                  key={a}
-                  onClick={() => startTag(a)}
-                  disabled={!!pendingTag}
-                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
-                  style={{ background: ACTION_COLORS[a] }}
-                >
-                  {a}
-                </button>
-              ))}
-            </div>
-            {pendingTag && (
-              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2">
-                <span className="text-xs text-[var(--text-secondary)]">
-                  <span
-                    className="mr-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                    style={{ background: ACTION_COLORS[pendingTag.action] }}
-                  >
-                    {pendingTag.action}
-                  </span>
-                  at {pendingTag.time.toFixed(2)}s — Successful?
-                </span>
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    onClick={() => confirmTag(true)}
-                    className="rounded-md bg-[var(--data-positive)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
-                  >
-                    Yes
-                  </button>
-                  <button
-                    onClick={() => confirmTag(false)}
-                    className="rounded-md bg-[var(--data-negative)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
-                  >
-                    No
-                  </button>
-                  <button
-                    onClick={cancelPending}
-                    className="rounded-md border border-[var(--border-default)] px-3 py-1 text-xs hover:bg-[var(--bg-elevated)]"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="surface p-5">
-            <div className="metric-label mb-3">Speed over time (m/s)</div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={readings.map((r) => ({ t: Number(r.time.toFixed(2)), speed: Number(r.speed.toFixed(3)) }))}
-                  onClick={(e: any) => {
-                    const t = e?.activeLabel;
-                    if (typeof t === "number" && playbackRef.current) {
-                      playbackRef.current.currentTime = t;
-                      setCurrentTime(t);
-                    }
-                  }}
-                >
-                  <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
-                  <XAxis
-                    dataKey="t"
-                    type="number"
-                    domain={[0, duration || "auto"]}
-                    tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${Number(v).toFixed(1)}`}
-                  />
-                  <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)", borderRadius: 8, fontSize: 12 }} />
-                  <Area type="monotone" dataKey="speed" stroke="var(--fencing)" fill="var(--fencing)" fillOpacity={0.25} strokeWidth={2.5} />
-                  {tags.map((tg) => (
-                    <ReferenceLine
-                      key={tg.id}
-                      x={Number(tg.time.toFixed(2))}
-                      stroke={ACTION_COLORS[tg.action]}
-                      strokeWidth={2}
-                      ifOverflow="extendDomain"
-                      label={{ value: tg.action[0], position: "top", fill: ACTION_COLORS[tg.action], fontSize: 10 }}
-                    />
-                  ))}
-                  <ReferenceLine x={currentTime} stroke="#ffffff" strokeWidth={2} ifOverflow="extendDomain" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="surface overflow-hidden">
-            <div className="px-5 py-3 border-b border-[var(--border-subtle)]">
-              <div className="metric-label">Tagged actions ({tags.length})</div>
-            </div>
-            {tags.length === 0 ? (
-              <div className="px-5 py-6 text-center text-xs text-[var(--text-secondary)]">
-                No tags yet — use the buttons above while watching the video.
-              </div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
-                  <tr>
-                    <th className="px-5 py-2 text-left">Time (s)</th>
-                    <th className="px-5 py-2 text-left">Action</th>
-                    <th className="px-5 py-2 text-left">Result</th>
-                    <th className="px-5 py-2 text-left">Speed (m/s)</th>
-                    <th className="px-5 py-2 text-left">Direction</th>
-                    <th className="px-5 py-2 w-10" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border-subtle)]">
-                  {tags.map((tg) => {
-                    const r = speedAt(tg.time);
-                    return (
-                      <tr key={tg.id} className="row-hover">
-                        <td className="px-5 py-2 tabular-nums">
-                          <button
-                            onClick={() => {
-                              if (playbackRef.current) {
-                                playbackRef.current.currentTime = tg.time;
-                                setCurrentTime(tg.time);
-                              }
-                            }}
-                            className="underline-offset-2 hover:underline"
-                          >
-                            {tg.time.toFixed(2)}
-                          </button>
-                        </td>
-                        <td className="px-5 py-2">
-                          <span
-                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                            style={{ background: ACTION_COLORS[tg.action] }}
-                          >
-                            {tg.action}
-                          </span>
-                        </td>
-                        <td className="px-5 py-2">
-                          <span
-                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                            style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}
-                          >
-                            {tg.success ? "Success" : "Fail"}
-                          </span>
-                        </td>
-                        <td className="px-5 py-2 tabular-nums">{r ? r.speed.toFixed(3) : "—"}</td>
-                        <td className="px-5 py-2 text-[var(--text-secondary)]">{r?.direction ?? "—"}</td>
-                        <td className="px-5 py-2 text-right">
-                          <button
-                            onClick={() => removeTag(tg.id)}
-                            className="inline-flex items-center justify-center rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]"
-                            aria-label="Delete tag"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {tags.length > 0 && (
-            <div className="surface overflow-hidden">
-              <div className="px-5 py-3 border-b border-[var(--border-subtle)]">
-                <div className="metric-label">Tagged Action Summary</div>
-              </div>
-              <div className="px-5 py-4">
-                <div className="grid gap-3">
-                  {Object.entries(
-                    tags.reduce<Record<string, ActionTag[]>>((acc, t) => {
-                      const key = `${t.action}|${t.success ? "success" : "fail"}`;
-                      (acc[key] ||= []).push(t);
-                      return acc;
-                    }, {})
-                  )
-                    .sort((a, b) => a[0].localeCompare(b[0]))
-                    .map(([key, actionTags]) => {
-                      const [action, outcome] = key.split("|") as [ActionType, "success" | "fail"];
-                      const isSuccess = outcome === "success";
-                      const bench = ACTION_BENCHMARKS[action];
-                      const speeds = actionTags
-                        .map((t) => speedAt(t.time)?.speed)
-                        .filter((s): s is number => typeof s === "number");
-                      const count = actionTags.length;
-                      const peak = speeds.length ? Math.max(...speeds) : 0;
-                      const avg = speeds.length ? speeds.reduce((s, v) => s + v, 0) / speeds.length : 0;
-                      const value = bench?.metric === "avg" ? avg : peak;
-                      const barColor = bench ? getBenchmarkColor(value, bench.eliteMin) : "var(--text-muted)";
-                      const barWidth = bench ? Math.min((value / bench.eliteMax) * 100, 100) : 0;
-                      return (
-                        <div key={key} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                          <div className="flex shrink-0 items-center gap-2 self-start">
-                            <span
-                              className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
-                              style={{ background: ACTION_COLORS[action] }}
-                            >
-                              {action}
-                            </span>
-                            <span
-                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                              style={{ background: isSuccess ? "var(--data-positive)" : "var(--data-negative)" }}
-                            >
-                              {isSuccess ? "Success" : "Fail"}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0 grid grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Count</div>
-                              <div className="font-semibold tabular-nums">{count}</div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Avg Speed</div>
-                              <div className="font-semibold tabular-nums">{avg.toFixed(3)} m/s</div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Peak Speed</div>
-                              <div className="font-semibold tabular-nums">{peak.toFixed(3)} m/s</div>
-                            </div>
-                          </div>
-                          <div className="w-full sm:w-32 shrink-0">
-                            <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)] mb-1">
-                              <span>{bench ? bench.label : "No benchmark"}</span>
-                              <span style={{ color: barColor }} className="font-medium">{value.toFixed(2)}</span>
-                            </div>
-                            <div className="h-1.5 w-full rounded-full bg-[var(--bg-elevated)] overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all"
-                                style={{ width: `${barWidth}%`, background: barColor }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="surface overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--border-subtle)]">
-              <div className="metric-label">Readings ({readings.length})</div>
-              <button
-                onClick={downloadCsv}
-                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
-              >
-                <Download className="h-3.5 w-3.5" /> Download CSV
-              </button>
-            </div>
-            <div className="max-h-80 overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
-                  <tr>
-                    <th className="px-5 py-2 text-left">Time (s)</th>
-                    <th className="px-5 py-2 text-left">Speed (m/s)</th>
-                    <th className="px-5 py-2 text-left">Direction</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border-subtle)]">
-                  {readings.map((r, i) => (
-                    <tr key={i} className="row-hover">
-                      <td className="px-5 py-2 tabular-nums">{r.time.toFixed(2)}</td>
-                      <td className="px-5 py-2 tabular-nums">{r.speed.toFixed(3)}</td>
-                      <td className="px-5 py-2">
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                          style={{
-                            background: r.direction === "advance" ? "var(--accent-glow)" : "var(--data-negative)" + "26",
-                            color: r.direction === "advance" ? "var(--accent)" : "var(--data-negative)",
-                          }}
-                        >
-                          {r.direction}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
+        ) : (
           <button
-            onClick={reset}
-            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+            onClick={() => {
+              setLabelDraft(period.label);
+              setEditingLabel(true);
+            }}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold hover:text-[var(--accent)]"
           >
-            <RotateCcw className="h-3.5 w-3.5" /> Analyze another video
+            {period.label}
+            <Pencil className="h-3 w-3 text-[var(--text-muted)]" />
           </button>
-        </>
+        )}
+
+        {hasResults && (
+          <div className="ml-auto flex items-center gap-4 text-[11px] text-[var(--text-secondary)]">
+            <span>Peak <span className="tabular-nums text-[var(--text-primary)]">{peak.toFixed(2)}</span> m/s</span>
+            <span>Avg <span className="tabular-nums text-[var(--text-primary)]">{avg.toFixed(2)}</span> m/s</span>
+            <span>{tags.length} tag{tags.length === 1 ? "" : "s"}</span>
+          </div>
+        )}
+
+        <button
+          onClick={isDraft && !hasResults ? onCancelDraft : onDelete}
+          title={isDraft && !hasResults ? "Cancel" : "Delete period"}
+          className={`${hasResults ? "" : "ml-auto"} inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {!collapsed && (
+        <div className="space-y-6 p-5">
+          {error && (
+            <div className="rounded-md border border-[var(--data-negative)]/40 bg-[var(--data-negative)]/10 p-3 text-sm text-[var(--data-negative)]">
+              {error}
+            </div>
+          )}
+
+          {stage === "upload" && (
+            <label
+              className="surface flex cursor-pointer flex-col items-center justify-center gap-3 p-12 text-center transition-colors hover:border-[var(--accent)]"
+              style={{ borderWidth: 2, borderStyle: "dashed" }}
+            >
+              <Upload className="h-7 w-7 text-[var(--text-secondary)]" />
+              <div className="text-sm font-medium">Upload a clip for {period.label}</div>
+              <div className="text-xs text-[var(--text-secondary)]">MP4, MOV, WebM — analysed in your browser</div>
+              <input
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+              />
+            </label>
+          )}
+
+          {stage === "extracting" && (
+            <div className="surface grid place-items-center p-12 text-sm text-[var(--text-secondary)]">
+              Extracting first frame…
+            </div>
+          )}
+
+          {stage === "calibrate" && firstFrame && (
+            <div className="surface p-5">
+              <div className="metric-label mb-2">Calibrate the piste</div>
+              <p className="mb-4 text-xs text-[var(--text-secondary)]">
+                Click the <span style={{ color: "var(--accent)" }}>0m end</span> of the piste, then the{" "}
+                <span style={{ color: "var(--fencing)" }}>14m end</span>. Duration: {duration.toFixed(1)}s.
+              </p>
+              <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
+                <img
+                  ref={imgRef}
+                  src={firstFrame}
+                  alt="First frame"
+                  onClick={onImgClick}
+                  style={{ maxWidth: "100%", display: "block", cursor: points.length < 2 ? "crosshair" : "default" }}
+                />
+                {points.map((p, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      position: "absolute",
+                      left: `${p.x * 100}%`,
+                      top: `${p.y * 100}%`,
+                      width: 14,
+                      height: 14,
+                      borderRadius: "50%",
+                      background: i === 0 ? "var(--accent)" : "var(--fencing)",
+                      border: "2px solid white",
+                      transform: "translate(-50%, -50%)",
+                      pointerEvents: "none",
+                      boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+                    }}
+                  />
+                ))}
+                {points.length === 2 && (
+                  <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+                    <line
+                      x1={`${points[0].x * 100}%`}
+                      y1={`${points[0].y * 100}%`}
+                      x2={`${points[1].x * 100}%`}
+                      y2={`${points[1].y * 100}%`}
+                      stroke="var(--accent)"
+                      strokeWidth={2}
+                      strokeDasharray="6 6"
+                    />
+                  </svg>
+                )}
+              </div>
+              <div className="mt-4 flex gap-3">
+                <button
+                  onClick={() => setPoints([])}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Reset
+                </button>
+                {points.length === 2 && (
+                  <button
+                    onClick={runAnalysis}
+                    className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90"
+                  >
+                    Confirm — Analyze Video
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {stage === "analyzing" && (
+            <div className="surface p-8">
+              <div className="metric-label mb-3">
+                Analyzing frame {progress.cur} of {progress.total}
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+                <div
+                  className="h-full bg-[var(--accent)] transition-all"
+                  style={{ width: `${progress.total ? (progress.cur / progress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {stage === "results" && (
+            <>
+              {saving && (
+                <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
+                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />
+                  Saving analysis…
+                </div>
+              )}
+
+              {readings.length > 0 && (
+                <div>
+                  <div className="metric-label mb-3">Speed over time (m/s)</div>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={readings.map((r) => ({ t: Number(r.time.toFixed(2)), speed: Number(r.speed.toFixed(3)) }))}
+                        onClick={(e: any) => {
+                          const t = e?.activeLabel;
+                          if (typeof t === "number" && playbackRef.current) {
+                            playbackRef.current.currentTime = t;
+                            setCurrentTime(t);
+                          }
+                        }}
+                      >
+                        <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+                        <XAxis
+                          dataKey="t"
+                          type="number"
+                          domain={[0, duration || "auto"]}
+                          tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v) => `${Number(v).toFixed(1)}`}
+                        />
+                        <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ background: "var(--bg-elevated)", border: "1px solid var(--border-default)", borderRadius: 8, fontSize: 12 }} />
+                        <Area type="monotone" dataKey="speed" stroke={accent} fill={accent} fillOpacity={0.25} strokeWidth={2.5} />
+                        {tags.map((tg) => (
+                          <ReferenceLine
+                            key={tg.id}
+                            x={Number(tg.time.toFixed(2))}
+                            stroke={ACTION_COLORS[tg.action]}
+                            strokeWidth={2}
+                            ifOverflow="extendDomain"
+                            label={{ value: tg.action[0], position: "top", fill: ACTION_COLORS[tg.action], fontSize: 10 }}
+                          />
+                        ))}
+                        <ReferenceLine x={currentTime} stroke="#ffffff" strokeWidth={2} ifOverflow="extendDomain" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {dataUrl && (
+                <div className="overflow-hidden rounded-lg">
+                  <video
+                    ref={playbackRef}
+                    src={dataUrl}
+                    controls
+                    playsInline
+                    onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                    onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                    className="w-full rounded-md bg-black"
+                    style={{ maxHeight: 480 }}
+                  />
+                </div>
+              )}
+
+              <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                <div className="metric-label mb-3">Tag action at {currentTime.toFixed(2)}s</div>
+                <div className="flex flex-wrap gap-2">
+                  {ACTION_TYPES.map((a) => (
+                    <button
+                      key={a}
+                      onClick={() => startTag(a)}
+                      disabled={!!pendingTag}
+                      className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
+                      style={{ background: ACTION_COLORS[a] }}
+                    >
+                      {a}
+                    </button>
+                  ))}
+                </div>
+                {pendingTag && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--border-default)] bg-[var(--bg-default)] px-3 py-2">
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      <span
+                        className="mr-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                        style={{ background: ACTION_COLORS[pendingTag.action] }}
+                      >
+                        {pendingTag.action}
+                      </span>
+                      at {pendingTag.time.toFixed(2)}s — Successful?
+                    </span>
+                    <div className="ml-auto flex items-center gap-2">
+                      <button
+                        onClick={() => confirmTag(true)}
+                        className="rounded-md bg-[var(--data-positive)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={() => confirmTag(false)}
+                        className="rounded-md bg-[var(--data-negative)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
+                      >
+                        No
+                      </button>
+                      <button
+                        onClick={cancelPending}
+                        className="rounded-md border border-[var(--border-default)] px-3 py-1 text-xs hover:bg-[var(--bg-elevated)]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {tags.length > 0 && (
+                <div className="overflow-hidden rounded-md border border-[var(--border-subtle)]">
+                  <div className="bg-[var(--bg-elevated)] px-5 py-2 metric-label">Tagged actions ({tags.length})</div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+                      <tr>
+                        <th className="px-5 py-2 text-left">Time (s)</th>
+                        <th className="px-5 py-2 text-left">Action</th>
+                        <th className="px-5 py-2 text-left">Result</th>
+                        <th className="px-5 py-2 text-left">Speed (m/s)</th>
+                        <th className="px-5 py-2 text-left">Direction</th>
+                        <th className="px-5 py-2 w-10" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border-subtle)]">
+                      {tags.map((tg) => {
+                        const r = speedAt(tg.time);
+                        return (
+                          <tr key={tg.id} className="row-hover">
+                            <td className="px-5 py-2 tabular-nums">
+                              <button
+                                onClick={() => {
+                                  if (playbackRef.current) {
+                                    playbackRef.current.currentTime = tg.time;
+                                    setCurrentTime(tg.time);
+                                  }
+                                }}
+                                className="underline-offset-2 hover:underline"
+                              >
+                                {tg.time.toFixed(2)}
+                              </button>
+                            </td>
+                            <td className="px-5 py-2">
+                              <span
+                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                                style={{ background: ACTION_COLORS[tg.action] }}
+                              >
+                                {tg.action}
+                              </span>
+                            </td>
+                            <td className="px-5 py-2">
+                              <span
+                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                                style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}
+                              >
+                                {tg.success ? "Success" : "Fail"}
+                              </span>
+                            </td>
+                            <td className="px-5 py-2 tabular-nums">{r ? r.speed.toFixed(3) : "—"}</td>
+                            <td className="px-5 py-2 text-[var(--text-secondary)]">{r?.direction ?? "—"}</td>
+                            <td className="px-5 py-2 text-right">
+                              <button
+                                onClick={() => removeTag(tg.id)}
+                                className="inline-flex items-center justify-center rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]"
+                                aria-label="Delete tag"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {tags.length > 0 && (
+                <TaggedActionSummary tags={tags} speedAt={speedAt} />
+              )}
+
+              {readings.length > 0 && (
+                <div className="overflow-hidden rounded-md border border-[var(--border-subtle)]">
+                  <div className="flex items-center justify-between bg-[var(--bg-elevated)] px-5 py-2">
+                    <div className="metric-label">Readings ({readings.length})</div>
+                    <button
+                      onClick={downloadCsv}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1 text-xs hover:bg-[var(--bg-default)]"
+                    >
+                      <Download className="h-3 w-3" /> CSV
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+                        <tr>
+                          <th className="px-5 py-2 text-left">Time (s)</th>
+                          <th className="px-5 py-2 text-left">Speed (m/s)</th>
+                          <th className="px-5 py-2 text-left">Direction</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-subtle)]">
+                        {readings.map((r, i) => (
+                          <tr key={i} className="row-hover">
+                            <td className="px-5 py-2 tabular-nums">{r.time.toFixed(2)}</td>
+                            <td className="px-5 py-2 tabular-nums">{r.speed.toFixed(3)}</td>
+                            <td className="px-5 py-2 text-[var(--text-secondary)]">{r.direction}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <button
+                  onClick={resetAnalysis}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Reset this clip
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
 }
+
+// ============= Tagged Action Summary =============
+
+function TaggedActionSummary({ tags, speedAt }: { tags: ActionTag[]; speedAt: (t: number) => Reading | null }) {
+  return (
+    <div className="overflow-hidden rounded-md border border-[var(--border-subtle)]">
+      <div className="bg-[var(--bg-elevated)] px-5 py-2 metric-label">Tagged Action Summary</div>
+      <div className="px-5 py-4">
+        <div className="grid gap-3">
+          {Object.entries(
+            tags.reduce<Record<string, ActionTag[]>>((acc, t) => {
+              const key = `${t.action}|${t.success ? "success" : "fail"}`;
+              (acc[key] ||= []).push(t);
+              return acc;
+            }, {})
+          )
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([key, actionTags]) => {
+              const [action, outcome] = key.split("|") as [ActionType, "success" | "fail"];
+              const isSuccess = outcome === "success";
+              const bench = ACTION_BENCHMARKS[action];
+              const speeds = actionTags
+                .map((t) => speedAt(t.time)?.speed)
+                .filter((s): s is number => typeof s === "number");
+              const count = actionTags.length;
+              const peak = speeds.length ? Math.max(...speeds) : 0;
+              const avg = speeds.length ? speeds.reduce((s, v) => s + v, 0) / speeds.length : 0;
+              const value = bench?.metric === "avg" ? avg : peak;
+              const barColor = bench ? getBenchmarkColor(value, bench.eliteMin) : "var(--text-muted)";
+              const barWidth = bench ? Math.min((value / bench.eliteMax) * 100, 100) : 0;
+              return (
+                <div key={key} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex shrink-0 items-center gap-2 self-start">
+                    <span
+                      className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
+                      style={{ background: ACTION_COLORS[action] }}
+                    >
+                      {action}
+                    </span>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                      style={{ background: isSuccess ? "var(--data-positive)" : "var(--data-negative)" }}
+                    >
+                      {isSuccess ? "Success" : "Fail"}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0 grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Count</div>
+                      <div className="font-semibold tabular-nums">{count}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Avg Speed</div>
+                      <div className="font-semibold tabular-nums">{avg.toFixed(3)} m/s</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Peak Speed</div>
+                      <div className="font-semibold tabular-nums">{peak.toFixed(3)} m/s</div>
+                    </div>
+                  </div>
+                  <div className="w-full sm:w-32 shrink-0">
+                    <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)] mb-1">
+                      <span>{bench ? bench.label : "No benchmark"}</span>
+                      <span style={{ color: barColor }} className="font-medium">{value.toFixed(2)}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-[var(--bg-elevated)] overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${barWidth}%`, background: barColor }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============= Coaching Cards =============
 
 function CoachingCards({
   coaching,
@@ -1212,135 +1432,7 @@ function CoachingCards({
   );
 }
 
-function DrillsSection({
-  drills,
-  loading,
-  error,
-  canGenerate,
-  onGenerate,
-  onToggleComplete,
-}: {
-  drills: DrillsPlan | null;
-  loading: boolean;
-  error: string | null;
-  canGenerate: boolean;
-  onGenerate: () => void;
-  onToggleComplete: (name: string) => void;
-}) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="metric-label">Prescribed Drills</div>
-        {drills && (
-          <button
-            onClick={onGenerate}
-            disabled={loading || !canGenerate}
-            title="Regenerate drills"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          </button>
-        )}
-      </div>
-
-      {!drills && !loading && (
-        <button
-          onClick={onGenerate}
-          disabled={!canGenerate}
-          className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
-        >
-          <Sparkles className="h-3.5 w-3.5" /> Get Drills
-        </button>
-      )}
-
-      {loading && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="surface p-4">
-              <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--bg-elevated)]" />
-              <div className="mt-3 h-2 w-1/2 animate-pulse rounded bg-[var(--bg-elevated)]" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {error && !loading && (
-        <div className="surface p-3 text-xs text-[var(--data-negative)]">{error}</div>
-      )}
-
-      {drills && !loading && drills.drills.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          {drills.drills.map((d) => {
-            const isOpen = !!expanded[d.name];
-            const completedAt = drills.completed[d.name];
-            return (
-              <div
-                key={d.name}
-                className="surface p-4"
-                style={{ borderLeft: `4px solid ${completedAt ? "var(--data-positive)" : "var(--accent)"}` }}
-              >
-                <button
-                  onClick={() => setExpanded((p) => ({ ...p, [d.name]: !isOpen }))}
-                  className="flex w-full items-start justify-between gap-2 text-left"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      {completedAt && <Check className="h-3.5 w-3.5 shrink-0 text-[var(--data-positive)]" />}
-                      <div className={`text-sm font-semibold ${completedAt ? "text-[var(--text-secondary)] line-through" : "text-[var(--text-primary)]"}`}>
-                        {d.name}
-                      </div>
-                    </div>
-                    <div className="mt-1 text-[11px] text-[var(--text-secondary)]">Target: {d.target}</div>
-                  </div>
-                  <ChevronDown className={`h-4 w-4 shrink-0 text-[var(--text-secondary)] transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                </button>
-
-                {isOpen && (
-                  <div className="mt-3 space-y-3 border-t border-[var(--border-subtle)] pt-3">
-                    <div>
-                      <div className="metric-label mb-1">Addresses</div>
-                      <div className="text-xs text-[var(--text-secondary)]">{d.addresses}</div>
-                    </div>
-                    <div>
-                      <div className="metric-label mb-1">Instructions</div>
-                      <ol className="list-decimal space-y-1 pl-4 text-xs text-[var(--text-secondary)]">
-                        {d.instructions.map((step, i) => (
-                          <li key={i}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--text-secondary)]">
-                      <span>Duration: <span className="text-[var(--text-primary)]">{d.duration}</span></span>
-                      <span>Target: <span className="text-[var(--text-primary)]">{d.target}</span></span>
-                    </div>
-                    {completedAt && (
-                      <div className="text-[11px] text-[var(--data-positive)]">
-                        Completed {format(new Date(completedAt), "MMM d, yyyy")}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => onToggleComplete(d.name)}
-                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium ${
-                        completedAt
-                          ? "border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
-                          : "bg-[var(--data-positive)] text-black hover:opacity-90"
-                      }`}
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                      {completedAt ? "Mark Incomplete" : "Mark Complete"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
+// ============= Speed Insights (Overview) =============
 
 function SpeedInsights({
   fencingSessionId,
@@ -1351,12 +1443,12 @@ function SpeedInsights({
 }: {
   fencingSessionId: string;
   athleteId: string | null;
-  analysis: SavedAnalysis | null;
+  analysis: SavedAnalysis;
   onSaved: () => void;
   onGoToVideo: () => void;
 }) {
   const generateCoaching = useServerFn(generateCoachingSummary);
-  const [coaching, setCoaching] = useState<CoachingSummary | null>(analysis?.coaching ?? null);
+  const [coaching, setCoaching] = useState<CoachingSummary | null>(analysis.coaching ?? null);
   const [coachingLoading, setCoachingLoading] = useState(false);
   const [coachingError, setCoachingError] = useState<string | null>(null);
   const athleteQuery = useQuery({
@@ -1366,12 +1458,56 @@ function SpeedInsights({
   });
 
   useEffect(() => {
-    setCoaching(analysis?.coaching ?? null);
-  }, [analysis?.coaching]);
+    setCoaching(analysis.coaching ?? null);
+  }, [analysis.coaching]);
 
-  const readings = analysis?.readings ?? [];
+  const analyzed = analysis.periods.filter((p) => p.readings.length > 0);
+  const allReadings = useMemo(() => analyzed.flatMap((p) => p.readings), [analyzed]);
+  const totalDuration = analyzed.reduce((s, p) => s + (p.duration || 0), 0);
 
-  if (!analysis || !readings.length) {
+  const peak = allReadings.reduce((m, r) => Math.max(m, r.speed), 0);
+  const avg = allReadings.length ? allReadings.reduce((s, r) => s + r.speed, 0) / allReadings.length : 0;
+  const peakAdv = allReadings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
+  const peakRet = allReadings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
+
+  async function runCoaching() {
+    if (!athleteQuery.data || !allReadings.length || coachingLoading) return;
+    setCoachingLoading(true);
+    setCoachingError(null);
+    try {
+      const c = await generateCoaching({
+        data: {
+          athleteName: athleteQuery.data.name,
+          athleteAge: athleteQuery.data.age,
+          peakSpeed: peak,
+          avgSpeed: avg,
+          peakAdvance: peakAdv,
+          peakRetreat: peakRet,
+          readingCount: allReadings.length,
+          duration: totalDuration,
+        },
+      });
+      setCoaching(c);
+      const payload: SavedAnalysis = { ...analysis, coaching: c };
+      await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
+      onSaved();
+    } catch (e: any) {
+      setCoachingError(e?.message ?? "Failed to generate coaching summary");
+    } finally {
+      setCoachingLoading(false);
+    }
+  }
+
+  // Auto-generate once on first analysis
+  useEffect(() => {
+    if (coaching || coachingLoading) return;
+    if (!allReadings.length) return;
+    if (!athleteQuery.data) return;
+    void runCoaching();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allReadings.length, athleteQuery.data]);
+
+  if (!allReadings.length) {
     return (
       <div className="mt-6 surface flex items-center justify-between gap-4 p-4 text-xs text-[var(--text-secondary)]">
         <span>Upload and analyze a video to see speed insights.</span>
@@ -1385,43 +1521,13 @@ function SpeedInsights({
     );
   }
 
-  const peak = readings.reduce((m, r) => Math.max(m, r.speed), 0);
-  const avg = readings.reduce((s, r) => s + r.speed, 0) / readings.length;
-  const peakAdv = readings.filter((r) => r.direction === "advance").reduce((m, r) => Math.max(m, r.speed), 0);
-  const peakRet = readings.filter((r) => r.direction === "retreat").reduce((m, r) => Math.max(m, r.speed), 0);
-
-  async function regenerate() {
-    if (!athleteQuery.data || coachingLoading) return;
-    setCoachingLoading(true);
-    setCoachingError(null);
-    try {
-      const c = await generateCoaching({
-        data: {
-          athleteName: athleteQuery.data.name,
-          athleteAge: athleteQuery.data.age,
-          peakSpeed: peak,
-          avgSpeed: avg,
-          peakAdvance: peakAdv,
-          peakRetreat: peakRet,
-          readingCount: readings.length,
-          duration: analysis?.duration ?? 0,
-        },
-      });
-      setCoaching(c);
-      if (analysis) {
-        const payload: SavedAnalysis = { ...analysis, coaching: c, savedAt: new Date().toISOString() };
-        await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
-        onSaved();
-      }
-    } catch (e: any) {
-      setCoachingError(e?.message ?? "Failed to regenerate coaching summary");
-    } finally {
-      setCoachingLoading(false);
-    }
-  }
-
   return (
     <div className="mt-6 space-y-6">
+      {analyzed.length > 1 && (
+        <div className="text-[11px] text-[var(--text-secondary)]">
+          Aggregated across {analyzed.length} periods.
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-4">
         <BenchmarkStatCard label="Peak speed (m/s)" value={peak.toFixed(2)} numericValue={peak} benchmarkText="Elite junior fencers: 4–6 m/s. Olympic level: 6–8 m/s" eliteMin={4} />
         <BenchmarkStatCard label="Avg speed (m/s)" value={avg.toFixed(2)} numericValue={avg} benchmarkText="Higher average means more aggressive pressure footwork. Elite avg: 1.2–2.0 m/s" eliteMin={1.2} />
@@ -1433,7 +1539,7 @@ function SpeedInsights({
         coaching={coaching}
         loading={coachingLoading}
         error={coachingError}
-        onRegenerate={athleteQuery.data ? regenerate : undefined}
+        onRegenerate={athleteQuery.data ? runCoaching : undefined}
       />
     </div>
   );
