@@ -277,7 +277,7 @@ function NewSessionPage() {
               <Row k="Date" v={sessionDate ? format(sessionDate, "PPP") : ""} />
               {isHockey && <Row k="Reps" v={String(hockeyReps.length)} />}
               {!isHockey && <Row k="Score" v={`${fencingScore.scored} - ${fencingScore.received}`} />}
-              {!isHockey && <Row k="Actions logged" v={String(actions.length)} />}
+              
               <div className="flex justify-between pt-3">
                 <button onClick={() => setStep(2)} className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                   ← Back
