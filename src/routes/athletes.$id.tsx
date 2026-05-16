@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
-import { ArrowLeft, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus } from "lucide-react";
+import { ArrowLeft, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2 } from "lucide-react";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/athletes/$id")({
@@ -695,17 +695,35 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
   const goals = useQuery({ queryKey: ["goals", athleteId], queryFn: () => getGoals(athleteId) });
   const currents = useQuery({ queryKey: ["goal-currents", athleteId], queryFn: () => loadGoalCurrents(athleteId) });
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [metric, setMetric] = useState<GoalMetricKey>("peak_speed");
   const [target, setTarget] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   function resetForm() {
+    setEditingId(null);
     setMetric("peak_speed");
     setTarget("");
     setDate(undefined);
     setErr(null);
+  }
+
+  function openForCreate() {
+    resetForm();
+    setOpen(true);
+  }
+
+  function openForEdit(g: any) {
+    const def = GOAL_METRICS.find((m) => m.label === g.metric_name);
+    setEditingId(g.id);
+    setMetric(def?.key ?? "peak_speed");
+    setTarget(String(g.target_value ?? ""));
+    setDate(g.target_date ? new Date(g.target_date) : undefined);
+    setErr(null);
+    setOpen(true);
   }
 
   async function saveGoal() {
@@ -722,16 +740,31 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
       const userId = u.user?.id;
       if (!userId) throw new Error("Not authenticated");
       const cur = currents.data?.[metric] ?? 0;
-      const { error } = await supabase.from("athlete_goals").insert({
-        athlete_id: athleteId,
-        user_id: userId,
-        metric_name: def.label,
-        target_value: targetNum,
-        current_value: cur,
-        unit: def.unit,
-        target_date: date ? format(date, "yyyy-MM-dd") : null,
-      });
-      if (error) throw error;
+      const targetDate = date ? format(date, "yyyy-MM-dd") : null;
+      if (editingId) {
+        const { error } = await supabase
+          .from("athlete_goals")
+          .update({
+            metric_name: def.label,
+            target_value: targetNum,
+            current_value: cur,
+            unit: def.unit,
+            target_date: targetDate,
+          })
+          .eq("id", editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("athlete_goals").insert({
+          athlete_id: athleteId,
+          user_id: userId,
+          metric_name: def.label,
+          target_value: targetNum,
+          current_value: cur,
+          unit: def.unit,
+          target_date: targetDate,
+        });
+        if (error) throw error;
+      }
       setOpen(false);
       resetForm();
       await goals.refetch();
@@ -739,6 +772,20 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
       setErr(e?.message ?? "Failed to save goal");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteGoal(id: string) {
+    if (!confirm("Delete this goal?")) return;
+    setDeletingId(id);
+    try {
+      const { error } = await supabase.from("athlete_goals").delete().eq("id", id);
+      if (error) throw error;
+      await goals.refetch();
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to delete goal");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -755,7 +802,7 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
           {goals.data?.length ?? 0} goal{(goals.data?.length ?? 0) === 1 ? "" : "s"}
         </div>
         <button
-          onClick={() => setOpen(true)}
+          onClick={openForCreate}
           className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
         >
           <Plus className="h-3.5 w-3.5" /> Add Goal
@@ -766,7 +813,7 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
         <div className="surface p-10 text-center">
           <div className="text-sm text-[var(--text-secondary)]">No goals set yet.</div>
           <button
-            onClick={() => setOpen(true)}
+            onClick={openForCreate}
             className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
           >
             <Plus className="h-3.5 w-3.5" /> Add Goal
@@ -780,16 +827,35 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
         const pct = g.target_value ? Math.min(100, Math.round((current / Number(g.target_value)) * 100)) : 0;
         return (
           <div key={g.id} className="surface p-5">
-            <div className="flex items-baseline justify-between">
-              <div>
+            <div className="flex items-baseline justify-between gap-3">
+              <div className="min-w-0">
                 <div className="text-sm font-semibold capitalize">{g.metric_name}</div>
                 <div className="text-xs text-[var(--text-secondary)]">
                   Target: {g.target_value}{g.unit ? ` ${g.unit}` : ""} {g.target_date ? `· by ${format(new Date(g.target_date), "PP")}` : ""}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-sm font-medium">{Number.isFinite(current) ? current.toFixed(current < 10 ? 2 : 0) : "—"}{g.unit ? ` ${g.unit}` : ""}</div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">current</div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-sm font-medium">{Number.isFinite(current) ? current.toFixed(current < 10 ? 2 : 0) : "—"}{g.unit ? ` ${g.unit}` : ""}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">current</div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => openForEdit(g)}
+                    aria-label="Edit goal"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => deleteGoal(g.id)}
+                    disabled={deletingId === g.id}
+                    aria-label="Delete goal"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)] disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
@@ -802,7 +868,7 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent className="bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-primary)]">
           <DialogHeader>
-            <DialogTitle>Add Goal</DialogTitle>
+            <DialogTitle>{editingId ? "Edit Goal" : "Add Goal"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-5">
             <div className="space-y-1.5">
@@ -866,7 +932,7 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
                 disabled={saving || !target}
                 className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
               >
-                {saving ? "Saving…" : "Save Goal"}
+                {saving ? "Saving…" : editingId ? "Save Changes" : "Save Goal"}
               </button>
             </div>
           </div>
