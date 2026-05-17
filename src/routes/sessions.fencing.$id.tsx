@@ -1052,7 +1052,7 @@ function PeriodSection({
               <AthleteSelector
                 firstFrame={firstFrame}
                 onBack={() => setStage("calibrate")}
-                onConfirm={(hip) => runAnalysis(hip)}
+                onConfirm={(hip: HipPoint | null) => runAnalysis(hip)}
                 confirmLabel="Confirm — Analyze Video"
               />
             </div>
