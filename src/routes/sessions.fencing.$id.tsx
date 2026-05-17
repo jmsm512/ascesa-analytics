@@ -42,7 +42,6 @@ import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger }
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import {
-  detectPeopleOnImage,
   pickClosestHip,
   type HipPoint,
 } from "@/lib/video/poseTracking";
