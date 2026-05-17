@@ -175,8 +175,8 @@ async function loadOverviewData(athleteId: string) {
   const retSpeeds: number[] = [];
   let analyzedCount = 0;
   for (const fs of fsRows) {
-    const readings = fs?.speed_analysis?.readings as Array<{ speed: number; direction: string }> | undefined;
-    if (!readings?.length) continue;
+    const { readings } = flattenSpeedAnalysis(fs?.speed_analysis);
+    if (!readings.length) continue;
     analyzedCount++;
     const speeds = readings.map((r) => r.speed);
     if (speeds.length) peakSpeeds.push(Math.max(...speeds));
