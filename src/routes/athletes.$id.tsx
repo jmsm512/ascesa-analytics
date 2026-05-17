@@ -2071,6 +2071,11 @@ function BenchmarkCard({
         {stage === "analyzing" && (
           <div className="surface p-6 text-center text-sm text-[var(--text-secondary)]">
             Analyzing pose… {progress.cur}/{progress.total} frames
+            {candidates.length === 1 && (
+              <div className="mt-2 text-xs text-[var(--text-muted)]">
+                One athlete detected — tracking automatically.
+              </div>
+            )}
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
               <div
                 className="h-full bg-[var(--accent)] transition-all"
