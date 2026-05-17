@@ -602,9 +602,6 @@ function PeriodSection({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
-  const [candidates, setCandidates] = useState<HipPoint[]>([]);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [detectingPeople, setDetectingPeople] = useState(false);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
@@ -736,28 +733,8 @@ function PeriodSection({
     const next = [...points, { x, y }];
     setPoints(next);
     if (next.length === 2) {
-      // Auto-run pose detection as soon as both calibration points are set
-      void detectAthletes();
-    }
-  }
-
-  async function detectAthletes() {
-    if (!firstFrame) return;
-    setError(null);
-    setDetectingPeople(true);
-    setCandidates([]);
-    setSelectedIdx(null);
-    setStage("select");
-    try {
-      const people = await detectPeopleOnImage(firstFrame, 6);
-      setCandidates(people);
-      if (people.length === 1) {
-        setSelectedIdx(0);
-      }
-    } catch (e: any) {
-      setError(e?.message ?? "Pose detection failed");
-    } finally {
-      setDetectingPeople(false);
+      // Calibration done — advance to athlete selection
+      setStage("select");
     }
   }
 
