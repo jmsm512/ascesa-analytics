@@ -1029,8 +1029,8 @@ async function loadGoalCurrents(athleteId: string): Promise<Record<GoalMetricKey
   const allSpeeds: number[] = [];
 
   for (const r of rows) {
-    const readings = (r as any)?.speed_analysis?.readings as Array<{ speed: number; direction: string }> | undefined;
-    if (!readings?.length) continue;
+    const { readings } = flattenSpeedAnalysis((r as any)?.speed_analysis);
+    if (!readings.length) continue;
     const speeds = readings.map((x) => x.speed);
     peakSpeeds.push(Math.max(...speeds));
     allSpeeds.push(...speeds);
