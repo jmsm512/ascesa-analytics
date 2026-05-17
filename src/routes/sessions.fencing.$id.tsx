@@ -786,7 +786,7 @@ function PeriodSection({
           delegate: "GPU",
         },
         runningMode: "VIDEO",
-        numPoses: 1,
+        numPoses: 6,
       });
 
       const step = 0.3;
