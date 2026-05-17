@@ -38,7 +38,7 @@ export function AthleteSelector({
     setError(null);
     (async () => {
       try {
-        const people = await detectPeopleOnImage(firstFrame, 6);
+        const people = await detectPeopleOnImage(firstFrame, 4);
         if (cancelled) return;
         console.log("[AthleteSelector] detected people:", people.length, people);
         setCandidates(people);
@@ -52,7 +52,7 @@ export function AthleteSelector({
   }, [firstFrame]);
 
   const autoMode = !detecting && candidates.length <= 1;
-  const canConfirm = !detecting && (autoMode || selectedIdx !== null);
+  const canConfirm = !detecting && candidates.length > 1 && selectedIdx !== null;
 
   return (
     <div>
@@ -133,13 +133,7 @@ export function AthleteSelector({
         {canConfirm && (
           <button
             type="button"
-            onClick={() =>
-              onConfirm(
-                selectedIdx !== null
-                  ? candidates[selectedIdx]
-                  : candidates[0] ?? null,
-              )
-            }
+            onClick={() => onConfirm(candidates[selectedIdx])}
             className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90"
           >
             {confirmLabel}
