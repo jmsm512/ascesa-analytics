@@ -815,8 +815,6 @@ function PeriodSection({
         } catch {
           frames.push({ time: t, nx: 0, ny: 0, detected: false });
         }
-          frames.push({ time: t, nx: 0, ny: 0, detected: false });
-        }
         setProgress({ cur: i + 1, total: times.length });
       }
 
