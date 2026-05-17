@@ -46,6 +46,7 @@ import {
   pickClosestHip,
   type HipPoint,
 } from "@/lib/video/poseTracking";
+import { AthleteSelector } from "@/components/AthleteSelector";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
