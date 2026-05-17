@@ -1580,8 +1580,11 @@ function BenchmarkCard({
   const analysis: BenchAnalysis | null = benchmark.speed_analysis ?? null;
   const hasResults = !!analysis?.readings?.length;
 
-  type Stage = "upload" | "extracting" | "calibrate" | "analyzing" | "results";
+  type Stage = "upload" | "extracting" | "calibrate" | "select" | "analyzing" | "results";
   const [stage, setStage] = useState<Stage>(hasResults ? "results" : "upload");
+  const [candidates, setCandidates] = useState<HipPoint[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [detectingPeople, setDetectingPeople] = useState(false);
   const [name, setName] = useState<string>(benchmark.name ?? "");
   const [notes, setNotes] = useState<string>(benchmark.notes ?? "");
   const [savingMeta, setSavingMeta] = useState(false);
