@@ -435,10 +435,11 @@ async function loadProgressRows(athleteId: string): Promise<ProgressRow[]> {
     .from("fencing_sessions")
     .select("session_id, opponent, result, speed_analysis")
     .in("session_id", ids);
+  console.log("[Progress] fetched fencing_sessions rows:", fsRows);
   const rows: ProgressRow[] = [];
   for (const fs of fsRows ?? []) {
-    const readings = (fs as any)?.speed_analysis?.readings as Array<{ speed: number; direction: string }> | undefined;
-    if (!readings?.length) continue;
+    const { readings } = flattenSpeedAnalysis((fs as any)?.speed_analysis);
+    if (!readings.length) continue;
     const s = sessions.find((x) => x.id === (fs as any).session_id);
     if (!s) continue;
     const speeds = readings.map((r) => r.speed);
