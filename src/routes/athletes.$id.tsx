@@ -1892,9 +1892,6 @@ function ClipAnalyzer({
   const [firstFrame, setFirstFrame] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
   const [points, setPoints] = useState<BenchPt[]>([]);
-  const [candidates, setCandidates] = useState<HipPoint[]>([]);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [detectingPeople, setDetectingPeople] = useState(false);
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -1938,25 +1935,7 @@ function ClipAnalyzer({
     const y = (e.clientY - rect.top) / rect.height;
     const next = [...points, { x, y }];
     setPoints(next);
-    if (next.length === 2) void detectAthletes();
-  }
-
-  async function detectAthletes() {
-    if (!firstFrame) return;
-    setError(null);
-    setDetectingPeople(true);
-    setCandidates([]);
-    setSelectedIdx(null);
-    setStage("select");
-    try {
-      const people = await detectPeopleOnImage(firstFrame, 6);
-      setCandidates(people);
-      if (people.length === 1) setSelectedIdx(0);
-    } catch (e: any) {
-      setError(e?.message ?? "Pose detection failed");
-    } finally {
-      setDetectingPeople(false);
-    }
+    if (next.length === 2) setStage("select");
   }
 
   async function persistVideo(file: File, clipId: string): Promise<string | null> {
