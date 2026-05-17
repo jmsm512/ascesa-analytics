@@ -736,7 +736,29 @@ function PeriodSection({
     setPoints([...points, { x, y }]);
   }
 
-  async function runAnalysis() {
+  async function proceedFromCalibrate() {
+    if (!firstFrame || points.length < 2) return;
+    setError(null);
+    setDetectingPeople(true);
+    try {
+      const people = await detectPeopleOnImage(firstFrame, 6);
+      setCandidates(people);
+      if (people.length <= 1) {
+        const seed = people[0] ?? null;
+        setSelectedIdx(people.length === 1 ? 0 : null);
+        await runAnalysis(seed);
+      } else {
+        setSelectedIdx(null);
+        setStage("select");
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Pose detection failed");
+    } finally {
+      setDetectingPeople(false);
+    }
+  }
+
+  async function runAnalysis(seedHip: HipPoint | null) {
     if (!dataUrl || points.length < 2) return;
     setStage("analyzing");
     setError(null);
