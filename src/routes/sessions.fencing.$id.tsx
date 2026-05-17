@@ -41,6 +41,11 @@ import {
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
+import {
+  detectPeopleOnImage,
+  pickClosestHip,
+  type HipPoint,
+} from "@/lib/video/poseTracking";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
@@ -556,7 +561,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 // ============= Period Section =============
 
-type Stage = "upload" | "extracting" | "calibrate" | "analyzing" | "results";
+type Stage = "upload" | "extracting" | "calibrate" | "select" | "analyzing" | "results";
 
 function PeriodSection({
   index,
@@ -597,6 +602,9 @@ function PeriodSection({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
+  const [candidates, setCandidates] = useState<HipPoint[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [detectingPeople, setDetectingPeople] = useState(false);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
@@ -728,7 +736,29 @@ function PeriodSection({
     setPoints([...points, { x, y }]);
   }
 
-  async function runAnalysis() {
+  async function proceedFromCalibrate() {
+    if (!firstFrame || points.length < 2) return;
+    setError(null);
+    setDetectingPeople(true);
+    try {
+      const people = await detectPeopleOnImage(firstFrame, 6);
+      setCandidates(people);
+      if (people.length <= 1) {
+        const seed = people[0] ?? null;
+        setSelectedIdx(people.length === 1 ? 0 : null);
+        await runAnalysis(seed);
+      } else {
+        setSelectedIdx(null);
+        setStage("select");
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Pose detection failed");
+    } finally {
+      setDetectingPeople(false);
+    }
+  }
+
+  async function runAnalysis(seedHip: HipPoint | null) {
     if (!dataUrl || points.length < 2) return;
     setStage("analyzing");
     setError(null);
@@ -756,7 +786,7 @@ function PeriodSection({
           delegate: "GPU",
         },
         runningMode: "VIDEO",
-        numPoses: 1,
+        numPoses: 6,
       });
 
       const step = 0.3;
@@ -765,6 +795,7 @@ function PeriodSection({
       setProgress({ cur: 0, total: times.length });
 
       const frames: Frame[] = [];
+      let lastHip: HipPoint | null = seedHip;
       for (let i = 0; i < times.length; i++) {
         const t = times[i];
         await new Promise<void>((res) => {
@@ -774,11 +805,10 @@ function PeriodSection({
         ctx.drawImage(v, 0, 0);
         try {
           const result = poseLandmarker.detectForVideo(c, Math.round(t * 1000));
-          const lm = result.landmarks?.[0];
-          if (lm && lm[23] && lm[24]) {
-            const nx = (lm[23].x + lm[24].x) / 2;
-            const ny = (lm[23].y + lm[24].y) / 2;
-            frames.push({ time: t, nx, ny, detected: true });
+          const picked = pickClosestHip(result.landmarks as any, lastHip);
+          if (picked) {
+            lastHip = picked;
+            frames.push({ time: t, nx: picked.nx, ny: picked.ny, detected: true });
           } else {
             frames.push({ time: t, nx: 0, ny: 0, detected: false });
           }
@@ -1029,7 +1059,62 @@ function PeriodSection({
                 </button>
                 {points.length === 2 && (
                   <button
-                    onClick={runAnalysis}
+                    onClick={proceedFromCalibrate}
+                    disabled={detectingPeople}
+                    className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-60"
+                  >
+                    {detectingPeople ? "Detecting people…" : "Next — Select Athlete"}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {stage === "select" && firstFrame && (
+            <div className="surface p-5">
+              <div className="metric-label mb-2">Step 3 · Select athlete</div>
+              <p className="mb-4 text-xs text-[var(--text-secondary)]">
+                Click the dot on the athlete you want to track.
+              </p>
+              <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
+                <img src={firstFrame} alt="First frame" style={{ maxWidth: "100%", display: "block" }} />
+                {candidates.map((p, i) => {
+                  const selected = selectedIdx === i;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setSelectedIdx(i)}
+                      title={`Athlete ${i + 1}`}
+                      style={{
+                        position: "absolute",
+                        left: `${p.nx * 100}%`,
+                        top: `${p.ny * 100}%`,
+                        width: selected ? 26 : 20,
+                        height: selected ? 26 : 20,
+                        borderRadius: "50%",
+                        background: "var(--accent)",
+                        border: selected ? "3px solid white" : "2px solid rgba(255,255,255,0.7)",
+                        transform: "translate(-50%, -50%)",
+                        boxShadow: selected
+                          ? "0 0 0 3px var(--accent), 0 0 14px rgba(0,0,0,0.6)"
+                          : "0 0 10px rgba(0,0,0,0.5)",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex gap-3">
+                <button
+                  onClick={() => setStage("calibrate")}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+                >
+                  Back
+                </button>
+                {selectedIdx !== null && (
+                  <button
+                    onClick={() => runAnalysis(candidates[selectedIdx])}
                     className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90"
                   >
                     Confirm — Analyze Video
@@ -1044,6 +1129,11 @@ function PeriodSection({
               <div className="metric-label mb-3">
                 Analyzing frame {progress.cur} of {progress.total}
               </div>
+              {candidates.length === 1 && (
+                <div className="mb-3 text-xs text-[var(--text-secondary)]">
+                  One athlete detected — tracking automatically.
+                </div>
+              )}
               <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--bg-elevated)]">
                 <div
                   className="h-full bg-[var(--accent)] transition-all"
