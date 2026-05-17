@@ -4,7 +4,7 @@ export type HipPoint = { nx: number; ny: number };
 
 const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
 const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
 export async function createPoseLandmarker(opts: {
   numPoses: number;
@@ -15,6 +15,9 @@ export async function createPoseLandmarker(opts: {
     baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
     runningMode: opts.runningMode,
     numPoses: opts.numPoses,
+    minPoseDetectionConfidence: 0.5,
+    minPosePresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
   });
 }
 
@@ -30,18 +33,38 @@ export async function detectPeopleOnImage(
     i.onerror = () => rej(new Error("Failed to load first-frame image"));
     i.src = imgSrc;
   });
+  try {
+    // Ensure image is fully decoded before passing to MediaPipe
+    if (typeof (img as any).decode === "function") {
+      try { await (img as any).decode(); } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+
   const lm = await createPoseLandmarker({ numPoses: maxPeople, runningMode: "IMAGE" });
   try {
     const result = lm.detect(img);
     const people: HipPoint[] = [];
-    for (const landmarks of result.landmarks ?? []) {
-      if (landmarks?.[23] && landmarks?.[24]) {
-        people.push({
-          nx: (landmarks[23].x + landmarks[24].x) / 2,
-          ny: (landmarks[23].y + landmarks[24].y) / 2,
-        });
+    const landmarksList = result.landmarks ?? [];
+    console.log("[detectPeopleOnImage] raw poses detected:", landmarksList.length);
+    for (const landmarks of landmarksList) {
+      const lHip = landmarks?.[23];
+      const rHip = landmarks?.[24];
+      if (!lHip || !rHip) continue;
+      // Filter on landmark visibility/presence to drop low-confidence noise
+      const vis = Math.min(
+        (lHip as any).visibility ?? 1,
+        (rHip as any).visibility ?? 1,
+      );
+      if (vis < 0.5) {
+        console.log("[detectPeopleOnImage] skipping pose with hip visibility", vis);
+        continue;
       }
+      people.push({
+        nx: (lHip.x + rHip.x) / 2,
+        ny: (lHip.y + rHip.y) / 2,
+      });
     }
+    console.log("[detectPeopleOnImage] accepted hip points:", people);
     return people;
   } finally {
     lm.close();

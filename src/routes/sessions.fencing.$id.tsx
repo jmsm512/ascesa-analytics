@@ -42,10 +42,10 @@ import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger }
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import {
-  detectPeopleOnImage,
   pickClosestHip,
   type HipPoint,
 } from "@/lib/video/poseTracking";
+import { AthleteSelector } from "@/components/AthleteSelector";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
@@ -602,9 +602,6 @@ function PeriodSection({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
-  const [candidates, setCandidates] = useState<HipPoint[]>([]);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [detectingPeople, setDetectingPeople] = useState(false);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
@@ -736,28 +733,8 @@ function PeriodSection({
     const next = [...points, { x, y }];
     setPoints(next);
     if (next.length === 2) {
-      // Auto-run pose detection as soon as both calibration points are set
-      void detectAthletes();
-    }
-  }
-
-  async function detectAthletes() {
-    if (!firstFrame) return;
-    setError(null);
-    setDetectingPeople(true);
-    setCandidates([]);
-    setSelectedIdx(null);
-    setStage("select");
-    try {
-      const people = await detectPeopleOnImage(firstFrame, 6);
-      setCandidates(people);
-      if (people.length === 1) {
-        setSelectedIdx(0);
-      }
-    } catch (e: any) {
-      setError(e?.message ?? "Pose detection failed");
-    } finally {
-      setDetectingPeople(false);
+      // Calibration done — advance to athlete selection
+      setStage("select");
     }
   }
 
@@ -1071,73 +1048,12 @@ function PeriodSection({
 
           {stage === "select" && firstFrame && (
             <div className="surface p-5">
-              <div className="metric-label mb-2">Step 3 · Select athlete</div>
-              {detectingPeople ? (
-                <p className="mb-4 text-xs text-[var(--text-secondary)]">Detecting people in the first frame…</p>
-              ) : candidates.length <= 1 ? (
-                <p className="mb-4 text-xs text-[var(--text-secondary)]">
-                  {candidates.length === 1
-                    ? "One athlete detected — tracking automatically."
-                    : "No athletes detected — we'll still analyze using the most prominent person."}
-                </p>
-              ) : (
-                <p className="mb-4 text-xs text-[var(--text-secondary)]">
-                  Click the dot on the athlete you want to track.
-                </p>
-              )}
-              <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
-                <img src={firstFrame} alt="First frame" style={{ maxWidth: "100%", display: "block" }} />
-                {candidates.map((p, i) => {
-                  const selected = selectedIdx === i;
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedIdx(i)}
-                      title={`Athlete ${i + 1}`}
-                      style={{
-                        position: "absolute",
-                        left: `${p.nx * 100}%`,
-                        top: `${p.ny * 100}%`,
-                        width: selected ? 30 : 24,
-                        height: selected ? 30 : 24,
-                        borderRadius: "50%",
-                        background: selected ? "var(--fencing)" : "var(--accent)",
-                        border: selected ? "3px solid white" : "2px solid rgba(255,255,255,0.8)",
-                        transform: "translate(-50%, -50%)",
-                        boxShadow: selected
-                          ? "0 0 0 3px var(--fencing), 0 0 14px rgba(0,0,0,0.6)"
-                          : "0 0 10px rgba(0,0,0,0.5)",
-                        cursor: "pointer",
-                        padding: 0,
-                        color: "white",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        lineHeight: 1,
-                        display: "grid",
-                        placeItems: "center",
-                      }}
-                    >
-                      {i + 1}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="mt-4 flex gap-3">
-                <button
-                  onClick={() => { setStage("calibrate"); setCandidates([]); setSelectedIdx(null); }}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
-                >
-                  Back
-                </button>
-                {!detectingPeople && (candidates.length <= 1 || selectedIdx !== null) && (
-                  <button
-                    onClick={() => runAnalysis(selectedIdx !== null ? candidates[selectedIdx] : null)}
-                    className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90"
-                  >
-                    Confirm — Analyze Video
-                  </button>
-                )}
-              </div>
+              <AthleteSelector
+                firstFrame={firstFrame}
+                onBack={() => setStage("calibrate")}
+                onConfirm={(hip: HipPoint | null) => runAnalysis(hip)}
+                confirmLabel="Confirm — Analyze Video"
+              />
             </div>
           )}
 
@@ -1146,11 +1062,6 @@ function PeriodSection({
               <div className="metric-label mb-3">
                 Analyzing frame {progress.cur} of {progress.total}
               </div>
-              {candidates.length === 1 && (
-                <div className="mb-3 text-xs text-[var(--text-secondary)]">
-                  One athlete detected — tracking automatically.
-                </div>
-              )}
               <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--bg-elevated)]">
                 <div
                   className="h-full bg-[var(--accent)] transition-all"
