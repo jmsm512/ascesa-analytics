@@ -1059,10 +1059,11 @@ function PeriodSection({
                 </button>
                 {points.length === 2 && (
                   <button
-                    onClick={runAnalysis}
-                    className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90"
+                    onClick={proceedFromCalibrate}
+                    disabled={detectingPeople}
+                    className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-60"
                   >
-                    Confirm — Analyze Video
+                    {detectingPeople ? "Detecting people…" : "Next — Select Athlete"}
                   </button>
                 )}
               </div>
