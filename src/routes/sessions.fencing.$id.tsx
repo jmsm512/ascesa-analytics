@@ -41,6 +41,11 @@ import {
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
+import {
+  detectPeopleOnImage,
+  pickClosestHip,
+  type HipPoint,
+} from "@/lib/video/poseTracking";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
