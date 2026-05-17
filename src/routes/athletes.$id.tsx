@@ -214,8 +214,8 @@ async function loadOverviewData(athleteId: string) {
 
   const recent = sessions.slice(0, 3).map((s) => {
     const fs = fsBySession.get(s.id);
-    const readings = fs?.speed_analysis?.readings as Array<{ speed: number }> | undefined;
-    const peak = readings?.length ? Math.max(...readings.map((r) => r.speed)) : null;
+    const { readings } = flattenSpeedAnalysis(fs?.speed_analysis);
+    const peak = readings.length ? Math.max(...readings.map((r) => r.speed)) : null;
     return {
       id: s.id,
       sport: s.sport,
