@@ -24,6 +24,7 @@ import { LineChart, Line, AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, 
 import { ArrowLeft, ArrowUpDown, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2, Upload, RotateCcw, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
+import { detectPeopleOnImage, pickClosestHip, type HipPoint } from "@/lib/video/poseTracking";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 
 export const Route = createFileRoute("/athletes/$id")({
