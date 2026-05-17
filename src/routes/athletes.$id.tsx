@@ -1500,6 +1500,136 @@ function binByTime(readings: BenchReading[], bins = 30): { t: number; speed: num
   }));
 }
 
+// ============= Clip-library types & helpers =============
+
+type ClipAction = "Lunge" | "Attack" | "Retreat" | "Advance" | "Parry" | "Riposte" | "General";
+const CLIP_ACTIONS: ClipAction[] = ["Lunge", "Attack", "Retreat", "Advance", "Parry", "Riposte", "General"];
+const CLIP_ACTION_COLORS: Record<ClipAction, string> = {
+  Lunge: "#f97316",
+  Attack: "#ef4444",
+  Retreat: "#ec4899",
+  Advance: "#22c55e",
+  Parry: "#3b82f6",
+  Riposte: "#06b6d4",
+  General: "#94a3b8",
+};
+
+type BenchClip = {
+  id: string;
+  action: ClipAction;
+  videoPath: string | null;
+  thumbnail: string | null;
+  createdAt: string;
+  duration: number;
+  points: BenchPt[];
+  readings: BenchReading[];
+  tags: BenchActionTag[];
+  peakSpeed: number;
+  avgSpeed: number;
+};
+
+type BenchFencer = { id: string; name: string; notes: string | null; clips: BenchClip[] };
+
+function normalizeBenchmark(row: any): BenchFencer {
+  const sa = row?.speed_analysis;
+  let clips: BenchClip[] = [];
+  if (Array.isArray(sa?.clips)) {
+    clips = (sa.clips as BenchClip[]).map((c) => ({
+      ...c,
+      tags: Array.isArray(c?.tags) ? c.tags : [],
+      readings: Array.isArray(c?.readings) ? c.readings : [],
+      points: Array.isArray(c?.points) ? c.points : [],
+    }));
+  } else if (sa && (Array.isArray(sa?.readings) || Array.isArray(sa?.periods))) {
+    // Legacy single-analysis shape → synthesize one "General" clip
+    let readings: BenchReading[] = [];
+    let tags: BenchActionTag[] = [];
+    if (Array.isArray(sa.periods)) {
+      for (const p of sa.periods) {
+        if (Array.isArray(p?.readings)) readings.push(...p.readings);
+        if (Array.isArray(p?.tags)) tags.push(...p.tags);
+      }
+    } else {
+      readings = Array.isArray(sa.readings) ? sa.readings : [];
+      tags = Array.isArray(sa.tags) ? sa.tags : [];
+    }
+    const speeds = readings.map((r) => r.speed);
+    if (readings.length || sa.videoPath) {
+      clips = [{
+        id: `${row.id}-legacy`,
+        action: "General",
+        videoPath: sa.videoPath ?? null,
+        thumbnail: null,
+        createdAt: row.created_at ?? new Date().toISOString(),
+        duration: Number(sa.duration) || 0,
+        points: Array.isArray(sa.points) ? sa.points : [],
+        readings,
+        tags,
+        peakSpeed: speeds.length ? Math.max(...speeds) : 0,
+        avgSpeed: speeds.length ? speeds.reduce((s, x) => s + x, 0) / speeds.length : 0,
+      }];
+    }
+  }
+  return {
+    id: row.id,
+    name: row.name ?? "Untitled Benchmark",
+    notes: row.notes ?? null,
+    clips,
+  };
+}
+
+function allReadingsFromClips(clips: BenchClip[]): BenchReading[] {
+  const out: BenchReading[] = [];
+  for (const c of clips) out.push(...(c.readings ?? []));
+  return out;
+}
+
+// Avg speed per action for a benchmark fencer, combining:
+// - explicit per-action clips (contributing each clip's avgSpeed)
+// - tag samples from "General" clips (instantaneous speed at the tag)
+function actionAvgFromClips(clips: BenchClip[]): Record<string, number> {
+  const buckets: Record<string, number[]> = {};
+  for (const c of clips) {
+    if (c.action !== "General" && c.avgSpeed > 0) {
+      (buckets[c.action] ||= []).push(c.avgSpeed);
+    }
+    if (c.tags?.length && c.readings?.length) {
+      for (const tg of c.tags) {
+        let best = c.readings[0];
+        let bestDiff = Math.abs(best.time - tg.time);
+        for (const r of c.readings) {
+          const d = Math.abs(r.time - tg.time);
+          if (d < bestDiff) { best = r; bestDiff = d; }
+        }
+        (buckets[tg.action] ||= []).push(best.speed);
+      }
+    }
+  }
+  const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
+  return Object.fromEntries(Object.entries(buckets).map(([k, v]) => [k, mean(v)]));
+}
+
+async function makeThumbnail(dataUrl: string, maxW = 320): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxW / img.width);
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL("image/jpeg", 0.7));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+// ============= Benchmarks Tab =============
+
 function BenchmarksTab({ athleteId, athleteName }: { athleteId: string; athleteName: string }) {
   const benchmarks = useQuery({
     queryKey: ["athlete-benchmarks-records", athleteId],
@@ -1518,10 +1648,7 @@ function BenchmarksTab({ athleteId, athleteName }: { athleteId: string; athleteN
     queryFn: () => aggregateAthleteStats(athleteId),
   });
 
-  const list = benchmarks.data ?? [];
-  const primary = list[0];
-  const additional = list.slice(1, 3);
-  const canAddMore = list.length < 3;
+  const list: BenchFencer[] = (benchmarks.data ?? []).map(normalizeBenchmark);
 
   async function addBenchmark() {
     const { data: u } = await supabase.auth.getUser();
@@ -1533,12 +1660,11 @@ function BenchmarksTab({ athleteId, athleteName }: { athleteId: string; athleteN
       user_id: userId,
       name: defaultName,
     });
-    if (error) {
-      alert(error.message);
-      return;
-    }
+    if (error) { alert(error.message); return; }
     await benchmarks.refetch();
   }
+
+  const primary = list.find((b) => b.clips.length > 0) ?? null;
 
   return (
     <div className="space-y-6">
@@ -1546,144 +1672,51 @@ function BenchmarksTab({ athleteId, athleteName }: { athleteId: string; athleteN
         <div>
           <h2 className="text-lg font-semibold">Benchmarks</h2>
           <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            Upload footage of elite fencers to compare against {athleteName || "this athlete"}'s data.
+            Build a library of short, action-specific clips per benchmark fencer to compare against {athleteName || "this athlete"}.
           </p>
         </div>
-        {canAddMore && (
-          <button
-            onClick={addBenchmark}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add Benchmark
-          </button>
-        )}
+        <button
+          onClick={addBenchmark}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add Benchmark Fencer
+        </button>
       </div>
 
       {list.length === 0 && (
         <div className="surface p-10 text-center">
-          <div className="text-sm text-[var(--text-secondary)]">No benchmarks yet.</div>
+          <div className="text-sm text-[var(--text-secondary)]">No benchmark fencers yet.</div>
           <button
             onClick={addBenchmark}
             className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
           >
-            <Plus className="h-3.5 w-3.5" /> Add Primary Benchmark
+            <Plus className="h-3.5 w-3.5" /> Add First Benchmark
           </button>
         </div>
       )}
 
-      {primary && (
-        <BenchmarkCard
-          benchmark={primary}
-          isPrimary
-          onUpdated={() => benchmarks.refetch()}
-        />
-      )}
-      {additional.map((b) => (
-        <BenchmarkCard key={b.id} benchmark={b} onUpdated={() => benchmarks.refetch()} />
+      {list.map((b) => (
+        <BenchmarkFencerCard key={b.id} fencer={b} onUpdated={() => benchmarks.refetch()} />
       ))}
 
-      {primary?.speed_analysis?.readings?.length > 0 && athleteStats.data && (
+      {primary && athleteStats.data && (
         <ComparisonSection
           athleteName={athleteName}
           athleteStats={athleteStats.data}
-          benchmarks={list.filter((b: any) => b.speed_analysis?.readings?.length > 0)}
+          fencer={primary}
         />
       )}
     </div>
   );
 }
 
-function BenchmarkCard({
-  benchmark,
-  isPrimary,
-  onUpdated,
-}: {
-  benchmark: any;
-  isPrimary?: boolean;
-  onUpdated: () => void;
-}) {
-  const analysis: BenchAnalysis | null = benchmark.speed_analysis ?? null;
-  const hasResults = !!analysis?.readings?.length;
-
-  type Stage = "upload" | "extracting" | "calibrate" | "select" | "analyzing" | "results";
-  const [stage, setStage] = useState<Stage>(hasResults ? "results" : "upload");
-  const [candidates, setCandidates] = useState<HipPoint[]>([]);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const [detectingPeople, setDetectingPeople] = useState(false);
-  const [name, setName] = useState<string>(benchmark.name ?? "");
-  const [notes, setNotes] = useState<string>(benchmark.notes ?? "");
+function BenchmarkFencerCard({ fencer, onUpdated }: { fencer: BenchFencer; onUpdated: () => void }) {
+  const [open, setOpen] = useState(true);
+  const [name, setName] = useState(fencer.name);
+  const [notes, setNotes] = useState(fencer.notes ?? "");
   const [savingMeta, setSavingMeta] = useState(false);
-
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
-  const [firstFrame, setFirstFrame] = useState<string | null>(null);
-  const [duration, setDuration] = useState(analysis?.duration ?? 0);
-  const [points, setPoints] = useState<BenchPt[]>(analysis?.points ?? []);
-  const [progress, setProgress] = useState({ cur: 0, total: 0 });
-  const [readings, setReadings] = useState<BenchReading[]>(analysis?.readings ?? []);
-  const [tags, setTags] = useState<BenchActionTag[]>(analysis?.tags ?? []);
-  const [pendingTag, setPendingTag] = useState<{ action: BenchActionType; time: number } | null>(null);
-  const [currentTime, setCurrentTime] = useState(0);
-  const playbackRef = useRef<HTMLVideoElement>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-
-  // Sign existing video URL for playback in the results stage
-  useEffect(() => {
-    let cancelled = false;
-    const path = analysis?.videoPath;
-    if (path && !dataUrl) {
-      supabase.storage
-        .from("videos")
-        .createSignedUrl(path, 60 * 60)
-        .then(({ data }) => {
-          if (!cancelled && data?.signedUrl) setDataUrl(data.signedUrl);
-        });
-    }
-    return () => { cancelled = true; };
-  }, [analysis?.videoPath]);
-
-  function speedAt(t: number): BenchReading | null {
-    if (!readings.length) return null;
-    let best = readings[0];
-    let bestDiff = Math.abs(best.time - t);
-    for (const r of readings) {
-      const d = Math.abs(r.time - t);
-      if (d < bestDiff) { best = r; bestDiff = d; }
-    }
-    return best;
-  }
-
-  function startTag(action: BenchActionType) {
-    const t = playbackRef.current?.currentTime ?? currentTime;
-    setPendingTag({ action, time: t });
-  }
-  async function confirmTag(success: boolean) {
-    if (!pendingTag) return;
-    const next = [
-      ...tags,
-      { id: benchUid(), time: pendingTag.time, action: pendingTag.action, success },
-    ].sort((a, b) => a.time - b.time);
-    setTags(next);
-    setPendingTag(null);
-    await persistTags(next);
-  }
-  async function removeTag(id: string) {
-    const next = tags.filter((t) => t.id !== id);
-    setTags(next);
-    await persistTags(next);
-  }
-  async function persistTags(next: BenchActionTag[]) {
-    const payload: BenchAnalysis = {
-      readings,
-      duration: analysis?.duration ?? 0,
-      points: analysis?.points ?? points,
-      videoPath: analysis?.videoPath ?? null,
-      tags: next,
-    };
-    await supabase.from("benchmarks" as any).update({ speed_analysis: payload }).eq("id", benchmark.id);
-    onUpdated();
-  }
+  const [adding, setAdding] = useState(false);
+  const [openClipId, setOpenClipId] = useState<string | null>(null);
 
   async function saveMeta() {
     setSavingMeta(true);
@@ -1691,52 +1724,192 @@ function BenchmarkCard({
       await supabase
         .from("benchmarks" as any)
         .update({ name: name.trim() || "Untitled Benchmark", notes: notes.trim() || null })
-        .eq("id", benchmark.id);
+        .eq("id", fencer.id);
       onUpdated();
-    } finally {
-      setSavingMeta(false);
-    }
+    } finally { setSavingMeta(false); }
   }
-
-  async function deleteBenchmark() {
-    if (!confirm("Delete this benchmark and its analysis?")) return;
-    await supabase.from("benchmarks" as any).delete().eq("id", benchmark.id);
+  async function deleteFencer() {
+    if (!confirm("Delete this benchmark fencer and all their clips?")) return;
+    await supabase.from("benchmarks" as any).delete().eq("id", fencer.id);
     onUpdated();
   }
-
-  async function persistVideo(file: File): Promise<string | null> {
-    try {
-      const { data: u } = await supabase.auth.getUser();
-      const userId = u.user?.id;
-      if (!userId) return null;
-      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
-      const path = `${userId}/benchmarks/${benchmark.id}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("videos")
-        .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
-      if (upErr) {
-        console.error("benchmark video upload failed", upErr);
-        return null;
-      }
-      return path;
-    } catch (e) {
-      console.error(e);
-      return null;
-    }
+  async function persistClips(nextClips: BenchClip[]) {
+    await supabase
+      .from("benchmarks" as any)
+      .update({ speed_analysis: { clips: nextClips } })
+      .eq("id", fencer.id);
+    onUpdated();
   }
+  async function deleteClip(clipId: string) {
+    if (!confirm("Delete this clip?")) return;
+    await persistClips(fencer.clips.filter((c) => c.id !== clipId));
+  }
+  async function appendClip(clip: BenchClip) {
+    await persistClips([...fencer.clips, clip]);
+    setAdding(false);
+  }
+  async function updateClipTags(clipId: string, tags: BenchActionTag[]) {
+    await persistClips(fencer.clips.map((c) => (c.id === clipId ? { ...c, tags } : c)));
+  }
+
+  const openClip = fencer.clips.find((c) => c.id === openClipId) ?? null;
+
+  return (
+    <div className="surface overflow-hidden" style={{ borderLeft: `4px solid ${BENCHMARK_COLOR}` }}>
+      <div className="flex items-start gap-3 border-b border-[var(--border-subtle)] p-5">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded hover:bg-[var(--bg-elevated)]"
+          aria-label={open ? "Collapse" : "Expand"}
+        >
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
+        <div className="flex-1 space-y-2">
+          <div className="metric-label">
+            Benchmark Fencer · {fencer.clips.length} clip{fencer.clips.length === 1 ? "" : "s"}
+          </div>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={saveMeta}
+            placeholder='e.g. "Koki Kano"'
+            className="font-semibold"
+          />
+          <Input
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            onBlur={saveMeta}
+            placeholder="Notes (optional)"
+          />
+          {savingMeta && <div className="text-[10px] text-[var(--text-muted)]">Saving…</div>}
+        </div>
+        <button
+          onClick={deleteFencer}
+          title="Delete benchmark fencer"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      {open && (
+        <div className="space-y-5 p-5">
+          {fencer.clips.length === 0 && !adding && (
+            <div className="rounded-md border border-dashed border-[var(--border-default)] p-6 text-center text-sm text-[var(--text-secondary)]">
+              No clips yet. Add a short action-specific clip to start this fencer's library.
+            </div>
+          )}
+
+          {fencer.clips.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+              {fencer.clips.map((c) => (
+                <div
+                  key={c.id}
+                  className="group surface cursor-pointer overflow-hidden text-left transition-colors hover:border-[var(--accent)]"
+                  onClick={() => setOpenClipId(c.id)}
+                >
+                  <div className="relative aspect-video bg-black">
+                    {c.thumbnail ? (
+                      <img src={c.thumbnail} alt={c.action} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="grid h-full w-full place-items-center text-xs text-[var(--text-muted)]">No preview</div>
+                    )}
+                    <span
+                      className="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                      style={{ background: CLIP_ACTION_COLORS[c.action] }}
+                    >
+                      {c.action}
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); void deleteClip(c.id); }}
+                      className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md bg-black/50 text-white opacity-0 transition group-hover:opacity-100 hover:bg-[var(--data-negative)]"
+                      aria-label="Delete clip"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="space-y-1 p-3">
+                    <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                      <span>Peak</span><span>Avg</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm font-semibold tabular-nums">
+                      <span style={{ color: BENCHMARK_COLOR }}>{c.peakSpeed.toFixed(2)} m/s</span>
+                      <span className="text-[var(--text-secondary)]">{c.avgSpeed.toFixed(2)}</span>
+                    </div>
+                    {c.duration > 0 && (
+                      <div className="text-[10px] text-[var(--text-muted)]">{c.duration.toFixed(1)}s</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!adding && (
+            <button
+              onClick={() => setAdding(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add Clip
+            </button>
+          )}
+
+          {adding && (
+            <ClipAnalyzer
+              fencerId={fencer.id}
+              onCancel={() => setAdding(false)}
+              onComplete={appendClip}
+            />
+          )}
+
+          {openClip && (
+            <ClipPlayerDialog
+              clip={openClip}
+              onClose={() => setOpenClipId(null)}
+              onTagsChanged={(tags) => updateClipTags(openClip.id, tags)}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClipAnalyzer({
+  fencerId,
+  onCancel,
+  onComplete,
+}: {
+  fencerId: string;
+  onCancel: () => void;
+  onComplete: (clip: BenchClip) => Promise<void> | void;
+}) {
+  type Stage = "choose" | "upload" | "extracting" | "calibrate" | "select" | "analyzing" | "done";
+  const [stage, setStage] = useState<Stage>("choose");
+  const [action, setAction] = useState<ClipAction>("Lunge");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [firstFrame, setFirstFrame] = useState<string | null>(null);
+  const [duration, setDuration] = useState(0);
+  const [points, setPoints] = useState<BenchPt[]>([]);
+  const [candidates, setCandidates] = useState<HipPoint[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [detectingPeople, setDetectingPeople] = useState(false);
+  const [progress, setProgress] = useState({ cur: 0, total: 0 });
+  const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const MAX_VIDEO_MB = 150;
 
   function onFile(file: File) {
     const sizeMB = file.size / (1024 * 1024);
     if (sizeMB > MAX_VIDEO_MB) {
-      setError(`File too large (${Math.round(sizeMB)} MB). Trim to under 2 minutes or compress: QuickTime → Export As → 1080p.`);
-      setWarning(null);
+      setError(`File too large (${Math.round(sizeMB)} MB). Trim or compress.`);
       return;
     }
     setError(null);
     const isMov = /\.mov$/i.test(file.name) || file.type === "video/quicktime";
-    setWarning(isMov ? "MOV files may not be supported. If upload fails, open in QuickTime → Export As → 1080p to convert to MP4." : null);
+    setWarning(isMov ? "MOV files may not be supported. Convert to MP4 if upload fails." : null);
     setStage("extracting");
     setPendingFile(file);
     const reader = new FileReader();
@@ -1754,10 +1927,7 @@ function BenchmarkCard({
         setStage("upload");
       }
     };
-    reader.onerror = () => {
-      setError("Failed to read file");
-      setStage("upload");
-    };
+    reader.onerror = () => { setError("Failed to read file"); setStage("upload"); };
     reader.readAsDataURL(file);
   }
 
@@ -1768,9 +1938,7 @@ function BenchmarkCard({
     const y = (e.clientY - rect.top) / rect.height;
     const next = [...points, { x, y }];
     setPoints(next);
-    if (next.length === 2) {
-      void detectAthletes();
-    }
+    if (next.length === 2) void detectAthletes();
   }
 
   async function detectAthletes() {
@@ -1783,14 +1951,25 @@ function BenchmarkCard({
     try {
       const people = await detectPeopleOnImage(firstFrame, 6);
       setCandidates(people);
-      if (people.length === 1) {
-        setSelectedIdx(0);
-      }
+      if (people.length === 1) setSelectedIdx(0);
     } catch (e: any) {
       setError(e?.message ?? "Pose detection failed");
     } finally {
       setDetectingPeople(false);
     }
+  }
+
+  async function persistVideo(file: File, clipId: string): Promise<string | null> {
+    const { data: u } = await supabase.auth.getUser();
+    const userId = u.user?.id;
+    if (!userId) return null;
+    const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+    const path = `${userId}/benchmarks/${fencerId}/${clipId}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("videos")
+      .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
+    if (upErr) { console.error("clip upload failed", upErr); return null; }
+    return path;
   }
 
   async function runAnalysis(seedHip: HipPoint | null) {
@@ -1799,18 +1978,15 @@ function BenchmarkCard({
     setError(null);
     try {
       const v = document.createElement("video");
-      v.muted = true;
-      v.playsInline = true;
+      v.muted = true; v.playsInline = true;
       await new Promise<void>((res, rej) => {
         v.addEventListener("loadeddata", () => res(), { once: true });
         v.addEventListener("error", () => rej(new Error(UNSUPPORTED_VIDEO_MESSAGE)), { once: true });
         attachVideoSources(v, dataUrl);
       });
       const c = document.createElement("canvas");
-      c.width = v.videoWidth;
-      c.height = v.videoHeight;
+      c.width = v.videoWidth; c.height = v.videoHeight;
       const ctx = c.getContext("2d")!;
-
       const fileset = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
       );
@@ -1823,12 +1999,10 @@ function BenchmarkCard({
         runningMode: "VIDEO",
         numPoses: 6,
       });
-
-      const step = 0.3;
+      const step = 0.25;
       const times: number[] = [];
       for (let t = 0; t < v.duration; t += step) times.push(t);
       setProgress({ cur: 0, total: times.length });
-
       const frames: BenchFrame[] = [];
       let lastHip: HipPoint | null = seedHip;
       for (let i = 0; i < times.length; i++) {
@@ -1859,479 +2033,437 @@ function BenchmarkCard({
       const p1 = { x: points[1].x * W, y: points[1].y * H };
       const axis = { x: p1.x - p0.x, y: p1.y - p0.y };
       const axisLen = Math.hypot(axis.x, axis.y);
-      const ux = axis.x / axisLen;
-      const uy = axis.y / axisLen;
+      const ux = axis.x / axisLen, uy = axis.y / axisLen;
       const mPerPx = 14 / axisLen;
-
       const out: BenchReading[] = [];
       const detected = frames.filter((f) => f.detected);
       for (let i = 1; i < detected.length; i++) {
-        const a = detected[i - 1];
-        const b = detected[i];
-        const dx = (b.nx - a.nx) * W;
-        const dy = (b.ny - a.ny) * H;
+        const a = detected[i - 1], b = detected[i];
+        const dx = (b.nx - a.nx) * W, dy = (b.ny - a.ny) * H;
         const proj = dx * ux + dy * uy;
         const dt = b.time - a.time;
         if (dt <= 0) continue;
         const speed = Math.abs(proj * mPerPx) / dt;
         if (speed < 0.05 || speed > 10) continue;
-        out.push({
-          time: b.time,
-          speed,
-          direction: proj >= 0 ? "advance" : "retreat",
-        });
+        out.push({ time: b.time, speed, direction: proj >= 0 ? "advance" : "retreat" });
       }
-      setReadings(out);
-      setStage("results");
 
-      let videoPath: string | null = analysis?.videoPath ?? null;
-      if (pendingFile) {
-        const newPath = await persistVideo(pendingFile);
-        if (newPath) videoPath = newPath;
-      }
-      const payload: BenchAnalysis = {
-        readings: out,
+      const speeds = out.map((r) => r.speed);
+      const clipId = benchUid();
+      let videoPath: string | null = null;
+      if (pendingFile) videoPath = await persistVideo(pendingFile, clipId);
+      const thumb = firstFrame ? await makeThumbnail(firstFrame, 320) : null;
+      const clip: BenchClip = {
+        id: clipId,
+        action,
+        videoPath,
+        thumbnail: thumb,
+        createdAt: new Date().toISOString(),
         duration: v.duration,
         points,
-        videoPath,
-        tags,
+        readings: out,
+        tags: [],
+        peakSpeed: speeds.length ? Math.max(...speeds) : 0,
+        avgSpeed: speeds.length ? speeds.reduce((s, x) => s + x, 0) / speeds.length : 0,
       };
-      await supabase.from("benchmarks" as any).update({ speed_analysis: payload }).eq("id", benchmark.id);
-      onUpdated();
+      setStage("done");
+      await onComplete(clip);
     } catch (e: any) {
       setError(e?.message ?? "Analysis failed");
       setStage("calibrate");
     }
   }
 
-  async function resetAnalysis() {
-    if (!confirm("Reset this benchmark's video and analysis?")) return;
-    setStage("upload");
-    setDataUrl(null);
-    setFirstFrame(null);
-    setDuration(0);
-    setPoints([]);
-    setReadings([]);
-    setTags([]);
-    setPendingTag(null);
-    setProgress({ cur: 0, total: 0 });
-    setError(null);
-    await supabase.from("benchmarks" as any).update({ speed_analysis: null }).eq("id", benchmark.id);
-    onUpdated();
-  }
-
-  const stats = statsFromReadings(readings);
-
   return (
-    <div className="surface overflow-hidden" style={{ borderLeft: `4px solid ${BENCHMARK_COLOR}` }}>
-      <div className="border-b border-[var(--border-subtle)] p-5 space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 space-y-2">
-            <div className="metric-label">{isPrimary ? "Primary Benchmark" : "Additional Benchmark"}</div>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={saveMeta}
-              placeholder='e.g. "Nathalie Moellhausen — Olympic Bronze"'
-              className="font-semibold"
-            />
-            <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={saveMeta}
-              placeholder="Notes (optional)"
-            />
-          </div>
+    <div className="surface space-y-4 p-5">
+      <div className="flex items-center justify-between">
+        <div className="metric-label">Add Clip</div>
+        <button onClick={onCancel} className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Cancel</button>
+      </div>
+      {error && (
+        <div className="rounded-md border border-[var(--data-negative)]/40 bg-[var(--data-negative)]/10 p-3 text-sm text-[var(--data-negative)]">{error}</div>
+      )}
+      {warning && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-500">{warning}</div>
+      )}
+
+      {stage === "choose" && (
+        <div className="space-y-3">
+          <Label className="text-xs text-[var(--text-secondary)]">Action type</Label>
+          <Select value={action} onValueChange={(v) => setAction(v as ClipAction)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {CLIP_ACTIONS.map((a) => (<SelectItem key={a} value={a}>{a}</SelectItem>))}
+            </SelectContent>
+          </Select>
           <button
-            onClick={deleteBenchmark}
-            title="Delete benchmark"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]"
+            onClick={() => setStage("upload")}
+            className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-black hover:opacity-90"
           >
-            <Trash2 className="h-4 w-4" />
+            Continue
           </button>
         </div>
-        {savingMeta && <div className="text-[10px] text-[var(--text-muted)]">Saving…</div>}
-      </div>
+      )}
 
-      <div className="space-y-6 p-5">
-        {error && (
-          <div className="rounded-md border border-[var(--data-negative)]/40 bg-[var(--data-negative)]/10 p-3 text-sm text-[var(--data-negative)]">
-            {error}
-          </div>
-        )}
-        {warning && (
-          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-500">
-            {warning}
-          </div>
-        )}
+      {stage === "upload" && (
+        <label
+          className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed border-[var(--border-default)] p-10 text-center transition-colors hover:border-[var(--accent)]"
+        >
+          <Upload className="h-7 w-7 text-[var(--text-secondary)]" />
+          <div className="text-sm font-medium">Upload {action} clip</div>
+          <div className="text-xs text-[var(--text-secondary)]">Short clip (a few seconds). MP4 recommended.</div>
+          <input
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+          />
+        </label>
+      )}
 
-        {stage === "upload" && (
-          <label
-            className="surface flex cursor-pointer flex-col items-center justify-center gap-3 p-10 text-center transition-colors hover:border-[var(--accent)]"
-            style={{ borderWidth: 2, borderStyle: "dashed" }}
-          >
-            <Upload className="h-7 w-7 text-[var(--text-secondary)]" />
-            <div className="text-sm font-medium">Upload benchmark video</div>
-            <div className="text-xs text-[var(--text-secondary)]">MP4 recommended · MOV may need conversion</div>
-            <input
-              type="file"
-              accept="video/*"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+      {stage === "extracting" && (
+        <div className="grid place-items-center p-12 text-sm text-[var(--text-secondary)]">Extracting first frame…</div>
+      )}
+
+      {stage === "calibrate" && firstFrame && (
+        <div>
+          <div className="metric-label mb-2">Calibrate the piste</div>
+          <p className="mb-4 text-xs text-[var(--text-secondary)]">
+            Click the <span style={{ color: "var(--accent)" }}>0m end</span>, then the{" "}
+            <span style={{ color: BENCHMARK_COLOR }}>14m end</span>. Duration: {duration.toFixed(1)}s.
+          </p>
+          <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
+            <img
+              src={firstFrame}
+              alt="First frame"
+              onClick={onImgClick}
+              style={{ maxWidth: "100%", display: "block", cursor: points.length < 2 ? "crosshair" : "default" }}
             />
-          </label>
-        )}
-
-        {stage === "extracting" && (
-          <div className="surface grid place-items-center p-12 text-sm text-[var(--text-secondary)]">
-            Extracting first frame…
-          </div>
-        )}
-
-        {stage === "calibrate" && firstFrame && (
-          <div className="surface p-5">
-            <div className="metric-label mb-2">Calibrate the piste</div>
-            <p className="mb-4 text-xs text-[var(--text-secondary)]">
-              Click the <span style={{ color: "var(--accent)" }}>0m end</span>, then the{" "}
-              <span style={{ color: BENCHMARK_COLOR }}>14m end</span>. Duration: {duration.toFixed(1)}s.
-            </p>
-            <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
-              <img
-                src={firstFrame}
-                alt="First frame"
-                onClick={onImgClick}
-                style={{ maxWidth: "100%", display: "block", cursor: points.length < 2 ? "crosshair" : "default" }}
+            {points.map((p, i) => (
+              <div
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: `${p.x * 100}%`,
+                  top: `${p.y * 100}%`,
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  background: i === 0 ? "var(--accent)" : BENCHMARK_COLOR,
+                  border: "2px solid white",
+                  transform: "translate(-50%, -50%)",
+                  pointerEvents: "none",
+                  boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+                }}
               />
-              {points.map((p, i) => (
-                <div
+            ))}
+          </div>
+          <div className="mt-4 flex gap-3">
+            <button onClick={() => setPoints([])} className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]">
+              <RotateCcw className="h-3.5 w-3.5" /> Reset
+            </button>
+            {points.length === 2 && (
+              <div className="self-center text-xs text-[var(--text-secondary)]">Calibration set — detecting athletes…</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {stage === "select" && firstFrame && (
+        <div>
+          <div className="metric-label mb-2">Step 3 · Select athlete</div>
+          {detectingPeople ? (
+            <p className="mb-4 text-xs text-[var(--text-secondary)]">Detecting people in the first frame…</p>
+          ) : candidates.length <= 1 ? (
+            <p className="mb-4 text-xs text-[var(--text-secondary)]">
+              {candidates.length === 1
+                ? "One athlete detected — tracking automatically."
+                : "No athletes detected — we'll still analyze using the most prominent person."}
+            </p>
+          ) : (
+            <p className="mb-4 text-xs text-[var(--text-secondary)]">Click the dot on the athlete you want to track.</p>
+          )}
+          <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
+            <img src={firstFrame} alt="First frame" style={{ maxWidth: "100%", display: "block" }} />
+            {candidates.map((p, i) => {
+              const selected = selectedIdx === i;
+              return (
+                <button
                   key={i}
+                  onClick={() => setSelectedIdx(i)}
+                  title={`Athlete ${i + 1}`}
                   style={{
                     position: "absolute",
-                    left: `${p.x * 100}%`,
-                    top: `${p.y * 100}%`,
-                    width: 14,
-                    height: 14,
+                    left: `${p.nx * 100}%`,
+                    top: `${p.ny * 100}%`,
+                    width: selected ? 30 : 24,
+                    height: selected ? 30 : 24,
                     borderRadius: "50%",
-                    background: i === 0 ? "var(--accent)" : BENCHMARK_COLOR,
-                    border: "2px solid white",
+                    background: selected ? "var(--fencing)" : "var(--accent)",
+                    border: selected ? "3px solid white" : "2px solid rgba(255,255,255,0.8)",
                     transform: "translate(-50%, -50%)",
-                    pointerEvents: "none",
-                    boxShadow: "0 0 10px rgba(0,0,0,0.5)",
+                    boxShadow: selected ? "0 0 0 3px var(--fencing), 0 0 14px rgba(0,0,0,0.6)" : "0 0 10px rgba(0,0,0,0.5)",
+                    cursor: "pointer", padding: 0, color: "white",
+                    fontSize: 12, fontWeight: 700, lineHeight: 1,
+                    display: "grid", placeItems: "center",
                   }}
-                />
-              ))}
-            </div>
-            <div className="mt-4 flex gap-3">
-              <button
-                onClick={() => setPoints([])}
-                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Reset
-              </button>
-              {points.length === 2 && (
-                <div className="self-center text-xs text-[var(--text-secondary)]">
-                  Calibration set — detecting athletes…
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {stage === "select" && firstFrame && (
-          <div className="surface p-5">
-            <div className="metric-label mb-2">Step 3 · Select athlete</div>
-            {detectingPeople ? (
-              <p className="mb-4 text-xs text-[var(--text-secondary)]">Detecting people in the first frame…</p>
-            ) : candidates.length <= 1 ? (
-              <p className="mb-4 text-xs text-[var(--text-secondary)]">
-                {candidates.length === 1
-                  ? "One athlete detected — tracking automatically."
-                  : "No athletes detected — we'll still analyze using the most prominent person."}
-              </p>
-            ) : (
-              <p className="mb-4 text-xs text-[var(--text-secondary)]">
-                Click the dot on the athlete you want to track.
-              </p>
-            )}
-            <div style={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
-              <img src={firstFrame} alt="First frame" style={{ maxWidth: "100%", display: "block" }} />
-              {candidates.map((p, i) => {
-                const selected = selectedIdx === i;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedIdx(i)}
-                    title={`Athlete ${i + 1}`}
-                    style={{
-                      position: "absolute",
-                      left: `${p.nx * 100}%`,
-                      top: `${p.ny * 100}%`,
-                      width: selected ? 30 : 24,
-                      height: selected ? 30 : 24,
-                      borderRadius: "50%",
-                      background: selected ? "var(--fencing)" : "var(--accent)",
-                      border: selected ? "3px solid white" : "2px solid rgba(255,255,255,0.8)",
-                      transform: "translate(-50%, -50%)",
-                      boxShadow: selected
-                        ? "0 0 0 3px var(--fencing), 0 0 14px rgba(0,0,0,0.6)"
-                        : "0 0 10px rgba(0,0,0,0.5)",
-                      cursor: "pointer",
-                      padding: 0,
-                      color: "white",
-                      fontSize: 12,
-                      fontWeight: 700,
-                      lineHeight: 1,
-                      display: "grid",
-                      placeItems: "center",
-                    }}
-                  >
-                    {i + 1}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-4 flex gap-3">
-              <button
-                onClick={() => { setStage("calibrate"); setCandidates([]); setSelectedIdx(null); }}
-                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
-              >
-                Back
-              </button>
-              {!detectingPeople && (candidates.length <= 1 || selectedIdx !== null) && (
-                <button
-                  onClick={() => runAnalysis(selectedIdx !== null ? candidates[selectedIdx] : null)}
-                  className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90"
                 >
-                  Confirm — Analyze Video
+                  {i + 1}
                 </button>
-              )}
-            </div>
+              );
+            })}
           </div>
-        )}
-
-        {stage === "analyzing" && (
-          <div className="surface p-6 text-center text-sm text-[var(--text-secondary)]">
-            Analyzing pose… {progress.cur}/{progress.total} frames
-            {candidates.length === 1 && (
-              <div className="mt-2 text-xs text-[var(--text-muted)]">
-                One athlete detected — tracking automatically.
-              </div>
-            )}
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
-              <div
-                className="h-full bg-[var(--accent)] transition-all"
-                style={{ width: `${progress.total ? (progress.cur / progress.total) * 100 : 0}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {stage === "results" && readings.length > 0 && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <BenchStatBox label="Peak Speed" value={stats.peakSpeed} unit="m/s" />
-              <BenchStatBox label="Avg Speed" value={stats.avgSpeed} unit="m/s" />
-              <BenchStatBox label="Peak Advance" value={stats.peakAdvance} unit="m/s" />
-              <BenchStatBox label="Peak Retreat" value={stats.peakRetreat} unit="m/s" />
-            </div>
-
-            {dataUrl && (
-              <div className="overflow-hidden rounded-lg">
-                <video
-                  ref={playbackRef}
-                  src={dataUrl}
-                  controls
-                  playsInline
-                  onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                  onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                  className="w-full rounded-md bg-black"
-                  style={{ maxHeight: 480 }}
-                />
-              </div>
-            )}
-
-            <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
-              <div className="metric-label mb-3">Tag action at {currentTime.toFixed(2)}s</div>
-              <div className="flex flex-wrap gap-2">
-                {BENCH_ACTION_TYPES.map((a) => (
-                  <button
-                    key={a}
-                    onClick={() => startTag(a)}
-                    disabled={!!pendingTag}
-                    className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
-                    style={{ background: BENCH_ACTION_COLORS[a] }}
-                  >
-                    {a}
-                  </button>
-                ))}
-              </div>
-              {pendingTag && (
-                <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--border-default)] bg-[var(--bg-default)] px-3 py-2">
-                  <span className="text-xs text-[var(--text-secondary)]">
-                    <span
-                      className="mr-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                      style={{ background: BENCH_ACTION_COLORS[pendingTag.action] }}
-                    >
-                      {pendingTag.action}
-                    </span>
-                    at {pendingTag.time.toFixed(2)}s — Successful?
-                  </span>
-                  <div className="ml-auto flex items-center gap-2">
-                    <button
-                      onClick={() => confirmTag(true)}
-                      className="rounded-md bg-[var(--data-positive)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
-                    >
-                      Yes
-                    </button>
-                    <button
-                      onClick={() => confirmTag(false)}
-                      className="rounded-md bg-[var(--data-negative)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90"
-                    >
-                      No
-                    </button>
-                    <button
-                      onClick={() => setPendingTag(null)}
-                      className="rounded-md border border-[var(--border-default)] px-3 py-1 text-xs hover:bg-[var(--bg-elevated)]"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {tags.length > 0 && (
-              <div className="overflow-hidden rounded-md border border-[var(--border-subtle)]">
-                <div className="bg-[var(--bg-elevated)] px-5 py-2 metric-label">Tagged actions ({tags.length})</div>
-                <table className="w-full text-sm">
-                  <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
-                    <tr>
-                      <th className="px-5 py-2 text-left">Time (s)</th>
-                      <th className="px-5 py-2 text-left">Action</th>
-                      <th className="px-5 py-2 text-left">Result</th>
-                      <th className="px-5 py-2 text-left">Speed (m/s)</th>
-                      <th className="px-5 py-2 text-left">Direction</th>
-                      <th className="px-5 py-2 w-10" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border-subtle)]">
-                    {tags.map((tg) => {
-                      const r = speedAt(tg.time);
-                      return (
-                        <tr key={tg.id} className="row-hover">
-                          <td className="px-5 py-2 tabular-nums">
-                            <button
-                              onClick={() => {
-                                if (playbackRef.current) {
-                                  playbackRef.current.currentTime = tg.time;
-                                  setCurrentTime(tg.time);
-                                }
-                              }}
-                              className="underline-offset-2 hover:underline"
-                            >
-                              {tg.time.toFixed(2)}
-                            </button>
-                          </td>
-                          <td className="px-5 py-2">
-                            <span
-                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                              style={{ background: BENCH_ACTION_COLORS[tg.action] }}
-                            >
-                              {tg.action}
-                            </span>
-                          </td>
-                          <td className="px-5 py-2">
-                            <span
-                              className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                              style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}
-                            >
-                              {tg.success ? "Success" : "Fail"}
-                            </span>
-                          </td>
-                          <td className="px-5 py-2 tabular-nums">{r ? r.speed.toFixed(3) : "—"}</td>
-                          <td className="px-5 py-2 text-[var(--text-secondary)]">{r?.direction ?? "—"}</td>
-                          <td className="px-5 py-2 text-right">
-                            <button
-                              onClick={() => removeTag(tg.id)}
-                              className="inline-flex items-center justify-center rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]"
-                              aria-label="Delete tag"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="flex justify-end">
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={() => { setStage("calibrate"); setCandidates([]); setSelectedIdx(null); }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+            >
+              Back
+            </button>
+            {!detectingPeople && (candidates.length <= 1 || selectedIdx !== null) && (
               <button
-                onClick={resetAnalysis}
-                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+                onClick={() => runAnalysis(selectedIdx !== null ? candidates[selectedIdx] : null)}
+                className="rounded-md bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-black hover:opacity-90"
               >
-                <RotateCcw className="h-3.5 w-3.5" /> Re-upload
+                Confirm — Analyze Clip
               </button>
-            </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {stage === "analyzing" && (
+        <div className="p-6 text-center text-sm text-[var(--text-secondary)]">
+          Analyzing pose… {progress.cur}/{progress.total} frames
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--bg-elevated)]">
+            <div
+              className="h-full bg-[var(--accent)] transition-all"
+              style={{ width: `${progress.total ? (progress.cur / progress.total) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {stage === "done" && (
+        <div className="grid place-items-center p-6 text-sm text-[var(--text-secondary)]">Saving clip…</div>
+      )}
     </div>
   );
 }
 
-function BenchStatBox({ label, value, unit }: { label: string; value: number; unit: string }) {
+function ClipPlayerDialog({
+  clip,
+  onClose,
+  onTagsChanged,
+}: {
+  clip: BenchClip;
+  onClose: () => void;
+  onTagsChanged: (tags: BenchActionTag[]) => void;
+}) {
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [tags, setTags] = useState<BenchActionTag[]>(clip.tags ?? []);
+  const [pendingTag, setPendingTag] = useState<{ action: BenchActionType; time: number } | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const playbackRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (clip.videoPath) {
+      supabase.storage.from("videos").createSignedUrl(clip.videoPath, 60 * 60).then(({ data }) => {
+        if (!cancelled && data?.signedUrl) setVideoUrl(data.signedUrl);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [clip.videoPath]);
+
+  function speedAt(t: number) {
+    if (!clip.readings.length) return null;
+    let best = clip.readings[0];
+    let bestDiff = Math.abs(best.time - t);
+    for (const r of clip.readings) {
+      const d = Math.abs(r.time - t);
+      if (d < bestDiff) { best = r; bestDiff = d; }
+    }
+    return best;
+  }
+  function startTag(a: BenchActionType) {
+    const t = playbackRef.current?.currentTime ?? currentTime;
+    setPendingTag({ action: a, time: t });
+  }
+  function confirmTag(success: boolean) {
+    if (!pendingTag) return;
+    const next = [...tags, { id: benchUid(), time: pendingTag.time, action: pendingTag.action, success }].sort((a, b) => a.time - b.time);
+    setTags(next);
+    setPendingTag(null);
+    onTagsChanged(next);
+  }
+  function removeTag(id: string) {
+    const next = tags.filter((t) => t.id !== id);
+    setTags(next);
+    onTagsChanged(next);
+  }
+
+  const profileData = binByTime(clip.readings);
+  const yMax = Math.max(clip.peakSpeed, 1) * 1.1;
+
   return (
-    <div className="surface p-4">
-      <div className="metric-label">{label}</div>
-      <div className="mt-1 text-2xl font-bold tabular-nums">
-        {value.toFixed(2)}
-        <span className="ml-1 text-sm font-medium text-[var(--text-secondary)]">{unit}</span>
-      </div>
-    </div>
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+              style={{ background: CLIP_ACTION_COLORS[clip.action] }}
+            >
+              {clip.action}
+            </span>
+            <span className="text-sm">
+              Peak {clip.peakSpeed.toFixed(2)} m/s · Avg {clip.avgSpeed.toFixed(2)} m/s
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {videoUrl ? (
+            <video
+              ref={playbackRef}
+              src={videoUrl}
+              controls
+              playsInline
+              onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+              onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+              className="w-full rounded-md bg-black"
+              style={{ maxHeight: 400 }}
+            />
+          ) : clip.videoPath ? (
+            <div className="grid h-32 place-items-center rounded-md bg-[var(--bg-elevated)] text-xs text-[var(--text-secondary)]">Loading video…</div>
+          ) : null}
+
+          {profileData.length > 0 && (
+            <SpeedProfileChart title="Speed profile" data={profileData} color={BENCHMARK_COLOR} yMax={yMax} />
+          )}
+
+          <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+            <div className="metric-label mb-2">Tag action at {currentTime.toFixed(2)}s</div>
+            <div className="flex flex-wrap gap-2">
+              {BENCH_ACTION_TYPES.map((a) => (
+                <button
+                  key={a}
+                  onClick={() => startTag(a)}
+                  disabled={!!pendingTag}
+                  className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
+                  style={{ background: BENCH_ACTION_COLORS[a] }}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+            {pendingTag && (
+              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--border-default)] bg-[var(--bg-default)] px-3 py-2">
+                <span className="text-xs text-[var(--text-secondary)]">
+                  <span
+                    className="mr-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                    style={{ background: BENCH_ACTION_COLORS[pendingTag.action] }}
+                  >
+                    {pendingTag.action}
+                  </span>
+                  at {pendingTag.time.toFixed(2)}s — Successful?
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <button onClick={() => confirmTag(true)} className="rounded-md bg-[var(--data-positive)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90">Yes</button>
+                  <button onClick={() => confirmTag(false)} className="rounded-md bg-[var(--data-negative)] px-3 py-1 text-xs font-semibold text-black hover:opacity-90">No</button>
+                  <button onClick={() => setPendingTag(null)} className="rounded-md border border-[var(--border-default)] px-3 py-1 text-xs hover:bg-[var(--bg-elevated)]">Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {tags.length > 0 && (
+            <div className="max-h-56 overflow-auto rounded-md border border-[var(--border-subtle)]">
+              <table className="w-full text-sm">
+                <thead className="bg-[var(--bg-elevated)] text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Time</th>
+                    <th className="px-3 py-2 text-left">Action</th>
+                    <th className="px-3 py-2 text-left">Result</th>
+                    <th className="px-3 py-2 text-left">Speed</th>
+                    <th className="px-3 py-2 w-8" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-subtle)]">
+                  {tags.map((tg) => {
+                    const r = speedAt(tg.time);
+                    return (
+                      <tr key={tg.id}>
+                        <td className="px-3 py-1.5 tabular-nums">
+                          <button
+                            onClick={() => {
+                              if (playbackRef.current) {
+                                playbackRef.current.currentTime = tg.time;
+                                setCurrentTime(tg.time);
+                              }
+                            }}
+                            className="underline-offset-2 hover:underline"
+                          >
+                            {tg.time.toFixed(2)}
+                          </button>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black" style={{ background: BENCH_ACTION_COLORS[tg.action] }}>
+                            {tg.action}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black" style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}>
+                            {tg.success ? "Success" : "Fail"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 tabular-nums">{r ? r.speed.toFixed(2) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right">
+                          <button onClick={() => removeTag(tg.id)} className="inline-flex items-center justify-center rounded-md p-1 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]" aria-label="Delete tag">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function ComparisonSection({
   athleteName,
   athleteStats,
-  benchmarks,
+  fencer,
 }: {
   athleteName: string;
   athleteStats: { peakSpeed: number; avgSpeed: number; peakAdvance: number; peakRetreat: number; readings: BenchReading[]; actionAvgSpeeds: Record<string, number> };
-  benchmarks: any[];
+  fencer: BenchFencer;
 }) {
-  const primary = benchmarks[0];
-  if (!primary) return null;
-  const primaryStats = statsFromReadings(primary.speed_analysis.readings as BenchReading[]);
-
-  const metrics: { key: keyof typeof primaryStats; label: string }[] = [
+  const allReadings = allReadingsFromClips(fencer.clips);
+  if (!allReadings.length) return null;
+  const benchStats = statsFromReadings(allReadings);
+  const metrics: { key: keyof typeof benchStats; label: string }[] = [
     { key: "peakSpeed", label: "Peak Speed" },
     { key: "avgSpeed", label: "Avg Speed" },
     { key: "peakAdvance", label: "Peak Advance" },
     { key: "peakRetreat", label: "Peak Retreat" },
   ];
-
-  const athleteBins = binReadings(athleteStats.readings);
-  const benchBins = binReadings(primary.speed_analysis.readings as BenchReading[]);
-  const merged: any[] = [];
-  const len = Math.max(athleteBins.length, benchBins.length);
-  for (let i = 0; i < len; i++) {
-    merged.push({
-      t: athleteBins[i]?.t ?? benchBins[i]?.t ?? Math.round((i / (len - 1)) * 100),
-      athlete: athleteBins[i]?.speed ?? null,
-      benchmark: benchBins[i]?.speed ?? null,
-    });
-  }
+  const benchmarkActionAvgs = actionAvgFromClips(fencer.clips);
+  const yMax = Math.max(benchStats.peakSpeed, athleteStats.peakSpeed) * 1.1;
 
   return (
     <div className="space-y-4">
       <div>
         <h3 className="text-lg font-semibold">Comparison</h3>
         <p className="mt-1 text-xs text-[var(--text-secondary)]">
-          {athleteName || "Athlete"}'s average across all sessions vs. {primary.name}.
+          {athleteName || "Athlete"}'s average across all sessions vs. {fencer.name} (across {fencer.clips.length} clip{fencer.clips.length === 1 ? "" : "s"}).
         </p>
       </div>
 
@@ -2341,86 +2473,29 @@ function ComparisonSection({
             key={m.key}
             label={m.label}
             athleteValue={athleteStats[m.key] as number}
-            benchmarkValue={primaryStats[m.key]}
+            benchmarkValue={benchStats[m.key]}
           />
         ))}
       </div>
 
       <ActionComparisonTable
         athleteName={athleteName}
-        benchmarkName={primary.name}
+        benchmarkName={fencer.name}
         athleteActions={athleteStats.actionAvgSpeeds}
-        benchmarkActions={actionAvgFromAnalysis(
-          primary.speed_analysis.readings as BenchReading[],
-          primary.speed_analysis.tags as BenchActionTag[] | undefined,
-        )}
+        benchmarkActions={benchmarkActionAvgs}
       />
 
-      <div className="surface p-5">
-        <div className="metric-label mb-3">Speed Profile Overlay</div>
-        <div className="h-72">
-          <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={merged} margin={{ top: 10, right: 10, bottom: 5, left: -10 }}>
-                <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
-                <XAxis
-                  dataKey="t"
-                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  label={{ value: "Bout progression (%)", position: "insideBottom", offset: -2, fill: "var(--text-secondary)", fontSize: 11 }}
-                />
-                <YAxis
-                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  label={{ value: "Speed (m/s)", angle: -90, position: "insideLeft", fill: "var(--text-secondary)", fontSize: 11 }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--bg-elevated)",
-                    border: "1px solid var(--border-default)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                  formatter={(v: any) => (typeof v === "number" ? `${v.toFixed(2)} m/s` : v)}
-                />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line
-                  type="monotone"
-                  dataKey="athlete"
-                  name={athleteName || "Athlete"}
-                  stroke={RIE_COLOR}
-                  strokeWidth={2.5}
-                  dot={false}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="benchmark"
-                  name={primary.name}
-                  stroke={BENCHMARK_COLOR}
-                  strokeWidth={2.5}
-                  dot={false}
-                  connectNulls
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </ClientOnly>
-        </div>
-      </div>
-
       <SpeedProfileChart
-        title={`${primary.name} — Speed Profile`}
-        data={binByTime(primary.speed_analysis.readings as BenchReading[])}
+        title={`${fencer.name} — Speed Profile`}
+        data={binByTime(allReadings)}
         color={BENCHMARK_COLOR}
-        yMax={Math.max(primaryStats.peakSpeed, athleteStats.peakSpeed) * 1.1}
+        yMax={yMax}
       />
       <SpeedProfileChart
         title={`${athleteName || "Athlete"} — Average Speed Profile`}
         data={binByTime(athleteStats.readings)}
         color="var(--accent)"
-        yMax={Math.max(primaryStats.peakSpeed, athleteStats.peakSpeed) * 1.1}
+        yMax={yMax}
       />
     </div>
   );
