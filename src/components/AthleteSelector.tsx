@@ -54,6 +54,12 @@ export function AthleteSelector({
   const autoMode = !detecting && candidates.length <= 1;
   const canConfirm = !detecting && candidates.length > 1 && selectedIdx !== null;
 
+  useEffect(() => {
+    if (!autoMode) return;
+    const t = window.setTimeout(() => onConfirm(candidates[0] ?? null), 0);
+    return () => window.clearTimeout(t);
+  }, [autoMode, candidates, onConfirm]);
+
   return (
     <div>
       <div className="metric-label mb-2">Step 3 · Select athlete</div>
