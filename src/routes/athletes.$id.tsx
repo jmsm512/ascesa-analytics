@@ -1409,7 +1409,7 @@ async function aggregateAthleteStats(athleteId: string) {
     if (adv.length) advPeaks.push(Math.max(...adv));
     const ret = readings.filter((x) => x.direction === "retreat").map((x) => x.speed);
     if (ret.length) retPeaks.push(Math.max(...ret));
-    allReadings.push(...readings);
+    allReadings.push(...(readings as BenchReading[]));
     if (tags.length) {
       for (const tg of tags) {
         // find nearest reading
