@@ -733,23 +733,26 @@ function PeriodSection({
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
-    setPoints([...points, { x, y }]);
+    const next = [...points, { x, y }];
+    setPoints(next);
+    if (next.length === 2) {
+      // Auto-run pose detection as soon as both calibration points are set
+      void detectAthletes();
+    }
   }
 
-  async function proceedFromCalibrate() {
-    if (!firstFrame || points.length < 2) return;
+  async function detectAthletes() {
+    if (!firstFrame) return;
     setError(null);
     setDetectingPeople(true);
+    setCandidates([]);
+    setSelectedIdx(null);
+    setStage("select");
     try {
       const people = await detectPeopleOnImage(firstFrame, 6);
       setCandidates(people);
-      if (people.length <= 1) {
-        const seed = people[0] ?? null;
-        setSelectedIdx(people.length === 1 ? 0 : null);
-        await runAnalysis(seed);
-      } else {
-        setSelectedIdx(null);
-        setStage("select");
+      if (people.length === 1) {
+        setSelectedIdx(0);
       }
     } catch (e: any) {
       setError(e?.message ?? "Pose detection failed");
