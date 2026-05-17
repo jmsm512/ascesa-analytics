@@ -175,8 +175,8 @@ async function loadOverviewData(athleteId: string) {
   const retSpeeds: number[] = [];
   let analyzedCount = 0;
   for (const fs of fsRows) {
-    const readings = fs?.speed_analysis?.readings as Array<{ speed: number; direction: string }> | undefined;
-    if (!readings?.length) continue;
+    const { readings } = flattenSpeedAnalysis(fs?.speed_analysis);
+    if (!readings.length) continue;
     analyzedCount++;
     const speeds = readings.map((r) => r.speed);
     if (speeds.length) peakSpeeds.push(Math.max(...speeds));
@@ -214,8 +214,8 @@ async function loadOverviewData(athleteId: string) {
 
   const recent = sessions.slice(0, 3).map((s) => {
     const fs = fsBySession.get(s.id);
-    const readings = fs?.speed_analysis?.readings as Array<{ speed: number }> | undefined;
-    const peak = readings?.length ? Math.max(...readings.map((r) => r.speed)) : null;
+    const { readings } = flattenSpeedAnalysis(fs?.speed_analysis);
+    const peak = readings.length ? Math.max(...readings.map((r) => r.speed)) : null;
     return {
       id: s.id,
       sport: s.sport,
@@ -388,6 +388,29 @@ const ELITE_BENCHMARKS = {
   peakRetreat: 3.5,
 } as const;
 
+// Flatten speed_analysis JSONB into a single readings/tags pair.
+// Current shape: { periods: [{ readings: [...], tags: [...] }] }
+// Legacy shape: { readings: [...], tags: [...] }
+function flattenSpeedAnalysis(sa: any): {
+  readings: Array<{ time: number; speed: number; direction: string }>;
+  tags: Array<{ action: string; success: boolean; time: number }>;
+} {
+  if (!sa) return { readings: [], tags: [] };
+  if (Array.isArray(sa?.periods)) {
+    const readings: any[] = [];
+    const tags: any[] = [];
+    for (const p of sa.periods) {
+      if (Array.isArray(p?.readings)) readings.push(...p.readings);
+      if (Array.isArray(p?.tags)) tags.push(...p.tags);
+    }
+    return { readings, tags };
+  }
+  return {
+    readings: Array.isArray(sa?.readings) ? sa.readings : [],
+    tags: Array.isArray(sa?.tags) ? sa.tags : [],
+  };
+}
+
 type ProgressRow = {
   sessionId: string;
   date: string;
@@ -412,10 +435,11 @@ async function loadProgressRows(athleteId: string): Promise<ProgressRow[]> {
     .from("fencing_sessions")
     .select("session_id, opponent, result, speed_analysis")
     .in("session_id", ids);
+  console.log("[Progress] fetched fencing_sessions rows:", fsRows);
   const rows: ProgressRow[] = [];
   for (const fs of fsRows ?? []) {
-    const readings = (fs as any)?.speed_analysis?.readings as Array<{ speed: number; direction: string }> | undefined;
-    if (!readings?.length) continue;
+    const { readings } = flattenSpeedAnalysis((fs as any)?.speed_analysis);
+    if (!readings.length) continue;
     const s = sessions.find((x) => x.id === (fs as any).session_id);
     if (!s) continue;
     const speeds = readings.map((r) => r.speed);
@@ -589,15 +613,15 @@ async function loadAthleteAggregate(athleteId: string): Promise<{
   const latestSessionDate =
     (sess ?? []).map((s) => s.session_date).sort().slice(-1)[0] ?? null;
 
-  let analyses: Array<{ readings: Array<{ speed: number; direction: string }>; tags?: Array<{ action: string; success: boolean }> }> = [];
+  let analyses: Array<{ readings: Array<{ time: number; speed: number; direction: string }>; tags: Array<{ action: string; success: boolean; time: number }> }> = [];
   if (sessionIds.length) {
     const { data: fsRows } = await supabase
       .from("fencing_sessions")
       .select("speed_analysis")
       .in("session_id", sessionIds);
     analyses = (fsRows ?? [])
-      .map((r: any) => r.speed_analysis)
-      .filter((a: any) => a && Array.isArray(a.readings) && a.readings.length);
+      .map((r: any) => flattenSpeedAnalysis(r.speed_analysis))
+      .filter((a) => a.readings.length);
   }
 
   const peakSpeeds: number[] = [];
@@ -1005,8 +1029,8 @@ async function loadGoalCurrents(athleteId: string): Promise<Record<GoalMetricKey
   const allSpeeds: number[] = [];
 
   for (const r of rows) {
-    const readings = (r as any)?.speed_analysis?.readings as Array<{ speed: number; direction: string }> | undefined;
-    if (!readings?.length) continue;
+    const { readings } = flattenSpeedAnalysis((r as any)?.speed_analysis);
+    if (!readings.length) continue;
     const speeds = readings.map((x) => x.speed);
     peakSpeeds.push(Math.max(...speeds));
     allSpeeds.push(...speeds);
@@ -1374,9 +1398,10 @@ async function aggregateAthleteStats(athleteId: string) {
   const all: number[] = [];
   const allReadings: BenchReading[] = [];
   const actionSpeeds: Record<string, number[]> = {};
+  console.log("[Benchmarks] aggregateAthleteStats fsRows:", fsRows);
   for (const r of (fsRows ?? []) as any[]) {
-    const readings = r?.speed_analysis?.readings as BenchReading[] | undefined;
-    if (!readings?.length) continue;
+    const { readings, tags } = flattenSpeedAnalysis(r?.speed_analysis);
+    if (!readings.length) continue;
     const speeds = readings.map((x) => x.speed);
     peaks.push(Math.max(...speeds));
     all.push(...speeds);
@@ -1384,9 +1409,8 @@ async function aggregateAthleteStats(athleteId: string) {
     if (adv.length) advPeaks.push(Math.max(...adv));
     const ret = readings.filter((x) => x.direction === "retreat").map((x) => x.speed);
     if (ret.length) retPeaks.push(Math.max(...ret));
-    allReadings.push(...readings);
-    const tags = r?.speed_analysis?.tags as BenchActionTag[] | undefined;
-    if (tags?.length) {
+    allReadings.push(...(readings as BenchReading[]));
+    if (tags.length) {
       for (const tg of tags) {
         // find nearest reading
         let best = readings[0];
@@ -1399,6 +1423,7 @@ async function aggregateAthleteStats(athleteId: string) {
       }
     }
   }
+  console.log("[Benchmarks] aggregated readings count:", allReadings.length);
   const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
   result.peakSpeed = mean(peaks);
   result.avgSpeed = mean(all);
