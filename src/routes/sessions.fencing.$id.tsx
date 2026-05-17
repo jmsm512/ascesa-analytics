@@ -602,6 +602,9 @@ function PeriodSection({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
+  const [candidates, setCandidates] = useState<HipPoint[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [detectingPeople, setDetectingPeople] = useState(false);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
