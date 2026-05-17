@@ -1398,9 +1398,10 @@ async function aggregateAthleteStats(athleteId: string) {
   const all: number[] = [];
   const allReadings: BenchReading[] = [];
   const actionSpeeds: Record<string, number[]> = {};
+  console.log("[Benchmarks] aggregateAthleteStats fsRows:", fsRows);
   for (const r of (fsRows ?? []) as any[]) {
-    const readings = r?.speed_analysis?.readings as BenchReading[] | undefined;
-    if (!readings?.length) continue;
+    const { readings, tags } = flattenSpeedAnalysis(r?.speed_analysis);
+    if (!readings.length) continue;
     const speeds = readings.map((x) => x.speed);
     peaks.push(Math.max(...speeds));
     all.push(...speeds);
@@ -1409,8 +1410,7 @@ async function aggregateAthleteStats(athleteId: string) {
     const ret = readings.filter((x) => x.direction === "retreat").map((x) => x.speed);
     if (ret.length) retPeaks.push(Math.max(...ret));
     allReadings.push(...readings);
-    const tags = r?.speed_analysis?.tags as BenchActionTag[] | undefined;
-    if (tags?.length) {
+    if (tags.length) {
       for (const tg of tags) {
         // find nearest reading
         let best = readings[0];
@@ -1423,6 +1423,7 @@ async function aggregateAthleteStats(athleteId: string) {
       }
     }
   }
+  console.log("[Benchmarks] aggregated readings count:", allReadings.length);
   const mean = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
   result.peakSpeed = mean(peaks);
   result.avgSpeed = mean(all);
