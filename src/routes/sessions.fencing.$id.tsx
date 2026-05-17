@@ -795,6 +795,7 @@ function PeriodSection({
       setProgress({ cur: 0, total: times.length });
 
       const frames: Frame[] = [];
+      let lastHip: HipPoint | null = seedHip;
       for (let i = 0; i < times.length; i++) {
         const t = times[i];
         await new Promise<void>((res) => {
@@ -804,15 +805,16 @@ function PeriodSection({
         ctx.drawImage(v, 0, 0);
         try {
           const result = poseLandmarker.detectForVideo(c, Math.round(t * 1000));
-          const lm = result.landmarks?.[0];
-          if (lm && lm[23] && lm[24]) {
-            const nx = (lm[23].x + lm[24].x) / 2;
-            const ny = (lm[23].y + lm[24].y) / 2;
-            frames.push({ time: t, nx, ny, detected: true });
+          const picked = pickClosestHip(result.landmarks as any, lastHip);
+          if (picked) {
+            lastHip = picked;
+            frames.push({ time: t, nx: picked.nx, ny: picked.ny, detected: true });
           } else {
             frames.push({ time: t, nx: 0, ny: 0, detected: false });
           }
         } catch {
+          frames.push({ time: t, nx: 0, ny: 0, detected: false });
+        }
           frames.push({ time: t, nx: 0, ny: 0, detected: false });
         }
         setProgress({ cur: i + 1, total: times.length });
