@@ -613,15 +613,15 @@ async function loadAthleteAggregate(athleteId: string): Promise<{
   const latestSessionDate =
     (sess ?? []).map((s) => s.session_date).sort().slice(-1)[0] ?? null;
 
-  let analyses: Array<{ readings: Array<{ speed: number; direction: string }>; tags?: Array<{ action: string; success: boolean }> }> = [];
+  let analyses: Array<{ readings: Array<{ time: number; speed: number; direction: string }>; tags: Array<{ action: string; success: boolean; time: number }> }> = [];
   if (sessionIds.length) {
     const { data: fsRows } = await supabase
       .from("fencing_sessions")
       .select("speed_analysis")
       .in("session_id", sessionIds);
     analyses = (fsRows ?? [])
-      .map((r: any) => r.speed_analysis)
-      .filter((a: any) => a && Array.isArray(a.readings) && a.readings.length);
+      .map((r: any) => flattenSpeedAnalysis(r.speed_analysis))
+      .filter((a) => a.readings.length);
   }
 
   const peakSpeeds: number[] = [];
