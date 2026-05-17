@@ -1129,6 +1129,11 @@ function PeriodSection({
               <div className="metric-label mb-3">
                 Analyzing frame {progress.cur} of {progress.total}
               </div>
+              {candidates.length === 1 && (
+                <div className="mb-3 text-xs text-[var(--text-secondary)]">
+                  One athlete detected — tracking automatically.
+                </div>
+              )}
               <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--bg-elevated)]">
                 <div
                   className="h-full bg-[var(--accent)] transition-all"
