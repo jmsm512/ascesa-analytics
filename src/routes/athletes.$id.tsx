@@ -388,6 +388,29 @@ const ELITE_BENCHMARKS = {
   peakRetreat: 3.5,
 } as const;
 
+// Flatten speed_analysis JSONB into a single readings/tags pair.
+// Current shape: { periods: [{ readings: [...], tags: [...] }] }
+// Legacy shape: { readings: [...], tags: [...] }
+function flattenSpeedAnalysis(sa: any): {
+  readings: Array<{ time: number; speed: number; direction: string }>;
+  tags: Array<{ action: string; success: boolean; time: number }>;
+} {
+  if (!sa) return { readings: [], tags: [] };
+  if (Array.isArray(sa?.periods)) {
+    const readings: any[] = [];
+    const tags: any[] = [];
+    for (const p of sa.periods) {
+      if (Array.isArray(p?.readings)) readings.push(...p.readings);
+      if (Array.isArray(p?.tags)) tags.push(...p.tags);
+    }
+    return { readings, tags };
+  }
+  return {
+    readings: Array.isArray(sa?.readings) ? sa.readings : [],
+    tags: Array.isArray(sa?.tags) ? sa.tags : [],
+  };
+}
+
 type ProgressRow = {
   sessionId: string;
   date: string;
