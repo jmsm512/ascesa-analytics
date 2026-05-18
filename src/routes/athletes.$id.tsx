@@ -1900,36 +1900,34 @@ function ClipAnalyzer({
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
-  const MAX_VIDEO_MB = 150;
-
-  function onFile(file: File) {
-    const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > MAX_VIDEO_MB) {
-      setError(`File too large (${Math.round(sizeMB)} MB). Trim or compress.`);
-      return;
-    }
+  async function onFile(file: File) {
     setError(null);
     const isMov = /\.mov$/i.test(file.name) || file.type === "video/quicktime";
     setWarning(isMov ? "MOV files may not be supported. Convert to MP4 if upload fails." : null);
-    setStage("extracting");
     setPendingFile(file);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const url = reader.result as string;
-      setDataUrl(url);
-      try {
-        const { frame, dur } = await extractBenchFirstFrame(url);
-        setFirstFrame(frame);
-        setDuration(dur);
-        setPoints([]);
-        setStage("calibrate");
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to extract frame");
-        setStage("upload");
-      }
-    };
-    reader.onerror = () => { setError("Failed to read file"); setStage("upload"); };
-    reader.readAsDataURL(file);
+    setStage("uploading");
+    setUploadPct(0);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u.user?.id;
+      if (!userId) throw new Error("Not signed in");
+      const clipId = benchUid();
+      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+      const path = `${userId}/benchmarks/${fencerId}/${clipId}.${ext}`;
+      const { publicUrl } = await uploadVideoToStorage(file, path, setUploadPct);
+      setUploadedClipId(clipId);
+      setUploadedPath(path);
+      setDataUrl(publicUrl);
+      setStage("extracting");
+      const { frame, dur } = await extractBenchFirstFrame(publicUrl);
+      setFirstFrame(frame);
+      setDuration(dur);
+      setPoints([]);
+      setStage("calibrate");
+    } catch (e: any) {
+      setError(e?.message ?? "Upload failed");
+      setStage("upload");
+    }
   }
 
   function onImgClick(e: React.MouseEvent<HTMLImageElement>) {
@@ -1942,18 +1940,6 @@ function ClipAnalyzer({
     if (next.length === 2) setStage("select");
   }
 
-  async function persistVideo(file: File, clipId: string): Promise<string | null> {
-    const { data: u } = await supabase.auth.getUser();
-    const userId = u.user?.id;
-    if (!userId) return null;
-    const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
-    const path = `${userId}/benchmarks/${fencerId}/${clipId}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("videos")
-      .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
-    if (upErr) { console.error("clip upload failed", upErr); return null; }
-    return path;
-  }
 
   async function runAnalysis(seedHip: HipPoint | null) {
     if (!dataUrl || points.length < 2) return;
