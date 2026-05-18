@@ -694,7 +694,6 @@ function PeriodSection({
     return best;
   }
 
-  const MAX_VIDEO_MB = 150;
 
   async function onFile(file: File) {
     setError(null);
