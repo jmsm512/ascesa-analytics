@@ -837,6 +837,9 @@ function PeriodSection({
     setReadings([]);
     setTags([]);
     setProgress({ cur: 0, total: 0 });
+    setUploadedPath(null);
+    setUploadPct(0);
+    setPendingFile(null);
     setError(null);
     onChange({
       ...period,
