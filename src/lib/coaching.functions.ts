@@ -151,15 +151,26 @@ export const generateDrills = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<DrillsPlan> => {
     const ageStr = data.athleteAge ? String(data.athleteAge) : "teenage";
     const prompt = `You are an expert fencing coach. Athlete: ${data.athleteName}, age ${ageStr}, épée fencer. Session performance: Peak Speed ${data.peakSpeed.toFixed(2)} m/s, Avg Speed ${data.avgSpeed.toFixed(2)} m/s, Peak Advance ${data.peakAdvance.toFixed(2)} m/s, Peak Retreat ${data.peakRetreat.toFixed(2)} m/s. Tagged actions this session: ${data.tagsSummary}. Elite junior benchmarks: Peak Advance 3.5-5.0 m/s, Peak Retreat 3.0-4.5 m/s, Avg Speed 1.2-2.0 m/s. Based on the weakest metrics compared to benchmarks, prescribe exactly 3 targeted drills. For each drill provide: name, the specific weakness it addresses, step by step instructions in plain language, duration or reps, and a measurable target speed or metric to hit before moving on. Format as JSON: {drills: [{name: string, addresses: string, instructions: string[], duration: string, target: string}]}. Respond with ONLY the JSON, no markdown fences or commentary.`;
-    const cleaned = await callAnthropic(prompt);
-    const parsed = parseJsonLoose<{ drills: DrillPrescription[] }>(cleaned);
-    const drills = (parsed.drills ?? []).slice(0, 3).map((d) => ({
-      name: String(d.name ?? "Drill"),
-      addresses: String(d.addresses ?? ""),
-      instructions: Array.isArray(d.instructions) ? d.instructions.map((s) => String(s)) : [],
-      duration: String(d.duration ?? ""),
-      target: String(d.target ?? ""),
-    }));
+    let drills: DrillPrescription[];
+    try {
+      const cleaned = await callAnthropic(prompt, 2000);
+      const parsed = parseJsonLoose<{ drills: DrillPrescription[] }>(cleaned);
+      drills = (parsed.drills ?? []).slice(0, 3).map((d) => ({
+        name: String(d.name ?? "Drill"),
+        addresses: String(d.addresses ?? ""),
+        instructions: Array.isArray(d.instructions) ? d.instructions.map((s) => String(s)) : [],
+        duration: String(d.duration ?? ""),
+        target: String(d.target ?? ""),
+      }));
+    } catch (err) {
+      console.warn("generateDrills initial parse failed, retrying:", err);
+      try {
+        drills = await retryDrillsArray();
+      } catch (err2) {
+        console.error("generateDrills retry failed:", err2);
+        throw new Error("Drill generation failed — tap Regenerate to try again.");
+      }
+    }
     return { drills, generatedAt: new Date().toISOString(), completed: {} };
   });
 
