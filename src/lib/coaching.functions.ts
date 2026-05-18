@@ -195,23 +195,39 @@ export const generateAthleteDrillPlan = createServerFn({ method: "POST" })
       ? `Athlete-requested focus area: ${data.focusArea.trim()}. Bias the plan so that at least 2 of the prescribed drills directly target this focus, while still respecting the mix requirement above.`
       : "";
     const prompt = `You are an expert fencing coach. Athlete: ${data.athleteName}, age ${ageStr}, épée fencer. Aggregate performance across ${data.sessionCount} sessions: Average peak speed ${data.avgPeakSpeed.toFixed(2)} m/s, Average advance speed ${data.avgAdvanceSpeed.toFixed(2)} m/s, Average retreat speed ${data.avgRetreatSpeed.toFixed(2)} m/s, Average speed ${data.avgSpeed.toFixed(2)} m/s. Tagged action success rates: ${data.actionSuccessRates}. Elite junior benchmarks: Peak Speed 4-6 m/s, Avg Speed 1.2-2.0 m/s, Peak Advance 3.5-5.0 m/s, Peak Retreat 3.0-4.5 m/s. Based on the biggest gaps between current performance and benchmarks, and the action success rate data, prescribe between 3 and 5 targeted drills in priority order. ${mixRequirement} Mark each drill with a "kind" field set to exactly one of "solo", "partner", or "footwork". ${equipmentLine} ${focusLine} For each drill: name, what weakness it addresses, step by step instructions in plain language for a 14 year old, duration or reps, and a target the athlete can measure themselves using only a phone stopwatch or a training partner. Format as JSON: {drills: [{name: string, addresses: string, instructions: string[], duration: string, target: string, priority: 1|2|3, kind: "solo"|"partner"|"footwork"}]}. Respond with ONLY the JSON, no markdown fences or commentary.`;
-    const cleaned = await callAnthropic(prompt);
-    const parsed = parseJsonLoose<{ drills: AthleteDrillPrescription[] }>(cleaned);
-    const drills = (parsed.drills ?? []).slice(0, 5).map((d, i) => {
-      const pRaw = Number(d.priority);
-      const priority = (pRaw === 1 || pRaw === 2 || pRaw === 3 ? pRaw : Math.min(3, i + 1)) as 1 | 2 | 3;
-      const kRaw = String((d as { kind?: string }).kind ?? "").toLowerCase();
-      const kind: DrillKind = kRaw === "partner" ? "partner" : kRaw === "footwork" ? "footwork" : "solo";
-      return {
-        name: String(d.name ?? `Drill ${i + 1}`),
-        addresses: String(d.addresses ?? ""),
-        instructions: Array.isArray(d.instructions) ? d.instructions.map((s) => String(s)) : [],
-        duration: String(d.duration ?? ""),
-        target: String(d.target ?? ""),
-        priority,
-        kind,
-      };
-    });
+    let drills: AthleteDrillPrescription[];
+    try {
+      const cleaned = await callAnthropic(prompt, 2000);
+      const parsed = parseJsonLoose<{ drills: AthleteDrillPrescription[] }>(cleaned);
+      drills = (parsed.drills ?? []).slice(0, 5).map((d, i) => {
+        const pRaw = Number(d.priority);
+        const priority = (pRaw === 1 || pRaw === 2 || pRaw === 3 ? pRaw : Math.min(3, i + 1)) as 1 | 2 | 3;
+        const kRaw = String((d as { kind?: string }).kind ?? "").toLowerCase();
+        const kind: DrillKind = kRaw === "partner" ? "partner" : kRaw === "footwork" ? "footwork" : "solo";
+        return {
+          name: String(d.name ?? `Drill ${i + 1}`),
+          addresses: String(d.addresses ?? ""),
+          instructions: Array.isArray(d.instructions) ? d.instructions.map((s) => String(s)) : [],
+          duration: String(d.duration ?? ""),
+          target: String(d.target ?? ""),
+          priority,
+          kind,
+        };
+      });
+    } catch (err) {
+      console.warn("generateAthleteDrillPlan initial parse failed, retrying:", err);
+      try {
+        const fallback = await retryDrillsArray();
+        drills = fallback.map((d, i) => ({
+          ...d,
+          priority: Math.min(3, i + 1) as 1 | 2 | 3,
+          kind: "solo" as DrillKind,
+        }));
+      } catch (err2) {
+        console.error("generateAthleteDrillPlan retry failed:", err2);
+        throw new Error("Drill generation failed — tap Regenerate to try again.");
+      }
+    }
     drills.sort((a, b) => a.priority - b.priority);
     return {
       drills,
