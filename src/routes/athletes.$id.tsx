@@ -2081,7 +2081,8 @@ function ClipAnalyzer({
         >
           <Upload className="h-7 w-7 text-[var(--text-secondary)]" />
           <div className="text-sm font-medium">Upload {action} clip</div>
-          <div className="text-xs text-[var(--text-secondary)]">Short clip (a few seconds). MP4 recommended.</div>
+          <div className="text-xs text-[var(--text-secondary)]">Any size supported — video uploads directly to secure storage.</div>
+          <div className="text-xs text-[var(--text-secondary)]">MP4 recommended.</div>
           <input
             type="file"
             accept="video/*"
@@ -2089,6 +2090,14 @@ function ClipAnalyzer({
             onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
           />
         </label>
+      )}
+
+      {stage === "uploading" && (
+        <div className="space-y-3 p-6">
+          <div className="text-sm font-medium">Uploading video… {uploadPct}%</div>
+          <Progress value={uploadPct} />
+          <div className="text-xs text-[var(--text-secondary)]">Streaming directly to secure storage — large files OK.</div>
+        </div>
       )}
 
       {stage === "extracting" && (
