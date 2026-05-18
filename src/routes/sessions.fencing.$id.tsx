@@ -626,26 +626,6 @@ function PeriodSection({
     };
   }, [period.videoPath]);
 
-  async function persistVideo(file: File): Promise<string | null> {
-    try {
-      const { data: u } = await supabase.auth.getUser();
-      const userId = u.user?.id;
-      if (!userId) return null;
-      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
-      const path = `${userId}/${sessionId}/${period.id}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("videos")
-        .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
-      if (upErr) {
-        console.error("video upload failed", upErr);
-        return null;
-      }
-      return path;
-    } catch (e) {
-      console.error("persistVideo error", e);
-      return null;
-    }
-  }
 
   function commit(partial: Partial<Period>) {
     onChange({ ...period, ...partial, savedAt: new Date().toISOString() });
