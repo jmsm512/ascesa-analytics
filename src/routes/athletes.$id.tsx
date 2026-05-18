@@ -27,6 +27,8 @@ import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { pickClosestHip, type HipPoint } from "@/lib/video/poseTracking";
 import { AthleteSelector } from "@/components/AthleteSelector";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
+import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
+import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/athletes/$id")({
   ssr: false,
