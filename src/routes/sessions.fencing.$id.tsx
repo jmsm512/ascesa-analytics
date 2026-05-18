@@ -600,6 +600,8 @@ function PeriodSection({
   const [warning, setWarning] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploadedPath, setUploadedPath] = useState<string | null>(period.videoPath);
+  const [uploadPct, setUploadPct] = useState(0);
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
 
