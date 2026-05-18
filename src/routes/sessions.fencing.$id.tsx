@@ -828,11 +828,7 @@ function PeriodSection({
       setStage("results");
       setSaving(true);
       try {
-        let videoPath = period.videoPath;
-        if (pendingFile) {
-          const newPath = await persistVideo(pendingFile);
-          if (newPath) videoPath = newPath;
-        }
+        const videoPath = uploadedPath ?? period.videoPath;
         onChange({
           ...period,
           readings: out,
