@@ -27,6 +27,8 @@ import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { pickClosestHip, type HipPoint } from "@/lib/video/poseTracking";
 import { AthleteSelector } from "@/components/AthleteSelector";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
+import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
+import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/athletes/$id")({
   ssr: false,
@@ -1885,7 +1887,7 @@ function ClipAnalyzer({
   onCancel: () => void;
   onComplete: (clip: BenchClip) => Promise<void> | void;
 }) {
-  type Stage = "choose" | "upload" | "extracting" | "calibrate" | "select" | "analyzing" | "done";
+  type Stage = "choose" | "upload" | "uploading" | "extracting" | "calibrate" | "select" | "analyzing" | "done";
   const [stage, setStage] = useState<Stage>("choose");
   const [action, setAction] = useState<ClipAction>("Lunge");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -1894,39 +1896,40 @@ function ClipAnalyzer({
   const [duration, setDuration] = useState(0);
   const [points, setPoints] = useState<BenchPt[]>([]);
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
+  const [uploadedPath, setUploadedPath] = useState<string | null>(null);
+  const [uploadedClipId, setUploadedClipId] = useState<string | null>(null);
+  const [uploadPct, setUploadPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
-  const MAX_VIDEO_MB = 150;
-
-  function onFile(file: File) {
-    const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > MAX_VIDEO_MB) {
-      setError(`File too large (${Math.round(sizeMB)} MB). Trim or compress.`);
-      return;
-    }
+  async function onFile(file: File) {
     setError(null);
     const isMov = /\.mov$/i.test(file.name) || file.type === "video/quicktime";
     setWarning(isMov ? "MOV files may not be supported. Convert to MP4 if upload fails." : null);
-    setStage("extracting");
     setPendingFile(file);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const url = reader.result as string;
-      setDataUrl(url);
-      try {
-        const { frame, dur } = await extractBenchFirstFrame(url);
-        setFirstFrame(frame);
-        setDuration(dur);
-        setPoints([]);
-        setStage("calibrate");
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to extract frame");
-        setStage("upload");
-      }
-    };
-    reader.onerror = () => { setError("Failed to read file"); setStage("upload"); };
-    reader.readAsDataURL(file);
+    setStage("uploading");
+    setUploadPct(0);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u.user?.id;
+      if (!userId) throw new Error("Not signed in");
+      const clipId = benchUid();
+      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+      const path = `${userId}/benchmarks/${fencerId}/${clipId}.${ext}`;
+      const { publicUrl } = await uploadVideoToStorage(file, path, setUploadPct);
+      setUploadedClipId(clipId);
+      setUploadedPath(path);
+      setDataUrl(publicUrl);
+      setStage("extracting");
+      const { frame, dur } = await extractBenchFirstFrame(publicUrl);
+      setFirstFrame(frame);
+      setDuration(dur);
+      setPoints([]);
+      setStage("calibrate");
+    } catch (e: any) {
+      setError(e?.message ?? "Upload failed");
+      setStage("upload");
+    }
   }
 
   function onImgClick(e: React.MouseEvent<HTMLImageElement>) {
@@ -1939,18 +1942,6 @@ function ClipAnalyzer({
     if (next.length === 2) setStage("select");
   }
 
-  async function persistVideo(file: File, clipId: string): Promise<string | null> {
-    const { data: u } = await supabase.auth.getUser();
-    const userId = u.user?.id;
-    if (!userId) return null;
-    const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
-    const path = `${userId}/benchmarks/${fencerId}/${clipId}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from("videos")
-      .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
-    if (upErr) { console.error("clip upload failed", upErr); return null; }
-    return path;
-  }
 
   async function runAnalysis(seedHip: HipPoint | null) {
     if (!dataUrl || points.length < 2) return;
@@ -2029,9 +2020,8 @@ function ClipAnalyzer({
       }
 
       const speeds = out.map((r) => r.speed);
-      const clipId = benchUid();
-      let videoPath: string | null = null;
-      if (pendingFile) videoPath = await persistVideo(pendingFile, clipId);
+      const clipId = uploadedClipId ?? benchUid();
+      const videoPath: string | null = uploadedPath;
       const thumb = firstFrame ? await makeThumbnail(firstFrame, 320) : null;
       const clip: BenchClip = {
         id: clipId,
@@ -2091,7 +2081,8 @@ function ClipAnalyzer({
         >
           <Upload className="h-7 w-7 text-[var(--text-secondary)]" />
           <div className="text-sm font-medium">Upload {action} clip</div>
-          <div className="text-xs text-[var(--text-secondary)]">Short clip (a few seconds). MP4 recommended.</div>
+          <div className="text-xs text-[var(--text-secondary)]">Any size supported — video uploads directly to secure storage.</div>
+          <div className="text-xs text-[var(--text-secondary)]">MP4 recommended.</div>
           <input
             type="file"
             accept="video/*"
@@ -2099,6 +2090,14 @@ function ClipAnalyzer({
             onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
           />
         </label>
+      )}
+
+      {stage === "uploading" && (
+        <div className="space-y-3 p-6">
+          <div className="text-sm font-medium">Uploading video… {uploadPct}%</div>
+          <Progress value={uploadPct} />
+          <div className="text-xs text-[var(--text-secondary)]">Streaming directly to secure storage — large files OK.</div>
+        </div>
       )}
 
       {stage === "extracting" && (

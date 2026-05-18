@@ -47,6 +47,8 @@ import {
 } from "@/lib/video/poseTracking";
 import { AthleteSelector } from "@/components/AthleteSelector";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
+import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
+import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
   component: FencingSession,
@@ -561,7 +563,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 // ============= Period Section =============
 
-type Stage = "upload" | "extracting" | "calibrate" | "select" | "analyzing" | "results";
+type Stage = "upload" | "uploading" | "extracting" | "calibrate" | "select" | "analyzing" | "results";
 
 function PeriodSection({
   index,
@@ -600,6 +602,8 @@ function PeriodSection({
   const [warning, setWarning] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploadedPath, setUploadedPath] = useState<string | null>(period.videoPath);
+  const [uploadPct, setUploadPct] = useState(0);
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
 
@@ -622,26 +626,6 @@ function PeriodSection({
     };
   }, [period.videoPath]);
 
-  async function persistVideo(file: File): Promise<string | null> {
-    try {
-      const { data: u } = await supabase.auth.getUser();
-      const userId = u.user?.id;
-      if (!userId) return null;
-      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
-      const path = `${userId}/${sessionId}/${period.id}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("videos")
-        .upload(path, file, { contentType: file.type || "video/mp4", upsert: true });
-      if (upErr) {
-        console.error("video upload failed", upErr);
-        return null;
-      }
-      return path;
-    } catch (e) {
-      console.error("persistVideo error", e);
-      return null;
-    }
-  }
 
   function commit(partial: Partial<Period>) {
     onChange({ ...period, ...partial, savedAt: new Date().toISOString() });
@@ -690,39 +674,32 @@ function PeriodSection({
     return best;
   }
 
-  const MAX_VIDEO_MB = 150;
 
-  function onFile(file: File) {
-    const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > MAX_VIDEO_MB) {
-      setError(`File too large (${Math.round(sizeMB)} MB). Trim to under 2 minutes or compress: QuickTime → Export As → 1080p.`);
-      setWarning(null);
-      return;
-    }
+  async function onFile(file: File) {
     setError(null);
     const isMov = /\.mov$/i.test(file.name) || file.type === "video/quicktime";
     setWarning(isMov ? "MOV files may not be supported. If upload fails, open in QuickTime → Export As → 1080p to convert to MP4." : null);
-    setStage("extracting");
     setPendingFile(file);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const url = reader.result as string;
-      setDataUrl(url);
-      try {
-        const { frame, dur } = await extractFirstFrame(url);
-        setFirstFrame(frame);
-        setDuration(dur);
-        setStage("calibrate");
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to extract frame");
-        setStage("upload");
-      }
-    };
-    reader.onerror = () => {
-      setError("Failed to read file");
+    setStage("uploading");
+    setUploadPct(0);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u.user?.id;
+      if (!userId) throw new Error("Not signed in");
+      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+      const path = `${userId}/${sessionId}/${period.id}.${ext}`;
+      const { publicUrl } = await uploadVideoToStorage(file, path, setUploadPct);
+      setUploadedPath(path);
+      setDataUrl(publicUrl);
+      setStage("extracting");
+      const { frame, dur } = await extractFirstFrame(publicUrl);
+      setFirstFrame(frame);
+      setDuration(dur);
+      setStage("calibrate");
+    } catch (e: any) {
+      setError(e?.message ?? "Upload failed");
       setStage("upload");
-    };
-    reader.readAsDataURL(file);
+    }
   }
 
   function onImgClick(e: React.MouseEvent<HTMLImageElement>) {
@@ -831,11 +808,7 @@ function PeriodSection({
       setStage("results");
       setSaving(true);
       try {
-        let videoPath = period.videoPath;
-        if (pendingFile) {
-          const newPath = await persistVideo(pendingFile);
-          if (newPath) videoPath = newPath;
-        }
+        const videoPath = uploadedPath ?? period.videoPath;
         onChange({
           ...period,
           readings: out,
@@ -864,6 +837,9 @@ function PeriodSection({
     setReadings([]);
     setTags([]);
     setProgress({ cur: 0, total: 0 });
+    setUploadedPath(null);
+    setUploadPct(0);
+    setPendingFile(null);
     setError(null);
     onChange({
       ...period,
@@ -967,6 +943,7 @@ function PeriodSection({
             >
               <Upload className="h-7 w-7 text-[var(--text-secondary)]" />
               <div className="text-sm font-medium">Upload a clip for {period.label}</div>
+              <div className="text-xs text-[var(--text-secondary)]">Any size supported — video uploads directly to secure storage.</div>
               <div className="text-xs text-[var(--text-secondary)]">MP4 recommended · MOV may need conversion</div>
               <input
                 type="file"
@@ -975,6 +952,14 @@ function PeriodSection({
                 onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
               />
             </label>
+          )}
+
+          {stage === "uploading" && (
+            <div className="surface space-y-3 p-8">
+              <div className="text-sm font-medium">Uploading video… {uploadPct}%</div>
+              <Progress value={uploadPct} />
+              <div className="text-xs text-[var(--text-secondary)]">Streaming directly to secure storage — large files OK.</div>
+            </div>
           )}
 
           {stage === "extracting" && (
