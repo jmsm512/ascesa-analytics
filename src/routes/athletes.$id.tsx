@@ -1950,6 +1950,7 @@ function ClipAnalyzer({
     try {
       const v = document.createElement("video");
       v.muted = true; v.playsInline = true;
+      v.crossOrigin = "anonymous";
       await new Promise<void>((res, rej) => {
         v.addEventListener("loadeddata", () => res(), { once: true });
         v.addEventListener("error", () => rej(new Error(UNSUPPORTED_VIDEO_MESSAGE)), { once: true });
