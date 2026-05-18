@@ -64,7 +64,7 @@ export type AthleteDrillsInput = {
   focusArea?: string;
 };
 
-async function callAnthropic(prompt: string): Promise<string> {
+async function callAnthropic(prompt: string, maxTokens: number = 1500): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("Missing ANTHROPIC_API_KEY");
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -76,7 +76,7 @@ async function callAnthropic(prompt: string): Promise<string> {
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
-      max_tokens: 1500,
+      max_tokens: maxTokens,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -86,17 +86,46 @@ async function callAnthropic(prompt: string): Promise<string> {
   }
   const json = (await res.json()) as { content: Array<{ type: string; text?: string }> };
   const text = json.content?.find((c) => c.type === "text")?.text ?? "";
-  return text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+  return stripFences(text);
+}
+
+function stripFences(s: string): string {
+  return s
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .replace(/[\x00-\x1F\x7F]/g, (c) => (c === "\n" || c === "\t" ? c : ""))
+    .trim();
 }
 
 function parseJsonLoose<T>(cleaned: string): T {
+  const s = stripFences(cleaned);
   try {
-    return JSON.parse(cleaned) as T;
+    return JSON.parse(s) as T;
   } catch {
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("Failed to parse JSON from model output");
-    return JSON.parse(match[0]) as T;
+    const obj = s.match(/\{[\s\S]*\}/);
+    if (obj) return JSON.parse(obj[0]) as T;
+    const arr = s.match(/\[[\s\S]*\]/);
+    if (arr) return JSON.parse(arr[0]) as T;
+    throw new Error("Failed to parse JSON from model output");
   }
+}
+
+const DRILL_RETRY_PROMPT =
+  "Return ONLY a JSON array with exactly 3 drills. Keep each field under 100 words. No markdown. Format: [{name, addresses, instructions: [max 4 steps], duration, target, type}]";
+
+async function retryDrillsArray(): Promise<DrillPrescription[]> {
+  const cleaned = await callAnthropic(DRILL_RETRY_PROMPT, 2000);
+  const parsed = parseJsonLoose<unknown>(cleaned);
+  const arr = Array.isArray(parsed)
+    ? (parsed as DrillPrescription[])
+    : ((parsed as { drills?: DrillPrescription[] }).drills ?? []);
+  return arr.slice(0, 3).map((d) => ({
+    name: String(d.name ?? "Drill"),
+    addresses: String(d.addresses ?? ""),
+    instructions: Array.isArray(d.instructions) ? d.instructions.map((s) => String(s)) : [],
+    duration: String(d.duration ?? ""),
+    target: String(d.target ?? ""),
+  }));
 }
 
 export const generateCoachingSummary = createServerFn({ method: "POST" })
