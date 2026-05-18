@@ -723,6 +723,7 @@ function PeriodSection({
       const v = document.createElement("video");
       v.muted = true;
       v.playsInline = true;
+      v.crossOrigin = "anonymous";
       v.src = dataUrl;
       await new Promise<void>((res, rej) => {
         v.addEventListener("loadeddata", () => res(), { once: true });
