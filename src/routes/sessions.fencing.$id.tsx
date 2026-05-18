@@ -940,6 +940,7 @@ function PeriodSection({
             >
               <Upload className="h-7 w-7 text-[var(--text-secondary)]" />
               <div className="text-sm font-medium">Upload a clip for {period.label}</div>
+              <div className="text-xs text-[var(--text-secondary)]">Any size supported — video uploads directly to secure storage.</div>
               <div className="text-xs text-[var(--text-secondary)]">MP4 recommended · MOV may need conversion</div>
               <input
                 type="file"
@@ -948,6 +949,14 @@ function PeriodSection({
                 onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
               />
             </label>
+          )}
+
+          {stage === "uploading" && (
+            <div className="surface space-y-3 p-8">
+              <div className="text-sm font-medium">Uploading video… {uploadPct}%</div>
+              <Progress value={uploadPct} />
+              <div className="text-xs text-[var(--text-secondary)]">Streaming directly to secure storage — large files OK.</div>
+            </div>
           )}
 
           {stage === "extracting" && (
