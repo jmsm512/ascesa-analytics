@@ -47,6 +47,8 @@ import {
 } from "@/lib/video/poseTracking";
 import { AthleteSelector } from "@/components/AthleteSelector";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
+import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
+import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
   component: FencingSession,
