@@ -2018,9 +2018,8 @@ function ClipAnalyzer({
       }
 
       const speeds = out.map((r) => r.speed);
-      const clipId = benchUid();
-      let videoPath: string | null = null;
-      if (pendingFile) videoPath = await persistVideo(pendingFile, clipId);
+      const clipId = uploadedClipId ?? benchUid();
+      const videoPath: string | null = uploadedPath;
       const thumb = firstFrame ? await makeThumbnail(firstFrame, 320) : null;
       const clip: BenchClip = {
         id: clipId,
