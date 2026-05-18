@@ -1885,7 +1885,7 @@ function ClipAnalyzer({
   onCancel: () => void;
   onComplete: (clip: BenchClip) => Promise<void> | void;
 }) {
-  type Stage = "choose" | "upload" | "extracting" | "calibrate" | "select" | "analyzing" | "done";
+  type Stage = "choose" | "upload" | "uploading" | "extracting" | "calibrate" | "select" | "analyzing" | "done";
   const [stage, setStage] = useState<Stage>("choose");
   const [action, setAction] = useState<ClipAction>("Lunge");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -1894,6 +1894,9 @@ function ClipAnalyzer({
   const [duration, setDuration] = useState(0);
   const [points, setPoints] = useState<BenchPt[]>([]);
   const [progress, setProgress] = useState({ cur: 0, total: 0 });
+  const [uploadedPath, setUploadedPath] = useState<string | null>(null);
+  const [uploadedClipId, setUploadedClipId] = useState<string | null>(null);
+  const [uploadPct, setUploadPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
