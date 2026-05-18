@@ -696,37 +696,31 @@ function PeriodSection({
 
   const MAX_VIDEO_MB = 150;
 
-  function onFile(file: File) {
-    const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > MAX_VIDEO_MB) {
-      setError(`File too large (${Math.round(sizeMB)} MB). Trim to under 2 minutes or compress: QuickTime → Export As → 1080p.`);
-      setWarning(null);
-      return;
-    }
+  async function onFile(file: File) {
     setError(null);
     const isMov = /\.mov$/i.test(file.name) || file.type === "video/quicktime";
     setWarning(isMov ? "MOV files may not be supported. If upload fails, open in QuickTime → Export As → 1080p to convert to MP4." : null);
-    setStage("extracting");
     setPendingFile(file);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const url = reader.result as string;
-      setDataUrl(url);
-      try {
-        const { frame, dur } = await extractFirstFrame(url);
-        setFirstFrame(frame);
-        setDuration(dur);
-        setStage("calibrate");
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to extract frame");
-        setStage("upload");
-      }
-    };
-    reader.onerror = () => {
-      setError("Failed to read file");
+    setStage("uploading");
+    setUploadPct(0);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u.user?.id;
+      if (!userId) throw new Error("Not signed in");
+      const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
+      const path = `${userId}/${sessionId}/${period.id}.${ext}`;
+      const { publicUrl } = await uploadVideoToStorage(file, path, setUploadPct);
+      setUploadedPath(path);
+      setDataUrl(publicUrl);
+      setStage("extracting");
+      const { frame, dur } = await extractFirstFrame(publicUrl);
+      setFirstFrame(frame);
+      setDuration(dur);
+      setStage("calibrate");
+    } catch (e: any) {
+      setError(e?.message ?? "Upload failed");
       setStage("upload");
-    };
-    reader.readAsDataURL(file);
+    }
   }
 
   function onImgClick(e: React.MouseEvent<HTMLImageElement>) {
