@@ -692,11 +692,11 @@ function PeriodSection({
       if (!userId) throw new Error("Not signed in");
       const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
       const path = `${userId}/${sessionId}/${period.id}.${ext}`;
-      const { publicUrl } = await uploadVideoToStorage(file, path, setUploadPct);
+      const { signedUrl } = await uploadVideoToStorage(file, path, setUploadPct);
       setUploadedPath(path);
-      setDataUrl(publicUrl);
+      setDataUrl(signedUrl);
       setStage("extracting");
-      const { frame, dur } = await extractFirstFrame(publicUrl);
+      const { frame, dur } = await extractFirstFrame(signedUrl);
       setFirstFrame(frame);
       setDuration(dur);
       setStage("calibrate");
