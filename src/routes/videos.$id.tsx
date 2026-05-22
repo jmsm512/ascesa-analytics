@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { getVideo } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Sparkles, Play } from "lucide-react";
 
 export const Route = createFileRoute("/videos/$id")({
@@ -13,8 +15,21 @@ export const Route = createFileRoute("/videos/$id")({
 function VideoPage() {
   const { id } = Route.useParams();
   const v = useQuery({ queryKey: ["video", id], queryFn: () => getVideo(id) });
+  const feedback = useQuery({
+    queryKey: ["video-feedback", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("video_ai_feedback")
+        .select("*")
+        .eq("video_id", id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
   const [selected, setSelected] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   const video = v.data;
   const frames = Array.from({ length: 8 }).map((_, i) => i);
@@ -36,16 +51,24 @@ function VideoPage() {
               if (!video) return;
               const athlete = (video as any).athletes;
               if (!athlete) {
-                console.error("Video missing athlete data");
+                const msg = "Video is missing athlete data";
+                setAnalyzeError(msg);
+                toast.error(msg);
                 return;
               }
               setAnalyzing(true);
+              setAnalyzeError(null);
               try {
+                const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
                 const res = await fetch(
                   "https://yixcufjaoqofcloccyix.supabase.co/functions/v1/analyze-video",
                   {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${anonKey}`,
+                      apikey: anonKey,
+                    },
                     body: JSON.stringify({
                       video_id: video.id,
                       sport: athlete.sport,
@@ -55,13 +78,24 @@ function VideoPage() {
                   },
                 );
                 if (!res.ok) {
-                  const err = await res.text();
-                  console.error("analyze-video failed:", res.status, err);
+                  const errBody = await res.text();
+                  let msg = `Analyze failed (${res.status})`;
+                  try {
+                    const j = JSON.parse(errBody);
+                    if (j?.error) msg = j.error;
+                  } catch {
+                    if (errBody) msg = errBody.slice(0, 200);
+                  }
+                  setAnalyzeError(msg);
+                  toast.error(msg);
                 } else {
-                  await v.refetch();
+                  toast.success("Analysis complete");
+                  await Promise.all([v.refetch(), feedback.refetch()]);
                 }
               } catch (err) {
-                console.error("analyze-video error:", err);
+                const msg = err instanceof Error ? err.message : "Network error";
+                setAnalyzeError(msg);
+                toast.error(msg);
               } finally {
                 setAnalyzing(false);
               }
@@ -72,6 +106,12 @@ function VideoPage() {
             <Sparkles className="h-4 w-4" /> {analyzing ? "Analyzing…" : "Analyze video"}
           </button>
         </div>
+
+        {analyzeError && (
+          <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            {analyzeError}
+          </div>
+        )}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
           <div>
@@ -134,9 +174,29 @@ function VideoPage() {
                   <div className="h-3 w-4/5 animate-pulse rounded bg-[var(--bg-hover)]" />
                   <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--bg-hover)]" />
                 </div>
+              ) : feedback.data && feedback.data.length > 0 ? (
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                  {feedback.data.map((row: any) => {
+                    let parsed: any = null;
+                    try { parsed = JSON.parse(row.feedback); } catch {}
+                    return (
+                      <div key={row.id} className="rounded-md bg-[var(--bg-elevated)] p-2.5 text-xs text-[var(--text-secondary)]">
+                        {parsed?.frame_index != null && (
+                          <div className="metric-label mb-1">Frame {parsed.frame_index}</div>
+                        )}
+                        <p className="leading-relaxed">{parsed?.analysis ?? row.feedback}</p>
+                        {Array.isArray(parsed?.actionable_cues) && parsed.actionable_cues.length > 0 && (
+                          <ul className="mt-2 list-disc pl-4 space-y-0.5">
+                            {parsed.actionable_cues.map((c: string, i: number) => <li key={i}>{c}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
-                <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
-                  Strong forward lean and knee drive on initial steps. Consider extending arm swing through hips for a longer push phase.
+                <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+                  No analysis yet. Click "Analyze video" to generate AI feedback.
                 </p>
               )}
               <div className="mt-3 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
