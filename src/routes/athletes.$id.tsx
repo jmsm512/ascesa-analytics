@@ -1933,12 +1933,12 @@ function ClipAnalyzer({
       const clipId = benchUid();
       const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
       const path = `${userId}/benchmarks/${fencerId}/${clipId}.${ext}`;
-      const { publicUrl } = await uploadVideoToStorage(file, path, setUploadPct);
+      const { signedUrl } = await uploadVideoToStorage(file, path, setUploadPct);
       setUploadedClipId(clipId);
       setUploadedPath(path);
-      setDataUrl(publicUrl);
+      setDataUrl(signedUrl);
       setStage("extracting");
-      const { frame, dur } = await extractBenchFirstFrame(publicUrl);
+      const { frame, dur } = await extractBenchFirstFrame(signedUrl);
       setFirstFrame(frame);
       setDuration(dur);
       setPoints([]);
