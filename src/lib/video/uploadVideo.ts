@@ -48,13 +48,14 @@ export async function uploadVideoToStorage(
   });
   onProgress(100);
 
-  // Bucket is private — issue a long-lived signed URL for streaming/analysis.
+  // Bucket is private — issue a short-lived (1h) signed URL. Callers must re-sign
+  // on subsequent loads via supabase.storage.from("videos").createSignedUrl(path, 3600).
   const { data: signed, error: signErr } = await supabase.storage
     .from("videos")
-    .createSignedUrl(path, 60 * 60 * 24 * 7);
+    .createSignedUrl(path, 60 * 60);
   if (signErr || !signed?.signedUrl) {
     throw new Error(`Failed to sign uploaded video: ${signErr?.message ?? "no url"}`);
   }
-  return { path, publicUrl: signed.signedUrl };
+  return { path, signedUrl: signed.signedUrl };
 }
 
