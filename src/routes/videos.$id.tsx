@@ -51,16 +51,24 @@ function VideoPage() {
               if (!video) return;
               const athlete = (video as any).athletes;
               if (!athlete) {
-                console.error("Video missing athlete data");
+                const msg = "Video is missing athlete data";
+                setAnalyzeError(msg);
+                toast.error(msg);
                 return;
               }
               setAnalyzing(true);
+              setAnalyzeError(null);
               try {
+                const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
                 const res = await fetch(
                   "https://yixcufjaoqofcloccyix.supabase.co/functions/v1/analyze-video",
                   {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${anonKey}`,
+                      apikey: anonKey,
+                    },
                     body: JSON.stringify({
                       video_id: video.id,
                       sport: athlete.sport,
@@ -70,13 +78,24 @@ function VideoPage() {
                   },
                 );
                 if (!res.ok) {
-                  const err = await res.text();
-                  console.error("analyze-video failed:", res.status, err);
+                  const errBody = await res.text();
+                  let msg = `Analyze failed (${res.status})`;
+                  try {
+                    const j = JSON.parse(errBody);
+                    if (j?.error) msg = j.error;
+                  } catch {
+                    if (errBody) msg = errBody.slice(0, 200);
+                  }
+                  setAnalyzeError(msg);
+                  toast.error(msg);
                 } else {
-                  await v.refetch();
+                  toast.success("Analysis complete");
+                  await Promise.all([v.refetch(), feedback.refetch()]);
                 }
               } catch (err) {
-                console.error("analyze-video error:", err);
+                const msg = err instanceof Error ? err.message : "Network error";
+                setAnalyzeError(msg);
+                toast.error(msg);
               } finally {
                 setAnalyzing(false);
               }
@@ -87,6 +106,12 @@ function VideoPage() {
             <Sparkles className="h-4 w-4" /> {analyzing ? "Analyzing…" : "Analyze video"}
           </button>
         </div>
+
+        {analyzeError && (
+          <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+            {analyzeError}
+          </div>
+        )}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
           <div>
