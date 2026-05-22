@@ -2,7 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface UploadedVideo {
   path: string;
-  publicUrl: string;
+  /** Short-lived (1 hour) signed URL for immediate post-upload use. Re-sign on every load. */
+  signedUrl: string;
 }
 
 /**
