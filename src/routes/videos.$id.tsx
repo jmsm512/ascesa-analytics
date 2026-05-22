@@ -174,9 +174,29 @@ function VideoPage() {
                   <div className="h-3 w-4/5 animate-pulse rounded bg-[var(--bg-hover)]" />
                   <div className="h-3 w-2/3 animate-pulse rounded bg-[var(--bg-hover)]" />
                 </div>
+              ) : feedback.data && feedback.data.length > 0 ? (
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                  {feedback.data.map((row: any) => {
+                    let parsed: any = null;
+                    try { parsed = JSON.parse(row.feedback); } catch {}
+                    return (
+                      <div key={row.id} className="rounded-md bg-[var(--bg-elevated)] p-2.5 text-xs text-[var(--text-secondary)]">
+                        {parsed?.frame_index != null && (
+                          <div className="metric-label mb-1">Frame {parsed.frame_index}</div>
+                        )}
+                        <p className="leading-relaxed">{parsed?.analysis ?? row.feedback}</p>
+                        {Array.isArray(parsed?.actionable_cues) && parsed.actionable_cues.length > 0 && (
+                          <ul className="mt-2 list-disc pl-4 space-y-0.5">
+                            {parsed.actionable_cues.map((c: string, i: number) => <li key={i}>{c}</li>)}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
-                <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
-                  Strong forward lean and knee drive on initial steps. Consider extending arm swing through hips for a longer push phase.
+                <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+                  No analysis yet. Click "Analyze video" to generate AI feedback.
                 </p>
               )}
               <div className="mt-3 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
