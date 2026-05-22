@@ -662,6 +662,10 @@ function PeriodSection({
 
   function speedAt(t: number): Reading | null {
     if (!readings.length) return null;
+    const window = readings.filter((r) => r.time >= t && r.time <= t + 1.0);
+    if (window.length) {
+      return window.reduce((best, r) => (r.speed > best.speed ? r : best), window[0]);
+    }
     let best = readings[0];
     let bestDiff = Math.abs(best.time - t);
     for (const r of readings) {
@@ -1185,7 +1189,7 @@ function PeriodSection({
                         <th className="px-5 py-2 text-left">Time (s)</th>
                         <th className="px-5 py-2 text-left">Action</th>
                         <th className="px-5 py-2 text-left">Result</th>
-                        <th className="px-5 py-2 text-left">Speed (m/s)</th>
+                        <th className="px-5 py-2 text-left">Peak speed (1s window)</th>
                         <th className="px-5 py-2 text-left">Direction</th>
                         <th className="px-5 py-2 w-10" />
                       </tr>

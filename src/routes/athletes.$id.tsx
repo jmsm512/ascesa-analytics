@@ -1415,14 +1415,19 @@ async function aggregateAthleteStats(athleteId: string) {
     allReadings.push(...(readings as BenchReading[]));
     if (tags.length) {
       for (const tg of tags) {
-        // find nearest reading
-        let best = readings[0];
-        let bestDiff = Math.abs(best.time - tg.time);
-        for (const rd of readings) {
-          const d = Math.abs(rd.time - tg.time);
-          if (d < bestDiff) { best = rd; bestDiff = d; }
+        const window = readings.filter((rd) => rd.time >= tg.time && rd.time <= tg.time + 1.0);
+        if (window.length) {
+          const best = window.reduce((max, rd) => (rd.speed > max.speed ? rd : max), window[0]);
+          (actionSpeeds[tg.action] ||= []).push(best.speed);
+        } else if (readings.length) {
+          let best = readings[0];
+          let bestDiff = Math.abs(best.time - tg.time);
+          for (const rd of readings) {
+            const d = Math.abs(rd.time - tg.time);
+            if (d < bestDiff) { best = rd; bestDiff = d; }
+          }
+          (actionSpeeds[tg.action] ||= []).push(best.speed);
         }
-        (actionSpeeds[tg.action] ||= []).push(best.speed);
       }
     }
   }
@@ -1457,13 +1462,19 @@ function actionAvgFromAnalysis(readings: BenchReading[], tags: BenchActionTag[] 
   if (!tags?.length || !readings.length) return {};
   const speeds: Record<string, number[]> = {};
   for (const tg of tags) {
-    let best = readings[0];
-    let bestDiff = Math.abs(best.time - tg.time);
-    for (const r of readings) {
-      const d = Math.abs(r.time - tg.time);
-      if (d < bestDiff) { best = r; bestDiff = d; }
+    const window = readings.filter((r) => r.time >= tg.time && r.time <= tg.time + 1.0);
+    if (window.length) {
+      const best = window.reduce((max, r) => (r.speed > max.speed ? r : max), window[0]);
+      (speeds[tg.action] ||= []).push(best.speed);
+    } else {
+      let best = readings[0];
+      let bestDiff = Math.abs(best.time - tg.time);
+      for (const r of readings) {
+        const d = Math.abs(r.time - tg.time);
+        if (d < bestDiff) { best = r; bestDiff = d; }
+      }
+      (speeds[tg.action] ||= []).push(best.speed);
     }
-    (speeds[tg.action] ||= []).push(best.speed);
   }
   const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / xs.length;
   return Object.fromEntries(Object.entries(speeds).map(([k, v]) => [k, mean(v)]));
@@ -1598,13 +1609,19 @@ function actionAvgFromClips(clips: BenchClip[]): Record<string, number> {
     }
     if (c.tags?.length && c.readings?.length) {
       for (const tg of c.tags) {
-        let best = c.readings[0];
-        let bestDiff = Math.abs(best.time - tg.time);
-        for (const r of c.readings) {
-          const d = Math.abs(r.time - tg.time);
-          if (d < bestDiff) { best = r; bestDiff = d; }
+        const window = c.readings.filter((r) => r.time >= tg.time && r.time <= tg.time + 1.0);
+        if (window.length) {
+          const best = window.reduce((max, r) => (r.speed > max.speed ? r : max), window[0]);
+          (buckets[tg.action] ||= []).push(best.speed);
+        } else {
+          let best = c.readings[0];
+          let bestDiff = Math.abs(best.time - tg.time);
+          for (const r of c.readings) {
+            const d = Math.abs(r.time - tg.time);
+            if (d < bestDiff) { best = r; bestDiff = d; }
+          }
+          (buckets[tg.action] ||= []).push(best.speed);
         }
-        (buckets[tg.action] ||= []).push(best.speed);
       }
     }
   }
@@ -2204,6 +2221,10 @@ function ClipPlayerDialog({
 
   function speedAt(t: number) {
     if (!clip.readings.length) return null;
+    const window = clip.readings.filter((r) => r.time >= t && r.time <= t + 1.0);
+    if (window.length) {
+      return window.reduce((best, r) => (r.speed > best.speed ? r : best), window[0]);
+    }
     let best = clip.readings[0];
     let bestDiff = Math.abs(best.time - t);
     for (const r of clip.readings) {
@@ -2312,7 +2333,7 @@ function ClipPlayerDialog({
                     <th className="px-3 py-2 text-left">Time</th>
                     <th className="px-3 py-2 text-left">Action</th>
                     <th className="px-3 py-2 text-left">Result</th>
-                    <th className="px-3 py-2 text-left">Speed</th>
+                    <th className="px-3 py-2 text-left">Peak speed (1s window)</th>
                     <th className="px-3 py-2 w-8" />
                   </tr>
                 </thead>
@@ -2568,7 +2589,7 @@ function ActionComparisonTable({
       <div className="border-b border-[var(--border-subtle)] px-5 py-3">
         <div className="metric-label">Action Comparison</div>
         <p className="mt-1 text-xs text-[var(--text-secondary)]">
-          Avg speed at the moment each action was tagged. Green = within 10%, amber = 10–30% gap, red = more than 30% below.
+          Peak speed (1s window) averaged across tagged actions. Green = within 10%, amber = 10–30% gap, red = more than 30% below.
         </p>
       </div>
       <table className="w-full text-sm">
