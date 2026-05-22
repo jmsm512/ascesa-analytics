@@ -234,29 +234,41 @@ export type Database = {
         Row: {
           attack_speed_ms: number | null
           created_at: string
-          fencing_session_id: string
+          fencing_session_id: string | null
           footwork_cadence: number | null
           id: string
+          left_speed_ms: number | null
           rep_number: number
+          right_speed_ms: number | null
+          timestamp_seconds: number | null
           user_id: string
+          video_id: string | null
         }
         Insert: {
           attack_speed_ms?: number | null
           created_at?: string
-          fencing_session_id: string
+          fencing_session_id?: string | null
           footwork_cadence?: number | null
           id?: string
+          left_speed_ms?: number | null
           rep_number: number
+          right_speed_ms?: number | null
+          timestamp_seconds?: number | null
           user_id: string
+          video_id?: string | null
         }
         Update: {
           attack_speed_ms?: number | null
           created_at?: string
-          fencing_session_id?: string
+          fencing_session_id?: string | null
           footwork_cadence?: number | null
           id?: string
+          left_speed_ms?: number | null
           rep_number?: number
+          right_speed_ms?: number | null
+          timestamp_seconds?: number | null
           user_id?: string
+          video_id?: string | null
         }
         Relationships: [
           {
@@ -413,29 +425,41 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          rep_id: string
+          left_speed_ms: number | null
+          rep_id: string | null
+          right_speed_ms: number | null
           step_length: number | null
           step_number: number
           step_time: number | null
+          timestamp_seconds: number | null
           user_id: string
+          video_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
-          rep_id: string
+          left_speed_ms?: number | null
+          rep_id?: string | null
+          right_speed_ms?: number | null
           step_length?: number | null
           step_number: number
           step_time?: number | null
+          timestamp_seconds?: number | null
           user_id: string
+          video_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
-          rep_id?: string
+          left_speed_ms?: number | null
+          rep_id?: string | null
+          right_speed_ms?: number | null
           step_length?: number | null
           step_number?: number
           step_time?: number | null
+          timestamp_seconds?: number | null
           user_id?: string
+          video_id?: string | null
         }
         Relationships: [
           {
