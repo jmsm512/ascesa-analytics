@@ -2291,7 +2291,8 @@ function ClipPlayerDialog({
           )}
 
           <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-            <div className="metric-label mb-2">Tag action at {currentTime.toFixed(2)}s</div>
+            <div className="metric-label mb-1">Tag action at {currentTime.toFixed(2)}s</div>
+            <p className="mb-2 text-[11px] text-[var(--text-muted)]">Tag at the moment the action begins — the first movement of the feet.</p>
             <div className="flex flex-wrap gap-2">
               {BENCH_ACTION_TYPES.map((a) => (
                 <button
