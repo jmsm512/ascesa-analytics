@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { getVideo } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Sparkles, Play } from "lucide-react";
 
 export const Route = createFileRoute("/videos/$id")({
@@ -13,8 +15,21 @@ export const Route = createFileRoute("/videos/$id")({
 function VideoPage() {
   const { id } = Route.useParams();
   const v = useQuery({ queryKey: ["video", id], queryFn: () => getVideo(id) });
+  const feedback = useQuery({
+    queryKey: ["video-feedback", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("video_ai_feedback")
+        .select("*")
+        .eq("video_id", id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
   const [selected, setSelected] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   const video = v.data;
   const frames = Array.from({ length: 8 }).map((_, i) => i);
