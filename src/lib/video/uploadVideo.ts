@@ -47,6 +47,13 @@ export async function uploadVideoToStorage(
   });
   onProgress(100);
 
-  const { data } = supabase.storage.from("videos").getPublicUrl(path);
-  return { path, publicUrl: data.publicUrl };
+  // Bucket is private — issue a long-lived signed URL for streaming/analysis.
+  const { data: signed, error: signErr } = await supabase.storage
+    .from("videos")
+    .createSignedUrl(path, 60 * 60 * 24 * 7);
+  if (signErr || !signed?.signedUrl) {
+    throw new Error(`Failed to sign uploaded video: ${signErr?.message ?? "no url"}`);
+  }
+  return { path, publicUrl: signed.signedUrl };
 }
+
