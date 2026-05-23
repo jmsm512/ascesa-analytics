@@ -75,11 +75,9 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
       <p className="mb-4 text-xs text-[var(--text-secondary)]">
         {loading
           ? "Detecting fencers in the frame…"
-          : boxes && boxes.length > 1
+          : boxes && boxes.length >= 1
             ? "Click the fencer you want to track."
-            : boxes && boxes.length === 1
-              ? "One fencer detected — selecting automatically…"
-              : "No fencers detected. Try a different starting frame."}
+            : "No fencers detected. Try a different starting frame."}
       </p>
 
       {error && (
