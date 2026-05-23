@@ -173,7 +173,13 @@ function VideoPage() {
           </button>
         </div>
 
-        {analyzeError && (
+        {live.formatError && (
+          <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            {live.formatError}
+          </div>
+        )}
+
+
           <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
             {analyzeError}
           </div>
