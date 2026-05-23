@@ -40,12 +40,6 @@ import {
 } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
-import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
-import {
-  pickClosestHip,
-  type HipPoint,
-} from "@/lib/video/poseTracking";
-import { AthleteSelector } from "@/components/AthleteSelector";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
 import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
 import { Progress } from "@/components/ui/progress";
@@ -62,7 +56,6 @@ const TABS = ["Overview", "Video"] as const;
 // ============= Types =============
 
 type Pt = { x: number; y: number };
-type Frame = { time: number; nx: number; ny: number; detected: boolean };
 type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
 type ActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
 type ActionTag = { id: string; time: number; action: ActionType; success: boolean };
