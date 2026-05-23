@@ -1,12 +1,10 @@
 // Real-time MediaPipe Pose overlay on a playing <video>.
-// - Processes every 3rd frame to keep playback smooth
-// - Uses requestVideoFrameCallback when available, falls back to rAF
-// - Highlights left/right ankles with larger accent dots
-// - Buffers per-frame ankle speeds and flushes to the sport-specific table
+// Canvas drawing layer rebuilt to use @mediapipe/drawing_utils
+// (drawConnectors + drawLandmarks) on a sibling <canvas> sized 100%/100%.
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { loadPose, CONNECTIONS, type Landmark } from "./runPoseAnalysis";
+import { loadPose, MP_CDN, type Landmark } from "./runPoseAnalysis";
 
 export type LiveOverlayOpts = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -15,7 +13,7 @@ export type LiveOverlayOpts = {
   videoSrc: string | null;
   videoId: string | null;
   sport: "hockey" | "fencing";
-  color: string; // skeleton accent
+  color: string;
   debugColor?: string;
   enabled: boolean;
 };
@@ -26,8 +24,26 @@ export type LiveOverlayState = {
   framesProcessed: number;
 };
 
-// Sport-specific ankle highlight — bright contrasting color over the skeleton
-const ANKLE_COLOR = "#ffffff";
+const DRAWING_UTILS_SRC = "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js";
+
+function loadDrawingUtils(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if ((window as any).drawConnectors && (window as any).drawLandmarks) return resolve();
+    if (document.querySelector(`script[src="${DRAWING_UTILS_SRC}"]`)) {
+      const check = () => {
+        if ((window as any).drawConnectors) resolve();
+        else setTimeout(check, 50);
+      };
+      return check();
+    }
+    const s = document.createElement("script");
+    s.src = DRAWING_UTILS_SRC;
+    s.crossOrigin = "anonymous";
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Failed to load drawing_utils"));
+    document.head.appendChild(s);
+  });
+}
 
 export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
   const { videoRef, canvasRef, debugCanvasRef, videoSrc, videoId, sport, color, debugColor, enabled } = opts;
@@ -35,27 +51,20 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
   const [formatError, setFormatError] = useState<string | null>(null);
   const [framesProcessed, setFramesProcessed] = useState(0);
 
-  // refs to keep loop closure stable
   const busyRef = useRef(false);
   const frameCounterRef = useRef(0);
-  const lastAnklesRef = useRef<{
-    t: number;
-    left: Landmark | null;
-    right: Landmark | null;
-  } | null>(null);
+  const lastAnklesRef = useRef<{ t: number; left: Landmark | null; right: Landmark | null } | null>(null);
   const sampleBufferRef = useRef<
     { t: number; leftSpeed: number; rightSpeed: number; left: Landmark | null; right: Landmark | null }[]
   >([]);
   const flushTimerRef = useRef<number | null>(null);
 
-  // Detect MOV / quicktime up front so we can show a friendly message.
   useEffect(() => {
     if (!videoSrc) { setFormatError(null); return; }
     const isMov = /\.mov(\?|$)/i.test(videoSrc);
     setFormatError(isMov ? "Please convert to MP4 for pose detection" : null);
   }, [videoSrc]);
 
-  // Main detection loop
   useEffect(() => {
     if (!enabled || formatError) return;
     const video = videoRef.current;
@@ -68,8 +77,12 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
     let vfcId: number | null = null;
     const supportsVFC = typeof (video as any).requestVideoFrameCallback === "function";
 
+    // POSE_CONNECTIONS comes from the pose module on window
+    const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
+
     async function init() {
       try {
+        await loadDrawingUtils();
         pose = await loadPose();
         if (cancelled) return;
         pose.onResults((results: any) => {
@@ -84,80 +97,44 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
       }
     }
 
-    function syncCanvasToVideo() {
-      const v = videoRef.current;
+    function drawFrame(results: any) {
       const c = canvasRef.current;
-      if (!v || !c) return null;
-      const rect = v.getBoundingClientRect();
-      c.style.position = "fixed";
-      c.style.left = `${rect.left}px`;
-      c.style.top = `${rect.top}px`;
-      c.style.width = `${rect.width}px`;
-      c.style.height = `${rect.height}px`;
-      c.style.pointerEvents = "none";
-      c.style.zIndex = "9999";
-      c.style.background = "transparent";
-      const W = Math.max(1, Math.round(rect.width));
-      const H = Math.max(1, Math.round(rect.height));
+      const v = videoRef.current;
+      if (!c || !v) return;
+
+      const W = v.videoWidth || c.clientWidth;
+      const H = v.videoHeight || c.clientHeight;
       if (c.width !== W) c.width = W;
       if (c.height !== H) c.height = H;
-      return { rect, W, H };
-    }
 
-    function drawFrame(results: any) {
-      const synced = syncCanvasToVideo();
-      const c = canvasRef.current;
-      if (!c || !synced) return;
-      const { rect, W, H } = synced;
       const ctx = c.getContext("2d");
       if (!ctx) return;
-      ctx.clearRect(0, 0, W, H);
 
-      const lms: Landmark[] | undefined = results?.poseLandmarks;
+      ctx.save();
+      ctx.clearRect(0, 0, c.width, c.height);
+
+      const lms = results?.poseLandmarks;
       // eslint-disable-next-line no-console
-      console.log("[pose] canvas", { left: rect.left, top: rect.top, w: W, h: H, hasLandmarks: !!lms, drawing: !!lms });
-      if (!lms) return;
+      console.log("Drawing skeleton, landmarks:", lms?.length);
 
-      // skeleton
-      ctx.lineWidth = Math.max(2, Math.round(W / 500));
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-      for (const [a, b] of CONNECTIONS) {
-        const pa = lms[a]; const pb = lms[b];
-        if (!pa || !pb) continue;
-        if ((pa.visibility ?? 1) < 0.4 || (pb.visibility ?? 1) < 0.4) continue;
-        ctx.beginPath();
-        ctx.moveTo(pa.x * W, pa.y * H);
-        ctx.lineTo(pb.x * W, pb.y * H);
-        ctx.stroke();
+      if (lms) {
+        const draw = window as any;
+        const connections = (window as any).POSE_CONNECTIONS ?? POSE_CONNECTIONS;
+        if (draw.drawConnectors && connections) {
+          draw.drawConnectors(ctx, lms, connections, { color, lineWidth: 3 });
+        }
+        if (draw.drawLandmarks) {
+          draw.drawLandmarks(ctx, lms, { color: "#ffffff", lineWidth: 1, fillColor: color, radius: 3 });
+          // Highlight ankles (27, 28)
+          const ankles = [lms[27], lms[28]].filter(Boolean);
+          draw.drawLandmarks(ctx, ankles, { color: "#ffffff", lineWidth: 2, fillColor: "#ff3b3b", radius: 7 });
+        }
       }
-      // generic joint dots
-      const dot = Math.max(3, Math.round(W / 400));
-      for (let i = 0; i < lms.length; i++) {
-        if (i === 27 || i === 28) continue; // ankles drawn separately
-        const p = lms[i];
-        if ((p.visibility ?? 1) < 0.4) continue;
-        ctx.beginPath();
-        ctx.arc(p.x * W, p.y * H, dot, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // highlighted ankles
-      const ankleRadius = Math.max(7, Math.round(W / 140));
-      ctx.lineWidth = Math.max(2, Math.round(W / 600));
-      ctx.strokeStyle = color;
-      ctx.fillStyle = ANKLE_COLOR;
-      for (const idx of [27, 28]) {
-        const p = lms[idx];
-        if (!p || (p.visibility ?? 1) < 0.3) continue;
-        ctx.beginPath();
-        ctx.arc(p.x * W, p.y * H, ankleRadius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
+      ctx.restore();
 
-      // Mirror skeleton to optional debug canvas with dark background
+      // Debug mirror canvas
       const dbg = debugCanvasRef?.current;
-      if (dbg) {
+      if (dbg && lms) {
         if (dbg.width !== W) dbg.width = W;
         if (dbg.height !== H) dbg.height = H;
         const dctx = dbg.getContext("2d");
@@ -165,36 +142,25 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
           const dcolor = debugColor ?? "#00e5b4";
           dctx.fillStyle = "#0a0a0a";
           dctx.fillRect(0, 0, W, H);
-          dctx.lineWidth = Math.max(2, Math.round(W / 500));
-          dctx.strokeStyle = dcolor;
-          dctx.fillStyle = dcolor;
-          for (const [a, b] of CONNECTIONS) {
-            const pa = lms[a]; const pb = lms[b];
-            if (!pa || !pb) continue;
-            if ((pa.visibility ?? 1) < 0.4 || (pb.visibility ?? 1) < 0.4) continue;
-            dctx.beginPath();
-            dctx.moveTo(pa.x * W, pa.y * H);
-            dctx.lineTo(pb.x * W, pb.y * H);
-            dctx.stroke();
+          const draw = window as any;
+          const connections = (window as any).POSE_CONNECTIONS ?? POSE_CONNECTIONS;
+          if (draw.drawConnectors && connections) {
+            draw.drawConnectors(dctx, lms, connections, { color: dcolor, lineWidth: 3 });
           }
-          const ddot = Math.max(3, Math.round(W / 400));
-          for (let i = 0; i < lms.length; i++) {
-            const p = lms[i];
-            if ((p.visibility ?? 1) < 0.4) continue;
-            dctx.beginPath();
-            dctx.arc(p.x * W, p.y * H, ddot, 0, Math.PI * 2);
-            dctx.fill();
+          if (draw.drawLandmarks) {
+            draw.drawLandmarks(dctx, lms, { color: "#ffffff", lineWidth: 1, fillColor: dcolor, radius: 3 });
           }
         }
       }
 
-      // record ankle sample / speed
+      if (!lms) return;
+
+      // ankle speed sampling
       const left = lms[27] ?? null;
       const right = lms[28] ?? null;
-      const t = videoRef.current?.currentTime ?? 0;
+      const t = v.currentTime ?? 0;
       const prev = lastAnklesRef.current;
       const dt = prev ? Math.max(1 / 60, t - prev.t) : 0;
-      // Rough pixel→meter scale via nose↔ankle vertical distance
       const nose = lms[0];
       const ankleY = left && right ? (left.y + right.y) / 2 : (left ?? right)?.y;
       const heightM = sport === "hockey" ? 1.78 : 1.7;
@@ -236,10 +202,9 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
       busyRef.current = true;
       try {
         await pose.send({ image: v });
-      } catch (e) {
+      } catch {
         busyRef.current = false;
       }
-      // schedule() called again from onResults via next tick fallback
       schedule();
     }
 
@@ -299,10 +264,13 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
         const table = sport === "hockey" ? "hockey_step_data" : "fencing_sensor_reps";
         await supabase.from(table).insert(rows as any);
       } catch {
-        // best-effort: swallow to avoid breaking playback
+        // swallow
       }
     }
   }, [enabled, formatError, videoSrc, videoId, sport, color, debugColor, videoRef, canvasRef, debugCanvasRef]);
+
+  // Touch MP_CDN to keep import (silences unused warning in some builds)
+  void MP_CDN;
 
   return { ready, formatError, framesProcessed };
 }
