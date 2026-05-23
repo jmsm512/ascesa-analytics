@@ -22,7 +22,7 @@ export type SpeedSample = {
 };
 
 // MediaPipe POSE_CONNECTIONS subset for skeleton rendering
-const CONNECTIONS: [number, number][] = [
+export const CONNECTIONS: [number, number][] = [
   [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
   [11, 23], [12, 24], [23, 24],
   [23, 25], [25, 27], [27, 29], [29, 31], [27, 31],
