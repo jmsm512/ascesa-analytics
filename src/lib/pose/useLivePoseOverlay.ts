@@ -1,10 +1,13 @@
 // Real-time MediaPipe Pose overlay on a playing <video>.
-// Canvas drawing layer rebuilt to use @mediapipe/drawing_utils
-// (drawConnectors + drawLandmarks) on a sibling <canvas> sized 100%/100%.
+// Uses the SAME MediaPipe instance as detectPeopleOnImage (@mediapipe/tasks-vision
+// PoseLandmarker) — running in VIDEO mode — and draws inside that detection
+// callback with DrawingUtils from the same package.
 
 import { useEffect, useRef, useState } from "react";
+import { DrawingUtils, PoseLandmarker, type PoseLandmarkerResult } from "@mediapipe/tasks-vision";
 import { supabase } from "@/integrations/supabase/client";
-import { loadPose, MP_CDN, type Landmark } from "./runPoseAnalysis";
+import { createPoseLandmarker } from "@/lib/video/poseTracking";
+import type { Landmark } from "./runPoseAnalysis";
 
 export type LiveOverlayOpts = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -24,34 +27,12 @@ export type LiveOverlayState = {
   framesProcessed: number;
 };
 
-const DRAWING_UTILS_SRC = "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js";
-
-function loadDrawingUtils(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if ((window as any).drawConnectors && (window as any).drawLandmarks) return resolve();
-    if (document.querySelector(`script[src="${DRAWING_UTILS_SRC}"]`)) {
-      const check = () => {
-        if ((window as any).drawConnectors) resolve();
-        else setTimeout(check, 50);
-      };
-      return check();
-    }
-    const s = document.createElement("script");
-    s.src = DRAWING_UTILS_SRC;
-    s.crossOrigin = "anonymous";
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load drawing_utils"));
-    document.head.appendChild(s);
-  });
-}
-
 export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
   const { videoRef, canvasRef, debugCanvasRef, videoSrc, videoId, sport, color, debugColor, enabled } = opts;
   const [ready, setReady] = useState(false);
   const [formatError, setFormatError] = useState<string | null>(null);
   const [framesProcessed, setFramesProcessed] = useState(0);
 
-  const busyRef = useRef(false);
   const frameCounterRef = useRef(0);
   const lastAnklesRef = useRef<{ t: number; left: Landmark | null; right: Landmark | null } | null>(null);
   const sampleBufferRef = useRef<
@@ -72,24 +53,20 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
     if (!video || !canvas) return;
 
     let cancelled = false;
-    let pose: any = null;
+    let landmarker: PoseLandmarker | null = null;
     let rafId: number | null = null;
     let vfcId: number | null = null;
+    let lastVideoTimeMs = -1;
     const supportsVFC = typeof (video as any).requestVideoFrameCallback === "function";
-
-    // POSE_CONNECTIONS comes from the pose module on window
-    const POSE_CONNECTIONS = (window as any).POSE_CONNECTIONS;
 
     async function init() {
       try {
-        await loadDrawingUtils();
-        pose = await loadPose();
-        if (cancelled) return;
-        pose.onResults((results: any) => {
-          if (cancelled) return;
-          drawFrame(results);
-          busyRef.current = false;
+        landmarker = await createPoseLandmarker({
+          numPoses: 2,
+          runningMode: "VIDEO",
+          minConfidence: 0.5,
         });
+        if (cancelled) { landmarker?.close(); return; }
         setReady(true);
         schedule();
       } catch (e: any) {
@@ -97,7 +74,7 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
       }
     }
 
-    function drawFrame(results: any) {
+    function handleResults(results: PoseLandmarkerResult, tSec: number) {
       const c = canvasRef.current;
       const v = videoRef.current;
       if (!c || !v) return;
@@ -110,31 +87,27 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
       const ctx = c.getContext("2d");
       if (!ctx) return;
 
-      ctx.save();
       ctx.clearRect(0, 0, c.width, c.height);
 
-      const lms = results?.poseLandmarks;
+      const allLms = results?.landmarks ?? [];
       // eslint-disable-next-line no-console
-      console.log("Drawing skeleton, landmarks:", lms?.length);
+      console.log("Drawing skeleton, landmarks:", allLms[0]?.length);
 
-      if (lms) {
-        const draw = window as any;
-        const connections = (window as any).POSE_CONNECTIONS ?? POSE_CONNECTIONS;
-        if (draw.drawConnectors && connections) {
-          draw.drawConnectors(ctx, lms, connections, { color, lineWidth: 3 });
-        }
-        if (draw.drawLandmarks) {
-          draw.drawLandmarks(ctx, lms, { color: "#ffffff", lineWidth: 1, fillColor: color, radius: 3 });
-          // Highlight ankles (27, 28)
+      if (allLms.length) {
+        const utils = new DrawingUtils(ctx);
+        for (const lms of allLms) {
+          utils.drawConnectors(lms, PoseLandmarker.POSE_CONNECTIONS, { color, lineWidth: 3 });
+          utils.drawLandmarks(lms, { color: "#ffffff", fillColor: color, radius: 3, lineWidth: 1 });
           const ankles = [lms[27], lms[28]].filter(Boolean);
-          draw.drawLandmarks(ctx, ankles, { color: "#ffffff", lineWidth: 2, fillColor: "#ff3b3b", radius: 7 });
+          if (ankles.length) {
+            utils.drawLandmarks(ankles as any, { color: "#ffffff", fillColor: "#ff3b3b", radius: 7, lineWidth: 2 });
+          }
         }
       }
-      ctx.restore();
 
       // Debug mirror canvas
       const dbg = debugCanvasRef?.current;
-      if (dbg && lms) {
+      if (dbg && allLms.length) {
         if (dbg.width !== W) dbg.width = W;
         if (dbg.height !== H) dbg.height = H;
         const dctx = dbg.getContext("2d");
@@ -142,26 +115,22 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
           const dcolor = debugColor ?? "#00e5b4";
           dctx.fillStyle = "#0a0a0a";
           dctx.fillRect(0, 0, W, H);
-          const draw = window as any;
-          const connections = (window as any).POSE_CONNECTIONS ?? POSE_CONNECTIONS;
-          if (draw.drawConnectors && connections) {
-            draw.drawConnectors(dctx, lms, connections, { color: dcolor, lineWidth: 3 });
-          }
-          if (draw.drawLandmarks) {
-            draw.drawLandmarks(dctx, lms, { color: "#ffffff", lineWidth: 1, fillColor: dcolor, radius: 3 });
+          const dutils = new DrawingUtils(dctx);
+          for (const lms of allLms) {
+            dutils.drawConnectors(lms, PoseLandmarker.POSE_CONNECTIONS, { color: dcolor, lineWidth: 3 });
+            dutils.drawLandmarks(lms, { color: "#ffffff", fillColor: dcolor, radius: 3, lineWidth: 1 });
           }
         }
       }
 
-      if (!lms) return;
+      const primary = allLms[0];
+      if (!primary) return;
 
-      // ankle speed sampling
-      const left = lms[27] ?? null;
-      const right = lms[28] ?? null;
-      const t = v.currentTime ?? 0;
+      const left = primary[27] ?? null;
+      const right = primary[28] ?? null;
       const prev = lastAnklesRef.current;
-      const dt = prev ? Math.max(1 / 60, t - prev.t) : 0;
-      const nose = lms[0];
+      const dt = prev ? Math.max(1 / 60, tSec - prev.t) : 0;
+      const nose = primary[0];
       const ankleY = left && right ? (left.y + right.y) / 2 : (left ?? right)?.y;
       const heightM = sport === "hockey" ? 1.78 : 1.7;
       const span = nose && ankleY != null ? Math.abs(ankleY - nose.y) : 0;
@@ -181,29 +150,30 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
           rightSpeed = Math.hypot(dx, dy) / dt;
         }
       }
-      lastAnklesRef.current = { t, left, right };
-      sampleBufferRef.current.push({ t, leftSpeed, rightSpeed, left, right });
+      lastAnklesRef.current = { t: tSec, left: left as any, right: right as any };
+      sampleBufferRef.current.push({ t: tSec, leftSpeed, rightSpeed, left: left as any, right: right as any });
       setFramesProcessed((n) => n + 1);
       scheduleFlush();
     }
 
-    async function process() {
-      if (cancelled) return;
+    function process() {
+      if (cancelled || !landmarker) return;
       const v = videoRef.current;
-      if (!v || v.paused || v.ended || busyRef.current) {
-        schedule();
-        return;
-      }
+      if (!v || v.paused || v.ended) { schedule(); return; }
       frameCounterRef.current += 1;
-      if (frameCounterRef.current % 3 !== 0) {
-        schedule();
-        return;
-      }
-      busyRef.current = true;
+      if (frameCounterRef.current % 3 !== 0) { schedule(); return; }
+
+      const tSec = v.currentTime ?? 0;
+      const tMs = performance.now();
+      if (v.currentTime * 1000 === lastVideoTimeMs) { schedule(); return; }
+      lastVideoTimeMs = v.currentTime * 1000;
+
       try {
-        await pose.send({ image: v });
-      } catch {
-        busyRef.current = false;
+        const results = landmarker.detectForVideo(v, tMs);
+        handleResults(results, tSec);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("detectForVideo failed", err);
       }
       schedule();
     }
@@ -230,6 +200,7 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
         flushTimerRef.current = null;
       }
       flushNow();
+      landmarker?.close();
     };
 
     function scheduleFlush() {
@@ -268,9 +239,6 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
       }
     }
   }, [enabled, formatError, videoSrc, videoId, sport, color, debugColor, videoRef, canvasRef, debugCanvasRef]);
-
-  // Touch MP_CDN to keep import (silences unused warning in some builds)
-  void MP_CDN;
 
   return { ready, formatError, framesProcessed };
 }
