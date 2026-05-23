@@ -1986,25 +1986,7 @@ function ClipAnalyzer({
         setProgress({ cur: i + 1, total: times.length });
       }
 
-      const W = v.videoWidth, H = v.videoHeight;
-      const p0 = { x: points[0].x * W, y: points[0].y * H };
-      const p1 = { x: points[1].x * W, y: points[1].y * H };
-      const axis = { x: p1.x - p0.x, y: p1.y - p0.y };
-      const axisLen = Math.hypot(axis.x, axis.y);
-      const ux = axis.x / axisLen, uy = axis.y / axisLen;
-      const mPerPx = 14 / axisLen;
       const out: BenchReading[] = [];
-      const detected = frames.filter((f) => f.detected);
-      for (let i = 1; i < detected.length; i++) {
-        const a = detected[i - 1], b = detected[i];
-        const dx = (b.nx - a.nx) * W, dy = (b.ny - a.ny) * H;
-        const proj = dx * ux + dy * uy;
-        const dt = b.time - a.time;
-        if (dt <= 0) continue;
-        const speed = Math.abs(proj * mPerPx) / dt;
-        if (speed < 0.05 || speed > 10) continue;
-        out.push({ time: b.time, speed, direction: proj >= 0 ? "advance" : "retreat" });
-      }
 
       const speeds = out.map((r) => r.speed);
       const clipId = uploadedClipId ?? benchUid();
@@ -2129,19 +2111,10 @@ function ClipAnalyzer({
               <RotateCcw className="h-3.5 w-3.5" /> Reset
             </button>
             {points.length === 2 && (
-              <div className="self-center text-xs text-[var(--text-secondary)]">Calibration set — detecting athletes…</div>
+              <div className="self-center text-xs text-[var(--text-secondary)]">Calibration set — analyzing clip…</div>
             )}
           </div>
         </div>
-      )}
-
-      {stage === "select" && firstFrame && (
-        <AthleteSelector
-          firstFrame={firstFrame}
-          onBack={() => setStage("calibrate")}
-          onConfirm={(hip: HipPoint | null) => runAnalysis(hip)}
-          confirmLabel="Confirm — Analyze Clip"
-        />
       )}
 
       {stage === "analyzing" && (
