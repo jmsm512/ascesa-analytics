@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { getVideo } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 import { runPoseAnalysis, type SpeedSample } from "@/lib/pose/runPoseAnalysis";
+import { useLivePoseOverlay } from "@/lib/pose/useLivePoseOverlay";
 import { ArrowLeft, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/videos/$id")({
