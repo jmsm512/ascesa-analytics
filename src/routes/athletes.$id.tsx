@@ -23,9 +23,6 @@ import { cn } from "@/lib/utils";
 import { LineChart, Line, AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
 import { ArrowLeft, ArrowUpDown, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2, Upload, RotateCcw, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
-import { pickClosestHip, type HipPoint } from "@/lib/video/poseTracking";
-import { AthleteSelector } from "@/components/AthleteSelector";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
 import { Progress } from "@/components/ui/progress";
@@ -1311,7 +1308,6 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
 
 type BenchPt = { x: number; y: number };
 type BenchReading = { time: number; speed: number; direction: "advance" | "retreat" };
-type BenchFrame = { time: number; nx: number; ny: number; detected: boolean };
 type BenchActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
 type BenchActionTag = { id: string; time: number; action: BenchActionType; success: boolean };
 type BenchAnalysis = {
