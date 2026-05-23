@@ -49,10 +49,12 @@ function VideoPage() {
   const live = useLivePoseOverlay({
     videoRef,
     canvasRef,
+    debugCanvasRef,
     videoSrc: signedUrl,
     videoId: video?.id ?? null,
     sport,
     color: skeletonColor,
+    debugColor: "#00e5b4",
     enabled: !analyzing && !!signedUrl,
   });
 
