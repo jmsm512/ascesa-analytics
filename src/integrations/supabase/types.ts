@@ -504,6 +504,7 @@ export type Database = {
           session_type: string
           sport: string
           user_id: string
+          video_url: string | null
         }
         Insert: {
           athlete_id: string
@@ -516,6 +517,7 @@ export type Database = {
           session_type: string
           sport: string
           user_id: string
+          video_url?: string | null
         }
         Update: {
           athlete_id?: string
@@ -528,6 +530,7 @@ export type Database = {
           session_type?: string
           sport?: string
           user_id?: string
+          video_url?: string | null
         }
         Relationships: [
           {
