@@ -969,11 +969,25 @@ function PeriodSection({
                 </button>
                 {points.length === 2 && (
                   <div className="self-center text-xs text-[var(--text-secondary)]">
-                    Calibration set — analyzing clip…
+                    Calibration set.
                   </div>
                 )}
               </div>
             </div>
+          )}
+
+          {stage === "select-athlete" && firstFrame && (
+            <AthleteSelector
+              frameDataUrl={firstFrame}
+              onSelect={(idx) => {
+                setSelectedAthlete(idx);
+                void runAnalysis();
+              }}
+              onCancel={() => {
+                setPoints([]);
+                setStage("calibrate");
+              }}
+            />
           )}
 
           {stage === "analyzing" && (
