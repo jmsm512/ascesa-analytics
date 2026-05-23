@@ -39,6 +39,7 @@ export type Session = {
   location: string | null;
   notes: string | null;
   name: string | null;
+  video_url: string | null;
 };
 
 export async function listAthletes() {
@@ -127,7 +128,7 @@ export async function getFencingSession(sessionId: string) {
   }
 
   // Prefer video stored on the fencing_sessions row; fall back to videos table
-  let videoPath: string | null = (fs as any)?.video_url ?? null;
+  let videoPath: string | null = (fs as any)?.video_url ?? (session as any)?.video_url ?? null;
   if (!videoPath) {
     const { data: video } = await supabase
       .from("videos")
