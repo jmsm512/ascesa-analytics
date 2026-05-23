@@ -191,7 +191,7 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
       // record ankle sample / speed
       const left = lms[27] ?? null;
       const right = lms[28] ?? null;
-      const t = v.currentTime;
+      const t = videoRef.current?.currentTime ?? 0;
       const prev = lastAnklesRef.current;
       const dt = prev ? Math.max(1 / 60, t - prev.t) : 0;
       // Rough pixel→meter scale via nose↔ankle vertical distance
