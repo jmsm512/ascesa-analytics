@@ -136,6 +136,39 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
         ctx.stroke();
       }
 
+      // Mirror skeleton to optional debug canvas with dark background
+      const dbg = debugCanvasRef?.current;
+      if (dbg) {
+        if (dbg.width !== W) dbg.width = W;
+        if (dbg.height !== H) dbg.height = H;
+        const dctx = dbg.getContext("2d");
+        if (dctx) {
+          const dcolor = debugColor ?? "#00e5b4";
+          dctx.fillStyle = "#0a0a0a";
+          dctx.fillRect(0, 0, W, H);
+          dctx.lineWidth = Math.max(2, Math.round(W / 500));
+          dctx.strokeStyle = dcolor;
+          dctx.fillStyle = dcolor;
+          for (const [a, b] of CONNECTIONS) {
+            const pa = lms[a]; const pb = lms[b];
+            if (!pa || !pb) continue;
+            if ((pa.visibility ?? 1) < 0.4 || (pb.visibility ?? 1) < 0.4) continue;
+            dctx.beginPath();
+            dctx.moveTo(pa.x * W, pa.y * H);
+            dctx.lineTo(pb.x * W, pb.y * H);
+            dctx.stroke();
+          }
+          const ddot = Math.max(3, Math.round(W / 400));
+          for (let i = 0; i < lms.length; i++) {
+            const p = lms[i];
+            if ((p.visibility ?? 1) < 0.4) continue;
+            dctx.beginPath();
+            dctx.arc(p.x * W, p.y * H, ddot, 0, Math.PI * 2);
+            dctx.fill();
+          }
+        }
+      }
+
       // record ankle sample / speed
       const left = lms[27] ?? null;
       const right = lms[28] ?? null;
