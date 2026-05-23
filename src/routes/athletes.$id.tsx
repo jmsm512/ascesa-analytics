@@ -25,6 +25,7 @@ import { ArrowLeft, ArrowUpDown, ChevronRight, ChevronDown, Sparkles, RefreshCw,
 import { useNavigate } from "@tanstack/react-router";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
+import { AthleteSelector } from "@/components/AthleteSelector";
 import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/athletes/$id")({
