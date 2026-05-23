@@ -84,19 +84,38 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
       }
     }
 
-    function drawFrame(results: any) {
+    function syncCanvasToVideo() {
       const v = videoRef.current;
       const c = canvasRef.current;
-      if (!v || !c) return;
-      const W = v.videoWidth || c.clientWidth;
-      const H = v.videoHeight || c.clientHeight;
+      if (!v || !c) return null;
+      const rect = v.getBoundingClientRect();
+      c.style.position = "fixed";
+      c.style.left = `${rect.left}px`;
+      c.style.top = `${rect.top}px`;
+      c.style.width = `${rect.width}px`;
+      c.style.height = `${rect.height}px`;
+      c.style.pointerEvents = "none";
+      c.style.zIndex = "9999";
+      c.style.background = "transparent";
+      const W = Math.max(1, Math.round(rect.width));
+      const H = Math.max(1, Math.round(rect.height));
       if (c.width !== W) c.width = W;
       if (c.height !== H) c.height = H;
+      return { rect, W, H };
+    }
+
+    function drawFrame(results: any) {
+      const synced = syncCanvasToVideo();
+      const c = canvasRef.current;
+      if (!c || !synced) return;
+      const { rect, W, H } = synced;
       const ctx = c.getContext("2d");
       if (!ctx) return;
       ctx.clearRect(0, 0, W, H);
 
       const lms: Landmark[] | undefined = results?.poseLandmarks;
+      // eslint-disable-next-line no-console
+      console.log("[pose] canvas", { left: rect.left, top: rect.top, w: W, h: H, hasLandmarks: !!lms, drawing: !!lms });
       if (!lms) return;
 
       // skeleton
@@ -172,7 +191,7 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
       // record ankle sample / speed
       const left = lms[27] ?? null;
       const right = lms[28] ?? null;
-      const t = v.currentTime;
+      const t = videoRef.current?.currentTime ?? 0;
       const prev = lastAnklesRef.current;
       const dt = prev ? Math.max(1 / 60, t - prev.t) : 0;
       // Rough pixel→meter scale via nose↔ankle vertical distance
