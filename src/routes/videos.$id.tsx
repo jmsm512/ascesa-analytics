@@ -39,6 +39,7 @@ function VideoPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const debugCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const video = v.data as any;
   const athlete = video?.athletes;
