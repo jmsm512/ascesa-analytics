@@ -25,6 +25,7 @@ import { ArrowLeft, ArrowUpDown, ChevronRight, ChevronDown, Sparkles, RefreshCw,
 import { useNavigate } from "@tanstack/react-router";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
 import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
+import { AthleteSelector } from "@/components/AthleteSelector";
 import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/athletes/$id")({
@@ -1900,8 +1901,9 @@ function ClipAnalyzer({
   onCancel: () => void;
   onComplete: (clip: BenchClip) => Promise<void> | void;
 }) {
-  type Stage = "choose" | "upload" | "uploading" | "extracting" | "calibrate" | "analyzing" | "done";
+  type Stage = "choose" | "upload" | "uploading" | "extracting" | "calibrate" | "select-athlete" | "analyzing" | "done";
   const [stage, setStage] = useState<Stage>("choose");
+  const [, setSelectedAthlete] = useState<number | null>(null);
   const [action, setAction] = useState<ClipAction>("Lunge");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [dataUrl, setDataUrl] = useState<string | null>(null);
@@ -1952,7 +1954,7 @@ function ClipAnalyzer({
     const y = (e.clientY - rect.top) / rect.height;
     const next = [...points, { x, y }];
     setPoints(next);
-    if (next.length === 2) void runAnalysis();
+    if (next.length === 2) setStage("select-athlete");
   }
 
 
@@ -2111,10 +2113,24 @@ function ClipAnalyzer({
               <RotateCcw className="h-3.5 w-3.5" /> Reset
             </button>
             {points.length === 2 && (
-              <div className="self-center text-xs text-[var(--text-secondary)]">Calibration set — analyzing clip…</div>
+              <div className="self-center text-xs text-[var(--text-secondary)]">Calibration set.</div>
             )}
           </div>
         </div>
+      )}
+
+      {stage === "select-athlete" && firstFrame && (
+        <AthleteSelector
+          frameDataUrl={firstFrame}
+          onSelect={(idx) => {
+            setSelectedAthlete(idx);
+            void runAnalysis();
+          }}
+          onCancel={() => {
+            setPoints([]);
+            setStage("calibrate");
+          }}
+        />
       )}
 
       {stage === "analyzing" && (

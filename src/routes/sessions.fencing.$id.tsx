@@ -43,6 +43,7 @@ import { msToFps } from "@/lib/units";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
 import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
 import { Progress } from "@/components/ui/progress";
+import { AthleteSelector } from "@/components/AthleteSelector";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
   component: FencingSession,
@@ -556,7 +557,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 // ============= Period Section =============
 
-type Stage = "upload" | "uploading" | "extracting" | "calibrate" | "analyzing" | "results";
+type Stage = "upload" | "uploading" | "extracting" | "calibrate" | "select-athlete" | "analyzing" | "results";
 
 function PeriodSection({
   index,
@@ -599,6 +600,7 @@ function PeriodSection({
   const [uploadPct, setUploadPct] = useState(0);
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
+  const [selectedAthlete, setSelectedAthlete] = useState<number | null>(null);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
@@ -707,7 +709,8 @@ function PeriodSection({
     const next = [...points, { x, y }];
     setPoints(next);
     if (next.length === 2) {
-      void runAnalysis();
+      // Advance to athlete selection — detection happens in AthleteSelector.
+      setStage("select-athlete");
     }
   }
 
@@ -966,11 +969,25 @@ function PeriodSection({
                 </button>
                 {points.length === 2 && (
                   <div className="self-center text-xs text-[var(--text-secondary)]">
-                    Calibration set — analyzing clip…
+                    Calibration set.
                   </div>
                 )}
               </div>
             </div>
+          )}
+
+          {stage === "select-athlete" && firstFrame && (
+            <AthleteSelector
+              frameDataUrl={firstFrame}
+              onSelect={(idx) => {
+                setSelectedAthlete(idx);
+                void runAnalysis();
+              }}
+              onCancel={() => {
+                setPoints([]);
+                setStage("calibrate");
+              }}
+            />
           )}
 
           {stage === "analyzing" && (
