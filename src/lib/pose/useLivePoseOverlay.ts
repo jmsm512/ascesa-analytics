@@ -30,7 +30,7 @@ export type LiveOverlayState = {
 const ANKLE_COLOR = "#ffffff";
 
 export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
-  const { videoRef, canvasRef, videoSrc, videoId, sport, color, enabled } = opts;
+  const { videoRef, canvasRef, debugCanvasRef, videoSrc, videoId, sport, color, debugColor, enabled } = opts;
   const [ready, setReady] = useState(false);
   const [formatError, setFormatError] = useState<string | null>(null);
   const [framesProcessed, setFramesProcessed] = useState(0);
