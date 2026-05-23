@@ -1954,7 +1954,7 @@ function ClipAnalyzer({
     const y = (e.clientY - rect.top) / rect.height;
     const next = [...points, { x, y }];
     setPoints(next);
-    if (next.length === 2) void runAnalysis();
+    if (next.length === 2) setStage("select-athlete");
   }
 
 
