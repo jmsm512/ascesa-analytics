@@ -9,8 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { loadPose, CONNECTIONS, type Landmark } from "./runPoseAnalysis";
 
 export type LiveOverlayOpts = {
-  videoRef: React.RefObject<HTMLVideoElement>;
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   videoSrc: string | null;
   videoId: string | null;
   sport: "hockey" | "fencing";
