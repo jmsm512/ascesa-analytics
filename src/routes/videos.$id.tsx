@@ -45,6 +45,16 @@ function VideoPage() {
   const sport: "hockey" | "fencing" = athlete?.sport === "fencing" ? "fencing" : "hockey";
   const skeletonColor = sport === "fencing" ? "#a78bfa" : "#00e5b4";
 
+  const live = useLivePoseOverlay({
+    videoRef,
+    canvasRef,
+    videoSrc: signedUrl,
+    videoId: video?.id ?? null,
+    sport,
+    color: skeletonColor,
+    enabled: !analyzing && !!signedUrl,
+  });
+
   // Resolve a signed URL for the stored video
   useEffect(() => {
     let cancelled = false;
