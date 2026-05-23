@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { PoseOverlay } from "@/components/PoseOverlay";
@@ -34,8 +33,7 @@ function VideoPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const video = v.data as any;
-  const athlete = video?.athletes;
-  const sport: "hockey" | "fencing" = athlete?.sport === "fencing" ? "fencing" : "hockey";
+  const sport: "hockey" | "fencing" = video?.athletes?.sport === "fencing" ? "fencing" : "hockey";
 
   // Resolve a signed URL for the stored video
   useEffect(() => {
@@ -53,86 +51,6 @@ function VideoPage() {
     })();
     return () => { cancelled = true; };
   }, [video?.video_url]);
-
-  async function handleAnalyze() {
-    if (!video) return;
-    if (!athlete) { toast.error("Video is missing athlete data"); return; }
-    const videoEl = videoRef.current;
-    const canvasEl = canvasRef.current;
-    if (!videoEl || !canvasEl) { toast.error("Video element not ready"); return; }
-    if (!signedUrl) { toast.error("Video file not available"); return; }
-
-    setAnalyzing(true);
-    setAnalyzeError(null);
-    setProgress(0);
-    setSamples(null);
-
-    try {
-      setPhase("Detecting pose…");
-      const speeds = await runPoseAnalysis({
-        video: videoEl,
-        canvas: canvasEl,
-        color: skeletonColor,
-        fps: 6,
-        athleteHeightM: athlete.sport === "hockey" ? 1.78 : 1.7,
-        onProgress: (p) => setProgress(p),
-      });
-      setSamples(speeds);
-
-      // Persist per-frame ankle speed samples
-      setPhase("Saving frames…");
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
-      if (userId && speeds.length) {
-        const rows = speeds.map((s, i) => ({
-          user_id: userId,
-          video_id: video.id,
-          timestamp_seconds: Number(s.t.toFixed(3)),
-          left_speed_ms: Number(s.leftSpeed.toFixed(3)),
-          right_speed_ms: Number(s.rightSpeed.toFixed(3)),
-          ...(sport === "hockey"
-            ? { step_number: i + 1 }
-            : { rep_number: i + 1, attack_speed_ms: Number(Math.max(s.leftSpeed, s.rightSpeed).toFixed(3)) }),
-        }));
-        const table = sport === "hockey" ? "hockey_step_data" : "fencing_sensor_reps";
-        // Clear previous samples for this video, then insert
-        await supabase.from(table).delete().eq("video_id", video.id);
-        const { error } = await supabase.from(table).insert(rows as any);
-        if (error) throw error;
-      }
-
-      // Trigger AI feedback via existing edge function
-      setPhase("Generating AI feedback…");
-      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
-      const res = await fetch(
-        "https://yixcufjaoqofcloccyix.supabase.co/functions/v1/analyze-video",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}`, apikey: anonKey },
-          body: JSON.stringify({ video_id: video.id, sport: athlete.sport, athlete_name: athlete.name, age: athlete.age }),
-        },
-      );
-      if (!res.ok) {
-        const t = await res.text();
-        let msg = `AI feedback failed (${res.status})`;
-        try { const j = JSON.parse(t); if (j?.error) msg = j.error; } catch { if (t) msg = t.slice(0, 200); }
-        toast.warning(msg);
-      }
-
-      await Promise.all([v.refetch(), feedback.refetch()]);
-      toast.success("Pose analysis complete");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Analysis failed";
-      setAnalyzeError(msg);
-      toast.error(msg);
-    } finally {
-      setAnalyzing(false);
-      setPhase("");
-    }
-  }
-
-  const peakLeft = samples?.reduce((m, s) => Math.max(m, s.leftSpeed), 0) ?? 0;
-  const peakRight = samples?.reduce((m, s) => Math.max(m, s.rightSpeed), 0) ?? 0;
 
   return (
     <RequireAuth>
