@@ -40,12 +40,6 @@ import {
 } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
-import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
-import {
-  pickClosestHip,
-  type HipPoint,
-} from "@/lib/video/poseTracking";
-import { AthleteSelector } from "@/components/AthleteSelector";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
 import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
 import { Progress } from "@/components/ui/progress";
@@ -62,7 +56,6 @@ const TABS = ["Overview", "Video"] as const;
 // ============= Types =============
 
 type Pt = { x: number; y: number };
-type Frame = { time: number; nx: number; ny: number; detected: boolean };
 type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
 type ActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
 type ActionTag = { id: string; time: number; action: ActionType; success: boolean };
@@ -563,7 +556,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 // ============= Period Section =============
 
-type Stage = "upload" | "uploading" | "extracting" | "calibrate" | "select" | "analyzing" | "results";
+type Stage = "upload" | "uploading" | "extracting" | "calibrate" | "analyzing" | "results";
 
 function PeriodSection({
   index,
@@ -714,12 +707,11 @@ function PeriodSection({
     const next = [...points, { x, y }];
     setPoints(next);
     if (next.length === 2) {
-      // Calibration done — advance to athlete selection
-      setStage("select");
+      void runAnalysis();
     }
   }
 
-  async function runAnalysis(seedHip: HipPoint | null) {
+  async function runAnalysis() {
     if (!dataUrl || points.length < 2) return;
     setStage("analyzing");
     setError(null);
@@ -738,26 +730,11 @@ function PeriodSection({
       c.height = v.videoHeight;
       const ctx = c.getContext("2d")!;
 
-      const fileset = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
-      );
-      const poseLandmarker = await PoseLandmarker.createFromOptions(fileset, {
-        baseOptions: {
-          modelAssetPath:
-            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-          delegate: "GPU",
-        },
-        runningMode: "VIDEO",
-        numPoses: 6,
-      });
-
       const step = 0.3;
       const times: number[] = [];
       for (let t = 0; t < v.duration; t += step) times.push(t);
       setProgress({ cur: 0, total: times.length });
 
-      const frames: Frame[] = [];
-      let lastHip: HipPoint | null = seedHip;
       for (let i = 0; i < times.length; i++) {
         const t = times[i];
         await new Promise<void>((res) => {
@@ -765,50 +742,10 @@ function PeriodSection({
           v.currentTime = t;
         });
         ctx.drawImage(v, 0, 0);
-        try {
-          const result = poseLandmarker.detectForVideo(c, Math.round(t * 1000));
-          const picked = pickClosestHip(result.landmarks as any, lastHip);
-          if (picked) {
-            lastHip = picked;
-            frames.push({ time: t, nx: picked.nx, ny: picked.ny, detected: true });
-          } else {
-            frames.push({ time: t, nx: 0, ny: 0, detected: false });
-          }
-        } catch {
-          frames.push({ time: t, nx: 0, ny: 0, detected: false });
-        }
         setProgress({ cur: i + 1, total: times.length });
       }
 
-      poseLandmarker.close();
-
-      const W = v.videoWidth, H = v.videoHeight;
-      const p0 = { x: points[0].x * W, y: points[0].y * H };
-      const p1 = { x: points[1].x * W, y: points[1].y * H };
-      const axis = { x: p1.x - p0.x, y: p1.y - p0.y };
-      const axisLen = Math.hypot(axis.x, axis.y);
-      const ux = axis.x / axisLen;
-      const uy = axis.y / axisLen;
-      const mPerPx = 14 / axisLen;
-
       const out: Reading[] = [];
-      const detected = frames.filter((f) => f.detected);
-      for (let i = 1; i < detected.length; i++) {
-        const a = detected[i - 1];
-        const b = detected[i];
-        const dx = (b.nx - a.nx) * W;
-        const dy = (b.ny - a.ny) * H;
-        const proj = dx * ux + dy * uy;
-        const dt = b.time - a.time;
-        if (dt <= 0) continue;
-        const speed = Math.abs(proj * mPerPx) / dt;
-        if (speed < 0.05 || speed > 10) continue;
-        out.push({
-          time: b.time,
-          speed,
-          direction: proj >= 0 ? "advance" : "retreat",
-        });
-      }
       setReadings(out);
       setStage("results");
       setSaving(true);
@@ -1029,21 +966,10 @@ function PeriodSection({
                 </button>
                 {points.length === 2 && (
                   <div className="self-center text-xs text-[var(--text-secondary)]">
-                    Calibration set — detecting athletes…
+                    Calibration set — analyzing clip…
                   </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {stage === "select" && firstFrame && (
-            <div className="surface p-5">
-              <AthleteSelector
-                firstFrame={firstFrame}
-                onBack={() => setStage("calibrate")}
-                onConfirm={(hip: HipPoint | null) => runAnalysis(hip)}
-                confirmLabel="Confirm — Analyze Video"
-              />
             </div>
           )}
 
