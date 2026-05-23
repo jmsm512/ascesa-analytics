@@ -192,22 +192,31 @@ function VideoPage() {
           <div>
             <div className="surface relative aspect-video overflow-hidden bg-black">
               {signedUrl ? (
-                <video
-                  ref={videoRef}
-                  src={signedUrl}
-                  controls
-                  playsInline
-                  crossOrigin="anonymous"
-                  className="absolute inset-0 z-0 h-full w-full object-contain"
-                />
+                <div style={{ position: "relative", width: "100%", height: "100%" }}>
+                  <video
+                    ref={videoRef}
+                    src={signedUrl}
+                    controls
+                    playsInline
+                    crossOrigin="anonymous"
+                    className="h-full w-full object-contain"
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: "100%",
+                      zIndex: 50,
+                      pointerEvents: "none",
+                    }}
+                  />
+                </div>
               ) : (
                 <div className="grid h-full place-items-center text-[var(--text-muted)]">Loading video…</div>
               )}
-              <canvas
-                ref={canvasRef}
-                className="pointer-events-none"
-                style={{ position: "fixed", left: 0, top: 0, zIndex: 9999, background: "transparent" }}
-              />
             </div>
 
             <div className="surface mt-3 overflow-hidden">
