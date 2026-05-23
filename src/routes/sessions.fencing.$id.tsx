@@ -688,6 +688,16 @@ function PeriodSection({
       const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
       const path = `${userId}/${sessionId}/${period.id}.${ext}`;
       const { signedUrl } = await uploadVideoToStorage(file, path, setUploadPct);
+      const { error: sessionVideoError } = await supabase
+        .from("sessions")
+        .update({ video_url: path })
+        .eq("id", sessionId);
+      if (sessionVideoError) throw sessionVideoError;
+      const { error: fencingVideoError } = await supabase
+        .from("fencing_sessions")
+        .update({ video_url: path } as any)
+        .eq("session_id", sessionId);
+      if (fencingVideoError) throw fencingVideoError;
       setUploadedPath(path);
       setDataUrl(signedUrl);
       // Persist the storage path to the session record immediately so the
