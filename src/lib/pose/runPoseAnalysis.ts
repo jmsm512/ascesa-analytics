@@ -2,10 +2,10 @@
 // Loads MediaPipe Pose from CDN, walks a <video> element frame-by-frame,
 // draws the skeleton onto a <canvas>, and emits per-frame ankle speeds (m/s).
 
-const MP_VERSION = "0.5.1675469404";
-const MP_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/pose@${MP_VERSION}`;
+export const MP_VERSION = "0.5.1675469404";
+export const MP_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/pose@${MP_VERSION}`;
 
-type Landmark = { x: number; y: number; z: number; visibility?: number };
+export type Landmark = { x: number; y: number; z: number; visibility?: number };
 
 export type FrameSample = {
   t: number; // seconds
@@ -22,7 +22,7 @@ export type SpeedSample = {
 };
 
 // MediaPipe POSE_CONNECTIONS subset for skeleton rendering
-const CONNECTIONS: [number, number][] = [
+export const CONNECTIONS: [number, number][] = [
   [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
   [11, 23], [12, 24], [23, 24],
   [23, 25], [25, 27], [27, 29], [29, 31], [27, 31],
@@ -43,7 +43,7 @@ function loadScript(src: string): Promise<void> {
 }
 
 let poseModulePromise: Promise<any> | null = null;
-async function loadPose() {
+export async function loadPose() {
   if (!poseModulePromise) {
     poseModulePromise = (async () => {
       await loadScript(`${MP_CDN}/pose.js`);

@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { getVideo } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 import { runPoseAnalysis, type SpeedSample } from "@/lib/pose/runPoseAnalysis";
+import { useLivePoseOverlay } from "@/lib/pose/useLivePoseOverlay";
 import { ArrowLeft, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/videos/$id")({
@@ -43,6 +44,16 @@ function VideoPage() {
   const athlete = video?.athletes;
   const sport: "hockey" | "fencing" = athlete?.sport === "fencing" ? "fencing" : "hockey";
   const skeletonColor = sport === "fencing" ? "#a78bfa" : "#00e5b4";
+
+  const live = useLivePoseOverlay({
+    videoRef,
+    canvasRef,
+    videoSrc: signedUrl,
+    videoId: video?.id ?? null,
+    sport,
+    color: skeletonColor,
+    enabled: !analyzing && !!signedUrl,
+  });
 
   // Resolve a signed URL for the stored video
   useEffect(() => {
@@ -161,6 +172,12 @@ function VideoPage() {
             <Sparkles className="h-4 w-4" /> {analyzing ? "Analyzing…" : "Analyze video"}
           </button>
         </div>
+
+        {live.formatError && (
+          <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            {live.formatError}
+          </div>
+        )}
 
         {analyzeError && (
           <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
