@@ -195,16 +195,18 @@ function VideoPage() {
                   controls
                   playsInline
                   crossOrigin="anonymous"
-                  className="absolute inset-0 h-full w-full object-contain"
+                  className="absolute inset-0 z-0 h-full w-full object-contain"
                 />
               ) : (
                 <div className="grid h-full place-items-center text-[var(--text-muted)]">Loading video…</div>
               )}
               <canvas
                 ref={canvasRef}
-                className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+                className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain"
+                style={{ background: "transparent" }}
               />
             </div>
+
 
             {analyzing && (
               <div className="surface mt-3 p-3 text-xs text-[var(--text-secondary)]">
