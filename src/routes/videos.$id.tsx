@@ -210,6 +210,21 @@ function VideoPage() {
               />
             </div>
 
+            <div className="surface mt-3 overflow-hidden">
+              <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                <span>Debug · Pose skeleton mirror</span>
+                <span style={{ color: "#00e5b4" }}>{live.framesProcessed} frames</span>
+              </div>
+              <div className="relative aspect-video bg-[#0a0a0a]">
+                <canvas
+                  ref={debugCanvasRef}
+                  className="absolute inset-0 h-full w-full object-contain"
+                />
+              </div>
+            </div>
+
+
+
 
             {analyzing && (
               <div className="surface mt-3 p-3 text-xs text-[var(--text-secondary)]">
