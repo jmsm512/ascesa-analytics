@@ -55,10 +55,7 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
           return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
         });
         setBoxes(detected);
-        // If only one person detected, auto-advance.
-        if (detected.length === 1) {
-          setTimeout(() => !cancelled && onSelect(0), 400);
-        }
+        // Do NOT auto-advance — wait for explicit user click.
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Detection failed");
       } finally {
