@@ -2113,10 +2113,24 @@ function ClipAnalyzer({
               <RotateCcw className="h-3.5 w-3.5" /> Reset
             </button>
             {points.length === 2 && (
-              <div className="self-center text-xs text-[var(--text-secondary)]">Calibration set — analyzing clip…</div>
+              <div className="self-center text-xs text-[var(--text-secondary)]">Calibration set.</div>
             )}
           </div>
         </div>
+      )}
+
+      {stage === "select-athlete" && firstFrame && (
+        <AthleteSelector
+          frameDataUrl={firstFrame}
+          onSelect={(idx) => {
+            setSelectedAthlete(idx);
+            void runAnalysis();
+          }}
+          onCancel={() => {
+            setPoints([]);
+            setStage("calibrate");
+          }}
+        />
       )}
 
       {stage === "analyzing" && (
