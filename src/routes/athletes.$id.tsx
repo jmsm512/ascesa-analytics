@@ -1901,8 +1901,9 @@ function ClipAnalyzer({
   onCancel: () => void;
   onComplete: (clip: BenchClip) => Promise<void> | void;
 }) {
-  type Stage = "choose" | "upload" | "uploading" | "extracting" | "calibrate" | "analyzing" | "done";
+  type Stage = "choose" | "upload" | "uploading" | "extracting" | "calibrate" | "select-athlete" | "analyzing" | "done";
   const [stage, setStage] = useState<Stage>("choose");
+  const [, setSelectedAthlete] = useState<number | null>(null);
   const [action, setAction] = useState<ClipAction>("Lunge");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [dataUrl, setDataUrl] = useState<string | null>(null);
