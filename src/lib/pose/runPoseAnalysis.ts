@@ -2,10 +2,10 @@
 // Loads MediaPipe Pose from CDN, walks a <video> element frame-by-frame,
 // draws the skeleton onto a <canvas>, and emits per-frame ankle speeds (m/s).
 
-const MP_VERSION = "0.5.1675469404";
-const MP_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/pose@${MP_VERSION}`;
+export const MP_VERSION = "0.5.1675469404";
+export const MP_CDN = `https://cdn.jsdelivr.net/npm/@mediapipe/pose@${MP_VERSION}`;
 
-type Landmark = { x: number; y: number; z: number; visibility?: number };
+export type Landmark = { x: number; y: number; z: number; visibility?: number };
 
 export type FrameSample = {
   t: number; // seconds
