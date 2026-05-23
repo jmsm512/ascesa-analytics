@@ -28,11 +28,6 @@ function loadScript(src: string): Promise<void> {
 
 export function PoseOverlay({ videoRef }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // Keep the latest videoRef accessible inside the long-lived effect without
-  // forcing it into the dependency array.
-  const videoRefRef = useRef(videoRef);
-  videoRefRef.current = videoRef;
-
   const poseRef = useRef<any>(null);
   const rafRef = useRef<number | null>(null);
   const sendingRef = useRef(false);
@@ -43,9 +38,9 @@ export function PoseOverlay({ videoRef }: PoseOverlayProps) {
 
     const loop = async () => {
       if (cancelled || !runningRef.current) return;
-      const video = videoRefRef.current?.current;
+      const video = videoRef.current;
       const pose = poseRef.current;
-      if (video && pose && !video.paused && !video.ended && video.readyState >= 2) {
+      if (video && pose && video.readyState >= 2 && !video.paused && !video.ended) {
         if (!sendingRef.current) {
           sendingRef.current = true;
           try {
@@ -77,7 +72,7 @@ export function PoseOverlay({ videoRef }: PoseOverlayProps) {
     // keep retrying until one shows up (parent mounts <video> conditionally).
     let attachedVideo: HTMLVideoElement | null = null;
     const tryAttach = () => {
-      const v = videoRefRef.current?.current;
+      const v = videoRef.current;
       if (!v || v === attachedVideo) return;
       if (attachedVideo) {
         attachedVideo.removeEventListener("play", startLoop);
@@ -102,6 +97,7 @@ export function PoseOverlay({ videoRef }: PoseOverlayProps) {
         if (!Pose) throw new Error("MediaPipe Pose failed to load");
 
         const pose = new Pose({ locateFile: (file: string) => `${POSE_CDN}/${file}` });
+        console.log("PoseOverlay initialized");
         pose.setOptions({
           modelComplexity: 1,
           smoothLandmarks: true,
@@ -111,9 +107,9 @@ export function PoseOverlay({ videoRef }: PoseOverlayProps) {
         });
 
         pose.onResults((results: PoseResults) => {
-          console.log("PoseOverlay frame, landmarks:", results.poseLandmarks?.length);
+          console.log("PoseOverlay onResults, landmarks:", results.poseLandmarks?.length);
           const canvas = canvasRef.current;
-          const video = videoRefRef.current?.current;
+          const video = videoRef.current;
           if (!canvas || !video) return;
           const ctx = canvas.getContext("2d");
           if (!ctx) return;
@@ -140,13 +136,10 @@ export function PoseOverlay({ videoRef }: PoseOverlayProps) {
         });
 
         await pose.initialize?.();
-        if (cancelled) {
-          pose.close?.();
-          return;
-        }
+        if (cancelled) return;
         poseRef.current = pose;
         // If the video is already playing by the time pose is ready, kick off the loop.
-        const v = videoRefRef.current?.current;
+        const v = videoRef.current;
         if (v && !v.paused && !v.ended) startLoop();
       } catch (err) {
         console.warn("PoseOverlay init failed", err);
@@ -166,7 +159,6 @@ export function PoseOverlay({ videoRef }: PoseOverlayProps) {
       poseRef.current = null;
       pose?.close?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
