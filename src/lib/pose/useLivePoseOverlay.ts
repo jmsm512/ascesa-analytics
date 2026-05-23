@@ -283,7 +283,7 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
         // best-effort: swallow to avoid breaking playback
       }
     }
-  }, [enabled, formatError, videoSrc, videoId, sport, color, videoRef, canvasRef]);
+  }, [enabled, formatError, videoSrc, videoId, sport, color, debugColor, videoRef, canvasRef, debugCanvasRef]);
 
   return { ready, formatError, framesProcessed };
 }
