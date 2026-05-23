@@ -1900,7 +1900,7 @@ function ClipAnalyzer({
   onCancel: () => void;
   onComplete: (clip: BenchClip) => Promise<void> | void;
 }) {
-  type Stage = "choose" | "upload" | "uploading" | "extracting" | "calibrate" | "select" | "analyzing" | "done";
+  type Stage = "choose" | "upload" | "uploading" | "extracting" | "calibrate" | "analyzing" | "done";
   const [stage, setStage] = useState<Stage>("choose");
   const [action, setAction] = useState<ClipAction>("Lunge");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -1952,11 +1952,11 @@ function ClipAnalyzer({
     const y = (e.clientY - rect.top) / rect.height;
     const next = [...points, { x, y }];
     setPoints(next);
-    if (next.length === 2) setStage("select");
+    if (next.length === 2) void runAnalysis();
   }
 
 
-  async function runAnalysis(seedHip: HipPoint | null) {
+  async function runAnalysis() {
     if (!dataUrl || points.length < 2) return;
     setStage("analyzing");
     setError(null);
@@ -1972,24 +1972,10 @@ function ClipAnalyzer({
       const c = document.createElement("canvas");
       c.width = v.videoWidth; c.height = v.videoHeight;
       const ctx = c.getContext("2d")!;
-      const fileset = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
-      );
-      const poseLandmarker = await PoseLandmarker.createFromOptions(fileset, {
-        baseOptions: {
-          modelAssetPath:
-            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-          delegate: "GPU",
-        },
-        runningMode: "VIDEO",
-        numPoses: 6,
-      });
       const step = 0.25;
       const times: number[] = [];
       for (let t = 0; t < v.duration; t += step) times.push(t);
       setProgress({ cur: 0, total: times.length });
-      const frames: BenchFrame[] = [];
-      let lastHip: HipPoint | null = seedHip;
       for (let i = 0; i < times.length; i++) {
         const t = times[i];
         await new Promise<void>((res) => {
@@ -1997,21 +1983,8 @@ function ClipAnalyzer({
           v.currentTime = t;
         });
         ctx.drawImage(v, 0, 0);
-        try {
-          const result = poseLandmarker.detectForVideo(c, Math.round(t * 1000));
-          const picked = pickClosestHip(result.landmarks as any, lastHip);
-          if (picked) {
-            lastHip = picked;
-            frames.push({ time: t, nx: picked.nx, ny: picked.ny, detected: true });
-          } else {
-            frames.push({ time: t, nx: 0, ny: 0, detected: false });
-          }
-        } catch {
-          frames.push({ time: t, nx: 0, ny: 0, detected: false });
-        }
         setProgress({ cur: i + 1, total: times.length });
       }
-      poseLandmarker.close();
 
       const W = v.videoWidth, H = v.videoHeight;
       const p0 = { x: points[0].x * W, y: points[0].y * H };
