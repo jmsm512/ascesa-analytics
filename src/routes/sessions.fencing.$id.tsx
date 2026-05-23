@@ -690,6 +690,9 @@ function PeriodSection({
       const { signedUrl } = await uploadVideoToStorage(file, path, setUploadPct);
       setUploadedPath(path);
       setDataUrl(signedUrl);
+      // Persist the storage path to the session record immediately so the
+      // video survives even if the user navigates away before analysis runs.
+      commit({ videoPath: path });
       setStage("extracting");
       const { frame, dur } = await extractFirstFrame(signedUrl);
       setFirstFrame(frame);

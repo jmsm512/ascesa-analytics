@@ -69,8 +69,8 @@ function VideoPage() {
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
           <div>
             <div className="surface relative aspect-video overflow-hidden bg-black">
-              {signedUrl ? (
-                <div style={{ position: "relative", width: "100%", height: "100%" }}>
+              <div style={{ position: "relative", width: "100%", height: "100%" }}>
+                {signedUrl ? (
                   <video
                     ref={videoRef}
                     src={signedUrl}
@@ -79,11 +79,11 @@ function VideoPage() {
                     crossOrigin="anonymous"
                     className="h-full w-full object-contain"
                   />
-                  <PoseOverlay videoRef={videoRef} />
-                </div>
-              ) : (
-                <div className="grid h-full place-items-center text-[var(--text-muted)]">Loading video…</div>
-              )}
+                ) : (
+                  <div className="grid h-full place-items-center text-[var(--text-muted)]">Loading video…</div>
+                )}
+                <PoseOverlay videoRef={videoRef} />
+              </div>
             </div>
 
             <div className="surface mt-4 p-4 text-xs text-[var(--text-secondary)]">
