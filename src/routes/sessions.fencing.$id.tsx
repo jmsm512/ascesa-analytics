@@ -43,6 +43,7 @@ import { msToFps } from "@/lib/units";
 import { SessionEditDelete } from "@/components/SessionEditDelete";
 import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
 import { Progress } from "@/components/ui/progress";
+import { AthleteSelector } from "@/components/AthleteSelector";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
   component: FencingSession,
