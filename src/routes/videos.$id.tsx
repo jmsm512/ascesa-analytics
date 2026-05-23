@@ -4,10 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
+import { PoseOverlay } from "@/components/PoseOverlay";
 import { getVideo } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
-import { runPoseAnalysis, type SpeedSample } from "@/lib/pose/runPoseAnalysis";
-import { useLivePoseOverlay } from "@/lib/pose/useLivePoseOverlay";
 import { ArrowLeft, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/videos/$id")({
@@ -30,33 +29,13 @@ function VideoPage() {
     },
   });
 
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState<string>("");
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [samples, setSamples] = useState<SpeedSample[] | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const debugCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const video = v.data as any;
   const athlete = video?.athletes;
   const sport: "hockey" | "fencing" = athlete?.sport === "fencing" ? "fencing" : "hockey";
-  const skeletonColor = sport === "fencing" ? "#a78bfa" : "#00e5b4";
-
-  const live = useLivePoseOverlay({
-    videoRef,
-    canvasRef,
-    debugCanvasRef,
-    videoSrc: signedUrl,
-    videoId: video?.id ?? null,
-    sport,
-    color: skeletonColor,
-    debugColor: "#00e5b4",
-    enabled: !analyzing && !!signedUrl,
-  });
 
   // Resolve a signed URL for the stored video
   useEffect(() => {
