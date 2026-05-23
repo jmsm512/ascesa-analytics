@@ -11,10 +11,12 @@ import { loadPose, CONNECTIONS, type Landmark } from "./runPoseAnalysis";
 export type LiveOverlayOpts = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  debugCanvasRef?: React.RefObject<HTMLCanvasElement | null>;
   videoSrc: string | null;
   videoId: string | null;
   sport: "hockey" | "fencing";
   color: string; // skeleton accent
+  debugColor?: string;
   enabled: boolean;
 };
 
@@ -28,7 +30,7 @@ export type LiveOverlayState = {
 const ANKLE_COLOR = "#ffffff";
 
 export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
-  const { videoRef, canvasRef, videoSrc, videoId, sport, color, enabled } = opts;
+  const { videoRef, canvasRef, debugCanvasRef, videoSrc, videoId, sport, color, debugColor, enabled } = opts;
   const [ready, setReady] = useState(false);
   const [formatError, setFormatError] = useState<string | null>(null);
   const [framesProcessed, setFramesProcessed] = useState(0);
@@ -132,6 +134,39 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
         ctx.arc(p.x * W, p.y * H, ankleRadius, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+      }
+
+      // Mirror skeleton to optional debug canvas with dark background
+      const dbg = debugCanvasRef?.current;
+      if (dbg) {
+        if (dbg.width !== W) dbg.width = W;
+        if (dbg.height !== H) dbg.height = H;
+        const dctx = dbg.getContext("2d");
+        if (dctx) {
+          const dcolor = debugColor ?? "#00e5b4";
+          dctx.fillStyle = "#0a0a0a";
+          dctx.fillRect(0, 0, W, H);
+          dctx.lineWidth = Math.max(2, Math.round(W / 500));
+          dctx.strokeStyle = dcolor;
+          dctx.fillStyle = dcolor;
+          for (const [a, b] of CONNECTIONS) {
+            const pa = lms[a]; const pb = lms[b];
+            if (!pa || !pb) continue;
+            if ((pa.visibility ?? 1) < 0.4 || (pb.visibility ?? 1) < 0.4) continue;
+            dctx.beginPath();
+            dctx.moveTo(pa.x * W, pa.y * H);
+            dctx.lineTo(pb.x * W, pb.y * H);
+            dctx.stroke();
+          }
+          const ddot = Math.max(3, Math.round(W / 400));
+          for (let i = 0; i < lms.length; i++) {
+            const p = lms[i];
+            if ((p.visibility ?? 1) < 0.4) continue;
+            dctx.beginPath();
+            dctx.arc(p.x * W, p.y * H, ddot, 0, Math.PI * 2);
+            dctx.fill();
+          }
+        }
       }
 
       // record ankle sample / speed
@@ -248,7 +283,7 @@ export function useLivePoseOverlay(opts: LiveOverlayOpts): LiveOverlayState {
         // best-effort: swallow to avoid breaking playback
       }
     }
-  }, [enabled, formatError, videoSrc, videoId, sport, color, videoRef, canvasRef]);
+  }, [enabled, formatError, videoSrc, videoId, sport, color, debugColor, videoRef, canvasRef, debugCanvasRef]);
 
   return { ready, formatError, framesProcessed };
 }
