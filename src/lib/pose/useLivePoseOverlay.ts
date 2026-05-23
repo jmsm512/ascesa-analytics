@@ -11,10 +11,12 @@ import { loadPose, CONNECTIONS, type Landmark } from "./runPoseAnalysis";
 export type LiveOverlayOpts = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  debugCanvasRef?: React.RefObject<HTMLCanvasElement | null>;
   videoSrc: string | null;
   videoId: string | null;
   sport: "hockey" | "fencing";
   color: string; // skeleton accent
+  debugColor?: string;
   enabled: boolean;
 };
 
