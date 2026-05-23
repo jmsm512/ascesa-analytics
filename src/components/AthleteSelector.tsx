@@ -3,7 +3,7 @@ import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 
 const WASM_BASE = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
 const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
 type Box = { x: number; y: number; w: number; h: number };
 
@@ -38,7 +38,9 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
         const landmarker = await PoseLandmarker.createFromOptions(fileset, {
           baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
           runningMode: "IMAGE",
-          numPoses: 4,
+          numPoses: 8,
+          minPoseDetectionConfidence: 0.25,
+          minPosePresenceConfidence: 0.25,
         });
 
         const result = landmarker.detect(img);
@@ -48,10 +50,10 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
         const detected: Box[] = (result.landmarks ?? []).map((lms) => {
           const xs = lms.map((l) => l.x);
           const ys = lms.map((l) => l.y);
-          const minX = Math.max(0, Math.min(...xs));
-          const maxX = Math.min(1, Math.max(...xs));
-          const minY = Math.max(0, Math.min(...ys));
-          const maxY = Math.min(1, Math.max(...ys));
+          const minX = Math.max(0, Math.min(...xs) - 0.04);
+          const maxX = Math.min(1, Math.max(...xs) + 0.04);
+          const minY = Math.max(0, Math.min(...ys) - 0.04);
+          const maxY = Math.min(1, Math.max(...ys) + 0.04);
           return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
         });
         setBoxes(detected);
