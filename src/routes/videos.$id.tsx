@@ -205,8 +205,8 @@ function VideoPage() {
               )}
               <canvas
                 ref={canvasRef}
-                className="pointer-events-none absolute inset-0 z-10 h-full w-full object-contain"
-                style={{ background: "transparent" }}
+                className="pointer-events-none"
+                style={{ position: "fixed", left: 0, top: 0, zIndex: 9999, background: "transparent" }}
               />
             </div>
 
