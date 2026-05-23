@@ -43,7 +43,7 @@ function loadScript(src: string): Promise<void> {
 }
 
 let poseModulePromise: Promise<any> | null = null;
-async function loadPose() {
+export async function loadPose() {
   if (!poseModulePromise) {
     poseModulePromise = (async () => {
       await loadScript(`${MP_CDN}/pose.js`);
