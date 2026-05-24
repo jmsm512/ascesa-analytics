@@ -9,6 +9,7 @@ type PoseOverlayProps = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   targetIndex?: number;
   visible?: boolean;
+  onLungeData?: (angle: number) => void;
 };
 
 const WASM_URL =
