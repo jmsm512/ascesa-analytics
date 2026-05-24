@@ -53,7 +53,32 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
               if (canvas.height !== height) canvas.height = height;
               ctx.clearRect(0, 0, canvas.width, canvas.height);
               if (!visibleRef.current) return;
-              const lm = results.landmarks[targetIndexRef.current];
+              let selectedIndex = targetIndexRef.current;
+              const hipMidpoints: Array<{ x: number; y: number } | null> = results.landmarks.map((p: any) => {
+                if (p && p[23] && p[24]) {
+                  return { x: (p[23].x + p[24].x) / 2, y: (p[23].y + p[24].y) / 2 };
+                }
+                return null;
+              });
+              if (results.landmarks.length === 1) {
+                selectedIndex = 0;
+              } else if (results.landmarks.length > 1 && lastHipPositionRef.current) {
+                let bestIdx = -1;
+                let bestDist = Infinity;
+                for (let i = 0; i < hipMidpoints.length; i++) {
+                  const hp = hipMidpoints[i];
+                  if (!hp) continue;
+                  const dx = hp.x - lastHipPositionRef.current.x;
+                  const dy = hp.y - lastHipPositionRef.current.y;
+                  const d = Math.sqrt(dx * dx + dy * dy);
+                  if (d < bestDist) {
+                    bestDist = d;
+                    bestIdx = i;
+                  }
+                }
+                if (bestIdx !== -1) selectedIndex = bestIdx;
+              }
+              const lm = results.landmarks[selectedIndex];
               if (lm) {
                 const drawingUtils = new DrawingUtils(ctx);
                 drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
