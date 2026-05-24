@@ -1085,7 +1085,7 @@ function PeriodSection({
                     className="w-full rounded-md bg-black"
                     style={{ maxHeight: 480 }}
                   />
-                  <PoseOverlay videoRef={playbackRef} />
+                  <PoseOverlay videoRef={playbackRef} targetIndex={selectedAthlete ?? 0} />
                 </div>
               )}
 

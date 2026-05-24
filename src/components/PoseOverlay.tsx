@@ -5,6 +5,7 @@ const DRAWING_UTILS_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils
 
 type PoseOverlayProps = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  targetIndex?: number;
 };
 
 type PoseResults = {
@@ -26,7 +27,7 @@ function loadScript(src: string): Promise<void> {
   });
 }
 
-export function PoseOverlay({ videoRef }: PoseOverlayProps) {
+export function PoseOverlay({ videoRef, targetIndex = 0 }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const poseRef = useRef<any>(null);
   const rafRef = useRef<number | null>(null);
