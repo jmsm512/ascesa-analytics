@@ -148,8 +148,8 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
           },
           runningMode: "VIDEO",
           numPoses: 2,
-          minPoseDetectionConfidence: 0.5,
-          minPosePresenceConfidence: 0.5,
+          minPoseDetectionConfidence: 0.7,
+          minPosePresenceConfidence: 0.7,
         });
         console.log("PoseOverlay initialized");
         const v = videoRef.current;
