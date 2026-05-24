@@ -603,7 +603,6 @@ function PeriodSection({
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
   const [selectedAthlete, setSelectedAthlete] = useState<number | null>(null);
-  const [selectedAthleteCenter, setSelectedAthleteCenter] = useState<{ x: number; y: number } | null>(null);
   const [trackingZone, setTrackingZone] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   
   const [showSkeleton, setShowSkeleton] = useState(true);
@@ -1062,9 +1061,8 @@ function PeriodSection({
             <AthleteSelector
               frameDataUrl={firstFrame}
               trackingZone={trackingZone}
-              onSelect={(idx, center) => {
+              onSelect={(idx) => {
                 setSelectedAthlete(idx);
-                setSelectedAthleteCenter(center);
                 setStage("analyzing");
                 void runAnalysis();
               }}
@@ -1171,7 +1169,6 @@ function PeriodSection({
                     <PoseOverlay
                       videoRef={playbackRef}
                       targetIndex={selectedAthlete ?? 0}
-                      centerPosition={selectedAthleteCenter}
                       trackingZone={trackingZone}
                       visible={showSkeleton}
                       onLungeData={(angle) => setLungeAngles((prev) => [...prev, angle])}

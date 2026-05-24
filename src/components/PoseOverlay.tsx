@@ -10,7 +10,6 @@ type PoseOverlayProps = {
   targetIndex?: number;
   visible?: boolean;
   onLungeData?: (angle: number) => void;
-  centerPosition?: { x: number; y: number } | null;
   trackingZone?: { x: number; y: number; w: number; h: number } | null;
 };
 
@@ -19,7 +18,7 @@ const WASM_URL =
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
-export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, centerPosition = null, trackingZone = null }: PoseOverlayProps) {
+export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, trackingZone = null }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
   targetIndexRef.current = targetIndex;
@@ -27,8 +26,6 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
   visibleRef.current = visible;
   const lungeRef = useRef(onLungeData);
   lungeRef.current = onLungeData;
-  const centerPositionRef = useRef(centerPosition);
-  centerPositionRef.current = centerPosition;
   const trackingZoneRef = useRef(trackingZone);
   trackingZoneRef.current = trackingZone;
 
