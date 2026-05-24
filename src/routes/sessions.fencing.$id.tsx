@@ -1156,6 +1156,7 @@ function PeriodSection({
                       targetIndex={selectedAthlete ?? 0}
                       visible={showSkeleton}
                       onLungeData={(angle) => setLungeAngles((prev) => [...prev, angle])}
+                      initialHipPosition={selectedAthleteHip}
                     />
                   </div>
                   {lungeAngles.length > 0 && (
