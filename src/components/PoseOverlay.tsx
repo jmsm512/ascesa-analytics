@@ -60,7 +60,7 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
               if (!visibleRef.current) return;
               const idx = targetIndexRef.current;
 
-              const lm = results.landmarks[idx] ?? results.landmarks[0];
+              const lm = results.landmarks[idx];
 
               if (!lm) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
 
