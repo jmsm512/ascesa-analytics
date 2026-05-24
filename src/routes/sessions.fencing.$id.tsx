@@ -579,7 +579,7 @@ function PeriodSection({
   onAnalysisComplete: () => void;
 }) {
   const hasResults = period.readings.length > 0;
-  const initialStage: Stage = hasResults ? "results" : "upload";
+  const initialStage: Stage = (hasResults || !!period.videoPath) ? "results" : "upload";
   const [stage, setStage] = useState<Stage>(initialStage);
   const [collapsed, setCollapsed] = useState(hasResults && index > 0);
   const [editingLabel, setEditingLabel] = useState(false);
@@ -1072,7 +1072,7 @@ function PeriodSection({
               )}
 
               {dataUrl && (
-                <div className="overflow-hidden rounded-lg">
+                <div style={{ position: "relative" }} className="overflow-hidden rounded-lg">
                   <video
                     ref={playbackRef}
                     src={dataUrl}
