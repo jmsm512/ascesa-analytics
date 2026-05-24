@@ -729,8 +729,7 @@ function PeriodSection({
     const next = [...points, { x, y }];
     setPoints(next);
     if (next.length === 2) {
-      // Advance to athlete selection — detection happens in AthleteSelector.
-      setStage("select-athlete");
+      setStage("zone");
     }
   }
 
