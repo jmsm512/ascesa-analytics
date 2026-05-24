@@ -11,6 +11,7 @@ type PoseOverlayProps = {
   visible?: boolean;
   onLungeData?: (angle: number) => void;
   centerPosition?: { x: number; y: number } | null;
+  trackingZone?: { x: number; y: number; w: number; h: number } | null;
 };
 
 const WASM_URL =
