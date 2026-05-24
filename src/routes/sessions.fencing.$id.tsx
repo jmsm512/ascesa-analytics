@@ -44,6 +44,7 @@ import { SessionEditDelete } from "@/components/SessionEditDelete";
 import { uploadVideoToStorage } from "@/lib/video/uploadVideo";
 import { Progress } from "@/components/ui/progress";
 import { AthleteSelector } from "@/components/AthleteSelector";
+import { PoseOverlay } from "@/components/PoseOverlay";
 
 export const Route = createFileRoute("/sessions/fencing/$id")({
   component: FencingSession,
@@ -1083,6 +1084,7 @@ function PeriodSection({
                     className="w-full rounded-md bg-black"
                     style={{ maxHeight: 480 }}
                   />
+                  <PoseOverlay videoRef={playbackRef} />
                 </div>
               )}
 
