@@ -755,6 +755,33 @@ function PeriodSection({
       for (let t = 0; t < v.duration; t += step) times.push(t);
       setProgress({ cur: 0, total: times.length });
 
+      const fileset = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
+      );
+      const landmarker = await PoseLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+          delegate: "GPU",
+        },
+        runningMode: "IMAGE",
+        numPoses: 1,
+      });
+
+      const out: Reading[] = [];
+      console.log("runAnalysis started, readings so far:", out.length);
+
+      const w = c.width;
+      const h = c.height;
+      const p0px = { x: points[0].x * w, y: points[0].y * h };
+      const p1px = { x: points[1].x * w, y: points[1].y * h };
+      const pisteDx = p1px.x - p0px.x;
+      const pisteDy = p1px.y - p0px.y;
+      const pistePx = Math.hypot(pisteDx, pisteDy);
+      const metersPerPx = pistePx > 0 ? 14 / pistePx : 0;
+
+      let prevFoot: { x: number; y: number } | null = null;
+
       for (let i = 0; i < times.length; i++) {
         const t = times[i];
         await new Promise<void>((res) => {
@@ -762,8 +789,34 @@ function PeriodSection({
           v.currentTime = t;
         });
         ctx.drawImage(v, 0, 0);
+
+        const result = landmarker.detect(c);
+        const lms = result.landmarks?.[0];
+        if (lms && lms[27] && lms[28]) {
+          const foot = {
+            x: ((lms[27].x + lms[28].x) / 2) * w,
+            y: ((lms[27].y + lms[28].y) / 2) * h,
+          };
+          if (prevFoot) {
+            const dx = foot.x - prevFoot.x;
+            const dy = foot.y - prevFoot.y;
+            const distPx = Math.hypot(dx, dy);
+            const speed = (distPx * metersPerPx) / step;
+            // Direction: dot product of movement with vector toward points[0]
+            const toP0x = p0px.x - prevFoot.x;
+            const toP0y = p0px.y - prevFoot.y;
+            const dot = dx * toP0x + dy * toP0y;
+            const direction: "advance" | "retreat" = dot >= 0 ? "advance" : "retreat";
+            out.push({ time: t, speed, direction });
+          }
+          prevFoot = foot;
+        }
+
         setProgress({ cur: i + 1, total: times.length });
       }
+
+      landmarker.close();
+
 
       const out: Reading[] = [];
       console.log("runAnalysis started, readings so far:", out.length);
