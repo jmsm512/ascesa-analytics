@@ -1096,8 +1096,27 @@ function PeriodSection({
                       className="w-full rounded-md bg-black"
                       style={{ maxHeight: 480 }}
                     />
-                    <PoseOverlay videoRef={playbackRef} targetIndex={selectedAthlete ?? 0} visible={showSkeleton} />
+                    <PoseOverlay
+                      videoRef={playbackRef}
+                      targetIndex={selectedAthlete ?? 0}
+                      visible={showSkeleton}
+                      onLungeData={(angle) => setLungeAngles((prev) => [...prev, angle])}
+                    />
                   </div>
+                  {lungeAngles.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+                      <div>
+                        <div className="metric-label">Peak Lunge Depth</div>
+                        <div className="text-lg font-semibold">{Math.min(...lungeAngles).toFixed(1)}°</div>
+                      </div>
+                      <div>
+                        <div className="metric-label">Average Lunge Depth</div>
+                        <div className="text-lg font-semibold">
+                          {(lungeAngles.reduce((a, b) => a + b, 0) / lungeAngles.length).toFixed(1)}°
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
