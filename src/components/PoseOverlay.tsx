@@ -10,6 +10,7 @@ type PoseOverlayProps = {
   targetIndex?: number;
   visible?: boolean;
   onLungeData?: (angle: number) => void;
+  initialHipPosition?: { x: number; y: number } | null;
 };
 
 const WASM_URL =
@@ -17,7 +18,7 @@ const WASM_URL =
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
-export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData }: PoseOverlayProps) {
+export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, initialHipPosition = null }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
   targetIndexRef.current = targetIndex;
@@ -26,6 +27,7 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
   const lungeRef = useRef(onLungeData);
   lungeRef.current = onLungeData;
   const lastHipPositionRef = useRef<{ x: number; y: number } | null>(null);
+  if (initialHipPosition && !lastHipPositionRef.current) lastHipPositionRef.current = initialHipPosition;
 
   useEffect(() => {
     let cancelled = false;
