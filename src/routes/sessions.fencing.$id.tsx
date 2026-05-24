@@ -1049,8 +1049,9 @@ function PeriodSection({
           {stage === "select-athlete" && firstFrame && (
             <AthleteSelector
               frameDataUrl={firstFrame}
-              onSelect={(idx) => {
+              onSelect={(idx, hip) => {
                 setSelectedAthlete(idx);
+                setSelectedAthleteHip(hip);
                 void runAnalysis();
               }}
               onCancel={() => {
