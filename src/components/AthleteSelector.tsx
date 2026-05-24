@@ -9,7 +9,7 @@ type Box = { x: number; y: number; w: number; h: number };
 
 type Props = {
   frameDataUrl: string;
-  onSelect: (athleteIndex: number) => void;
+  onSelect: (athleteIndex: number, hipPosition: { x: number; y: number }) => void;
   onCancel?: () => void;
 };
 
