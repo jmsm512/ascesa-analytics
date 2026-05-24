@@ -1054,7 +1054,7 @@ function PeriodSection({
               onSelect={(idx, center) => {
                 setSelectedAthlete(idx);
                 setSelectedAthleteCenter(center);
-                void runAnalysis();
+                setStage("zone");
               }}
               onCancel={() => {
                 setPoints([]);
@@ -1062,6 +1062,19 @@ function PeriodSection({
               }}
             />
           )}
+
+          {stage === "zone" && firstFrame && (
+            <ZoneSelector
+              frameDataUrl={firstFrame}
+              zone={trackingZone}
+              setZone={setTrackingZone}
+              onConfirm={() => {
+                setStage("analyzing");
+                void runAnalysis();
+              }}
+            />
+          )}
+
 
           {stage === "analyzing" && (
             <div className="surface p-8">
