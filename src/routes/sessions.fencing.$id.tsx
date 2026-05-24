@@ -602,6 +602,7 @@ function PeriodSection({
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
   const [selectedAthlete, setSelectedAthlete] = useState<number | null>(null);
+  const [showSkeleton, setShowSkeleton] = useState(true);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
@@ -1073,19 +1074,29 @@ function PeriodSection({
               )}
 
               {dataUrl && (
-                <div style={{ position: "relative" }} className="overflow-hidden rounded-lg">
-                  <video
-                    ref={playbackRef}
-                    src={dataUrl}
-                    controls
-                    playsInline
-                    crossOrigin="anonymous"
-                    onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                    onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                    className="w-full rounded-md bg-black"
-                    style={{ maxHeight: 480 }}
-                  />
-                  <PoseOverlay videoRef={playbackRef} targetIndex={selectedAthlete ?? 0} />
+                <div className="space-y-2">
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setShowSkeleton((s) => !s)}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+                    >
+                      {showSkeleton ? "Hide Skeleton" : "Show Skeleton"}
+                    </button>
+                  </div>
+                  <div style={{ position: "relative" }} className="overflow-hidden rounded-lg">
+                    <video
+                      ref={playbackRef}
+                      src={dataUrl}
+                      controls
+                      playsInline
+                      crossOrigin="anonymous"
+                      onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                      onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                      className="w-full rounded-md bg-black"
+                      style={{ maxHeight: 480 }}
+                    />
+                    <PoseOverlay videoRef={playbackRef} targetIndex={selectedAthlete ?? 0} visible={showSkeleton} />
+                  </div>
                 </div>
               )}
 

@@ -8,6 +8,7 @@ import {
 type PoseOverlayProps = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   targetIndex?: number;
+  visible?: boolean;
 };
 
 const WASM_URL =
@@ -15,10 +16,12 @@ const WASM_URL =
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
-export function PoseOverlay({ videoRef, targetIndex = 0 }: PoseOverlayProps) {
+export function PoseOverlay({ videoRef, targetIndex = 0, visible = true }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
   targetIndexRef.current = targetIndex;
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +48,7 @@ export function PoseOverlay({ videoRef, targetIndex = 0 }: PoseOverlayProps) {
               if (canvas.width !== width) canvas.width = width;
               if (canvas.height !== height) canvas.height = height;
               ctx.clearRect(0, 0, canvas.width, canvas.height);
+              if (!visibleRef.current) return;
               const lm = results.landmarks[targetIndexRef.current];
               if (lm) {
                 const drawingUtils = new DrawingUtils(ctx);
