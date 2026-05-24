@@ -1155,6 +1155,7 @@ function PeriodSection({
                     <PoseOverlay
                       videoRef={playbackRef}
                       targetIndex={selectedAthlete ?? 0}
+                      centerPosition={selectedAthleteCenter}
                       visible={showSkeleton}
                       onLungeData={(angle) => setLungeAngles((prev) => [...prev, angle])}
                     />
