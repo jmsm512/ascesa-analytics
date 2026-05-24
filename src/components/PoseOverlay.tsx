@@ -72,6 +72,15 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
                 idx = bestIdx;
               }
               const lm = results.landmarks[idx];
+              if (lm && trackingZoneRef.current && lm[23] && lm[24]) {
+                const hx = (lm[23].x + lm[24].x) / 2;
+                const hy = (lm[23].y + lm[24].y) / 2;
+                const z = trackingZoneRef.current;
+                if (hx < z.x || hx > z.x + z.w || hy < z.y || hy > z.y + z.h) {
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  return;
+                }
+              }
               if (lm) {
                 const drawingUtils = new DrawingUtils(ctx);
                 drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
