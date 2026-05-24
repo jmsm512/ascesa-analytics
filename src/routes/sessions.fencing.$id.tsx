@@ -782,6 +782,7 @@ function PeriodSection({
         onAnalysisComplete();
       } finally {
         setSaving(false);
+        console.log("runAnalysis finished, total readings:", out.length);
       }
     } catch (e: any) {
       setError(e?.message ?? "Analysis failed");
