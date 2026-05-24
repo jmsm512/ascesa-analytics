@@ -11,9 +11,10 @@ type Props = {
   frameDataUrl: string;
   onSelect: (athleteIndex: number, center: { x: number; y: number }) => void;
   onCancel?: () => void;
+  trackingZone?: { x: number; y: number; w: number; h: number } | null;
 };
 
-export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
+export function AthleteSelector({ frameDataUrl, onSelect, onCancel, trackingZone = null }: Props) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [boxes, setBoxes] = useState<Box[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +74,15 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
           );
           if (!dup) kept.push(cand);
         }
-        const detected: Box[] = kept.map((k) => k.box);
+        let detected: Box[] = kept.map((k) => k.box);
+        if (trackingZone) {
+          const z = trackingZone;
+          detected = detected.filter((b) => {
+            const cx = b.x + b.w / 2;
+            const cy = b.y + b.h / 2;
+            return cx >= z.x && cx <= z.x + z.w && cy >= z.y && cy <= z.y + z.h;
+          });
+        }
         setBoxes(detected);
         // Do NOT auto-advance — wait for explicit user click.
       } catch (e: any) {
