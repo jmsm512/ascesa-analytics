@@ -25,6 +25,7 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
   visibleRef.current = visible;
   const lungeRef = useRef(onLungeData);
   lungeRef.current = onLungeData;
+  const lastHipPositionRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
