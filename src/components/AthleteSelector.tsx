@@ -18,6 +18,7 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
   const [boxes, setBoxes] = useState<Box[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [manualBoxes, setManualBoxes] = useState<Box[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,6 +26,7 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
     async function detect() {
       setLoading(true);
       setError(null);
+      setManualBoxes([]);
       try {
         const img = new Image();
         img.crossOrigin = "anonymous";
@@ -110,8 +112,23 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
           src={frameDataUrl}
           alt="First frame"
           style={{ maxWidth: "100%", display: "block" }}
+          onClick={(e) => {
+            if (!imgRef.current) return;
+            const rect = imgRef.current.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+            const newBox: Box = {
+              x: Math.max(0, Math.min(1 - 0.15, x - 0.075)),
+              y: Math.max(0, Math.min(1 - 0.4, y - 0.2)),
+              w: 0.15,
+              h: 0.4,
+            };
+            const idx = (boxes ?? []).length + manualBoxes.length;
+            setManualBoxes((prev) => [...prev, newBox]);
+            onSelect(idx);
+          }}
         />
-        {boxes?.map((b, i) => (
+        {[...(boxes ?? []), ...manualBoxes].map((b, i) => (
           <button
             key={i}
             onClick={() => onSelect(i)}
@@ -167,6 +184,12 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
           </button>
         ))}
       </div>
+
+      {!loading && (
+        <p className="mt-3 text-xs text-[var(--text-secondary)]">
+          Don't see the right athlete? Click directly on them in the image.
+        </p>
+      )}
 
       {onCancel && (
         <div className="mt-4">
