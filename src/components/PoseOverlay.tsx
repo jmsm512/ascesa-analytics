@@ -101,7 +101,6 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
                   const front = Math.min(left, right);
                   if (front < 150) lungeRef.current?.(front);
                 }
-              }
             }
           } catch (err) {
             console.warn("PoseOverlay detect failed", err);
