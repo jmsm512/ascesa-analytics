@@ -1,147 +1,121 @@
 import { useEffect, useRef } from "react";
-
-const POSE_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404";
-const DRAWING_UTILS_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124";
+import {
+  PoseLandmarker,
+  FilesetResolver,
+  DrawingUtils,
+} from "@mediapipe/tasks-vision";
 
 type PoseOverlayProps = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   targetIndex?: number;
 };
 
-type PoseResults = {
-  poseLandmarks?: Array<{ x: number; y: number; z?: number; visibility?: number }>;
-};
-
-function loadScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) {
-      resolve();
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = src;
-    script.crossOrigin = "anonymous";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load ${src}`));
-    document.head.appendChild(script);
-  });
-}
+const WASM_URL =
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
+const MODEL_URL =
+  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
 export function PoseOverlay({ videoRef, targetIndex = 0 }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const poseRef = useRef<any>(null);
-  const rafRef = useRef<number | null>(null);
-  const sendingRef = useRef(false);
-  const runningRef = useRef(false);
+  const targetIndexRef = useRef(targetIndex);
+  targetIndexRef.current = targetIndex;
 
   useEffect(() => {
     let cancelled = false;
+    let landmarker: PoseLandmarker | null = null;
+    let rafId: number | null = null;
+    let running = false;
+    let lastTs = -1;
 
-    const loop = async () => {
-      if (cancelled || !runningRef.current) return;
+    const loop = () => {
+      if (cancelled) return;
       const video = videoRef.current;
-      const pose = poseRef.current;
-      if (video && pose && video.readyState >= 2 && !video.paused && !video.ended) {
-        if (!sendingRef.current) {
-          sendingRef.current = true;
+      const canvas = canvasRef.current;
+      if (video && canvas && landmarker && video.readyState >= 2 && !video.paused && !video.ended) {
+        const ts = performance.now();
+        if (ts !== lastTs) {
+          lastTs = ts;
           try {
-            await pose.send({ image: video });
+            const results = landmarker.detectForVideo(video, ts);
+            console.log("PoseOverlay onResults landmarks:", results.landmarks.length);
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              const width = canvas.clientWidth || video.clientWidth || 1;
+              const height = canvas.clientHeight || video.clientHeight || 1;
+              if (canvas.width !== width) canvas.width = width;
+              if (canvas.height !== height) canvas.height = height;
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              const idx = targetIndexRef.current;
+              const lm = results.landmarks[idx];
+              if (lm) {
+                const drawingUtils = new DrawingUtils(ctx);
+                drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
+                  color: "#00e5b4",
+                  lineWidth: 3,
+                });
+                drawingUtils.drawLandmarks(lm, {
+                  color: "#00e5b4",
+                  fillColor: "#00e5b4",
+                  radius: 3,
+                });
+              }
+            }
           } catch (err) {
-            console.warn("PoseOverlay send failed", err);
-          } finally {
-            sendingRef.current = false;
+            console.warn("PoseOverlay detect failed", err);
           }
         }
       }
-      rafRef.current = requestAnimationFrame(loop);
+      rafId = requestAnimationFrame(loop);
     };
 
-    const startLoop = () => {
-      if (runningRef.current) return;
-      runningRef.current = true;
-      if (rafRef.current == null) rafRef.current = requestAnimationFrame(loop);
+    const start = () => {
+      if (running) return;
+      running = true;
+      if (rafId == null) rafId = requestAnimationFrame(loop);
     };
-    const stopLoop = () => {
-      runningRef.current = false;
-      if (rafRef.current != null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
+    const stop = () => {
+      running = false;
+      if (rafId != null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
       }
     };
 
-    // Attach play/pause listeners to whatever video element exists now and
-    // keep retrying until one shows up (parent mounts <video> conditionally).
     let attachedVideo: HTMLVideoElement | null = null;
     const tryAttach = () => {
       const v = videoRef.current;
       if (!v || v === attachedVideo) return;
       if (attachedVideo) {
-        attachedVideo.removeEventListener("play", startLoop);
-        attachedVideo.removeEventListener("pause", stopLoop);
-        attachedVideo.removeEventListener("ended", stopLoop);
+        attachedVideo.removeEventListener("play", start);
+        attachedVideo.removeEventListener("pause", stop);
+        attachedVideo.removeEventListener("ended", stop);
       }
       attachedVideo = v;
-      v.addEventListener("play", startLoop);
-      v.addEventListener("pause", stopLoop);
-      v.addEventListener("ended", stopLoop);
-      if (!v.paused && !v.ended) startLoop();
+      v.addEventListener("play", start);
+      v.addEventListener("pause", stop);
+      v.addEventListener("ended", stop);
+      if (!v.paused && !v.ended) start();
     };
     const attachInterval = window.setInterval(tryAttach, 500);
     tryAttach();
 
     (async () => {
       try {
-        await loadScript(`${DRAWING_UTILS_CDN}/drawing_utils.js`);
-        await loadScript(`${POSE_CDN}/pose.js`);
+        const vision = await FilesetResolver.forVisionTasks(WASM_URL);
         if (cancelled) return;
-        const Pose = (window as any).Pose;
-        if (!Pose) throw new Error("MediaPipe Pose failed to load");
-
-        const pose = new Pose({ locateFile: (file: string) => `${POSE_CDN}/${file}` });
+        landmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: MODEL_URL,
+            delegate: "GPU",
+          },
+          runningMode: "VIDEO",
+          numPoses: 2,
+          minPoseDetectionConfidence: 0.5,
+          minPosePresenceConfidence: 0.5,
+        });
         console.log("PoseOverlay initialized");
-        pose.setOptions({
-          modelComplexity: 1,
-          smoothLandmarks: true,
-          enableSegmentation: false,
-          minDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-        });
-
-        pose.onResults((results: PoseResults) => {
-          console.log("PoseOverlay onResults, landmarks:", results.poseLandmarks?.length);
-          const canvas = canvasRef.current;
-          const video = videoRef.current;
-          if (!canvas || !video) return;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return;
-
-          const width = canvas.clientWidth || video.clientWidth || 1;
-          const height = canvas.clientHeight || video.clientHeight || 1;
-          if (canvas.width !== width) canvas.width = width;
-          if (canvas.height !== height) canvas.height = height;
-
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          if (results.poseLandmarks?.length) {
-            (window as any).drawConnectors(
-              ctx,
-              results.poseLandmarks,
-              (window as any).POSE_CONNECTIONS,
-              { color: "#00e5b4", lineWidth: 3 },
-            );
-            (window as any).drawLandmarks(ctx, results.poseLandmarks, {
-              color: "#00e5b4",
-              fillColor: "#00e5b4",
-              radius: 3,
-            });
-          }
-        });
-
-        await pose.initialize?.();
-        if (cancelled) return;
-        poseRef.current = pose;
-        // If the video is already playing by the time pose is ready, kick off the loop.
         const v = videoRef.current;
-        if (v && !v.paused && !v.ended) startLoop();
+        if (v && !v.paused && !v.ended) start();
       } catch (err) {
         console.warn("PoseOverlay init failed", err);
       }
@@ -150,15 +124,14 @@ export function PoseOverlay({ videoRef, targetIndex = 0 }: PoseOverlayProps) {
     return () => {
       cancelled = true;
       clearInterval(attachInterval);
-      stopLoop();
+      stop();
       if (attachedVideo) {
-        attachedVideo.removeEventListener("play", startLoop);
-        attachedVideo.removeEventListener("pause", stopLoop);
-        attachedVideo.removeEventListener("ended", stopLoop);
+        attachedVideo.removeEventListener("play", start);
+        attachedVideo.removeEventListener("pause", stop);
+        attachedVideo.removeEventListener("ended", stop);
       }
-      const pose = poseRef.current;
-      poseRef.current = null;
-      pose?.close?.();
+      landmarker?.close();
+      landmarker = null;
     };
   }, []);
 
