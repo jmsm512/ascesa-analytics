@@ -77,11 +77,9 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel, trackingZone
         let detected: Box[] = kept.map((k) => k.box);
         if (trackingZone) {
           const z = trackingZone;
-          detected = detected.filter((b) => {
-            const cx = b.x + b.w / 2;
-            const cy = b.y + b.h / 2;
-            return cx >= z.x && cx <= z.x + z.w && cy >= z.y && cy <= z.y + z.h;
-          });
+          detected = detected.filter(
+            (b) => b.x < z.x + z.w && b.x + b.w > z.x && b.y < z.y + z.h && b.y + b.h > z.y,
+          );
         }
         setBoxes(detected);
         // Do NOT auto-advance — wait for explicit user click.
