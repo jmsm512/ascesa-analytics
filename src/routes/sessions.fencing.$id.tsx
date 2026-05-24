@@ -1170,9 +1170,11 @@ function PeriodSection({
                       videoRef={playbackRef}
                       targetIndex={selectedAthlete ?? 0}
                       centerPosition={selectedAthleteCenter}
+                      trackingZone={trackingZone}
                       visible={showSkeleton}
                       onLungeData={(angle) => setLungeAngles((prev) => [...prev, angle])}
                     />
+
                   </div>
                   {lungeAngles.length > 0 && (
                     <div className="grid grid-cols-2 gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
