@@ -129,7 +129,7 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
         {[...(boxes ?? []), ...manualBoxes].map((b, i) => (
           <button
             key={i}
-            onClick={(e) => { e.stopPropagation(); onSelect(i); }}
+            onClick={(e) => { e.stopPropagation(); onSelect(i, { x: b.x + b.w / 2, y: b.y + b.h / 2 }); }}
             style={{
               position: "absolute",
               left: `${b.x * 100}%`,
