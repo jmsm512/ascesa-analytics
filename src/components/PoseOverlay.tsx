@@ -49,10 +49,13 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
             console.log("PoseOverlay onResults landmarks:", results.landmarks.length);
             const ctx = canvas.getContext("2d");
             if (ctx) {
-              const width = canvas.clientWidth || video.clientWidth || 1;
-              const height = canvas.clientHeight || video.clientHeight || 1;
+              const rect = video.getBoundingClientRect();
+              const width = rect.width || canvas.clientWidth || 1;
+              const height = rect.height || canvas.clientHeight || 1;
               if (canvas.width !== width) canvas.width = width;
               if (canvas.height !== height) canvas.height = height;
+              canvas.style.left = (video.offsetLeft) + "px";
+              canvas.style.width = rect.width + "px";
               ctx.clearRect(0, 0, canvas.width, canvas.height);
               if (!visibleRef.current) return;
               const idx = targetIndexRef.current;
