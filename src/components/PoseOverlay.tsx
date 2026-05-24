@@ -45,8 +45,7 @@ export function PoseOverlay({ videoRef, targetIndex = 0 }: PoseOverlayProps) {
               if (canvas.width !== width) canvas.width = width;
               if (canvas.height !== height) canvas.height = height;
               ctx.clearRect(0, 0, canvas.width, canvas.height);
-              const idx = targetIndexRef.current;
-              const lm = results.landmarks[idx];
+              const lm = results.landmarks[targetIndexRef.current];
               if (lm) {
                 const drawingUtils = new DrawingUtils(ctx);
                 drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
