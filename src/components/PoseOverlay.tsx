@@ -18,9 +18,9 @@ const MODEL_URL =
 export function PoseOverlay({ videoRef, targetIndex = 0 }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
-  targetIndexRef.current = targetIndex;
 
   useEffect(() => {
+    targetIndexRef.current = targetIndex;
     let cancelled = false;
     let landmarker: PoseLandmarker | null = null;
     let rafId: number | null = null;
@@ -45,8 +45,7 @@ export function PoseOverlay({ videoRef, targetIndex = 0 }: PoseOverlayProps) {
               if (canvas.width !== width) canvas.width = width;
               if (canvas.height !== height) canvas.height = height;
               ctx.clearRect(0, 0, canvas.width, canvas.height);
-              const idx = targetIndexRef.current;
-              const lm = results.landmarks[idx];
+              const lm = results.landmarks[targetIndexRef.current];
               if (lm) {
                 const drawingUtils = new DrawingUtils(ctx);
                 drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
