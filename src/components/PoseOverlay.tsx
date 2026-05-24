@@ -64,6 +64,22 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
                   fillColor: "#00e5b4",
                   radius: 3,
                 });
+                const kneeAngle = (a: any, b: any, c: any) => {
+                  const v1x = a.x - b.x, v1y = a.y - b.y, v1z = (a.z ?? 0) - (b.z ?? 0);
+                  const v2x = c.x - b.x, v2y = c.y - b.y, v2z = (c.z ?? 0) - (b.z ?? 0);
+                  const dot = v1x * v2x + v1y * v2y + v1z * v2z;
+                  const m1 = Math.sqrt(v1x * v1x + v1y * v1y + v1z * v1z);
+                  const m2 = Math.sqrt(v2x * v2x + v2y * v2y + v2z * v2z);
+                  if (m1 === 0 || m2 === 0) return 180;
+                  const cos = Math.max(-1, Math.min(1, dot / (m1 * m2)));
+                  return (Math.acos(cos) * 180) / Math.PI;
+                };
+                if (lm[23] && lm[25] && lm[27] && lm[24] && lm[26] && lm[28]) {
+                  const left = kneeAngle(lm[23], lm[25], lm[27]);
+                  const right = kneeAngle(lm[24], lm[26], lm[28]);
+                  const front = Math.min(left, right);
+                  if (front < 150) lungeRef.current?.(front);
+                }
               }
             }
           } catch (err) {
