@@ -18,9 +18,9 @@ const MODEL_URL =
 export function PoseOverlay({ videoRef, targetIndex = 0 }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
-  targetIndexRef.current = targetIndex;
 
   useEffect(() => {
+    targetIndexRef.current = targetIndex;
     let cancelled = false;
     let landmarker: PoseLandmarker | null = null;
     let rafId: number | null = null;
