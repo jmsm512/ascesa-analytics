@@ -47,15 +47,31 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
         landmarker.close();
         if (cancelled) return;
 
-        const detected: Box[] = (result.landmarks ?? []).map((lms) => {
+        const detectedRaw = (result.landmarks ?? []).map((lms) => {
           const xs = lms.map((l) => l.x);
           const ys = lms.map((l) => l.y);
           const minX = Math.max(0, Math.min(...xs) - 0.04);
           const maxX = Math.min(1, Math.max(...xs) + 0.04);
           const minY = Math.max(0, Math.min(...ys) - 0.04);
           const maxY = Math.min(1, Math.max(...ys) + 0.04);
-          return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+          const visScores = lms.map((l: any) => (typeof l.visibility === "number" ? l.visibility : 0));
+          const avgVis = visScores.length ? visScores.reduce((a, b) => a + b, 0) / visScores.length : 0;
+          const box: Box = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+          return { box, avgVis, cx: minX + (maxX - minX) / 2, cy: minY + (maxY - minY) / 2 };
         });
+
+        // Deduplicate: if two detections' centers are within 10% of frame
+        // width/height of each other, keep only the one with the highest
+        // average landmark visibility.
+        const sorted = [...detectedRaw].sort((a, b) => b.avgVis - a.avgVis);
+        const kept: typeof sorted = [];
+        for (const cand of sorted) {
+          const dup = kept.some(
+            (k) => Math.abs(k.cx - cand.cx) < 0.1 && Math.abs(k.cy - cand.cy) < 0.1,
+          );
+          if (!dup) kept.push(cand);
+        }
+        const detected: Box[] = kept.map((k) => k.box);
         setBoxes(detected);
         // Do NOT auto-advance — wait for explicit user click.
       } catch (e: any) {
