@@ -11,6 +11,7 @@ type PoseOverlayProps = {
   visible?: boolean;
   onLungeData?: (angle: number) => void;
   centerPosition?: { x: number; y: number } | null;
+  trackingZone?: { x: number; y: number; w: number; h: number } | null;
 };
 
 const WASM_URL =
@@ -18,7 +19,7 @@ const WASM_URL =
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
-export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, centerPosition = null }: PoseOverlayProps) {
+export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, centerPosition = null, trackingZone = null }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
   targetIndexRef.current = targetIndex;
@@ -28,6 +29,8 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
   lungeRef.current = onLungeData;
   const centerPositionRef = useRef(centerPosition);
   centerPositionRef.current = centerPosition;
+  const trackingZoneRef = useRef(trackingZone);
+  trackingZoneRef.current = trackingZone;
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +72,15 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
                 idx = bestIdx;
               }
               const lm = results.landmarks[idx];
+              if (lm && trackingZoneRef.current && lm[23] && lm[24]) {
+                const hx = (lm[23].x + lm[24].x) / 2;
+                const hy = (lm[23].y + lm[24].y) / 2;
+                const z = trackingZoneRef.current;
+                if (hx < z.x || hx > z.x + z.w || hy < z.y || hy > z.y + z.h) {
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  return;
+                }
+              }
               if (lm) {
                 const drawingUtils = new DrawingUtils(ctx);
                 drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {

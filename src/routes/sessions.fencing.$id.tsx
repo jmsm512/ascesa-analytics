@@ -559,7 +559,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 // ============= Period Section =============
 
-type Stage = "upload" | "uploading" | "extracting" | "calibrate" | "select-athlete" | "analyzing" | "results";
+type Stage = "upload" | "uploading" | "extracting" | "calibrate" | "select-athlete" | "zone" | "analyzing" | "results";
 
 function PeriodSection({
   index,
@@ -604,6 +604,7 @@ function PeriodSection({
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
   const [selectedAthlete, setSelectedAthlete] = useState<number | null>(null);
   const [selectedAthleteCenter, setSelectedAthleteCenter] = useState<{ x: number; y: number } | null>(null);
+  const [trackingZone, setTrackingZone] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [lungeAngles, setLungeAngles] = useState<number[]>([]);
@@ -1053,7 +1054,7 @@ function PeriodSection({
               onSelect={(idx, center) => {
                 setSelectedAthlete(idx);
                 setSelectedAthleteCenter(center);
-                void runAnalysis();
+                setStage("zone");
               }}
               onCancel={() => {
                 setPoints([]);
@@ -1061,6 +1062,19 @@ function PeriodSection({
               }}
             />
           )}
+
+          {stage === "zone" && firstFrame && (
+            <ZoneSelector
+              frameDataUrl={firstFrame}
+              zone={trackingZone}
+              setZone={setTrackingZone}
+              onConfirm={() => {
+                setStage("analyzing");
+                void runAnalysis();
+              }}
+            />
+          )}
+
 
           {stage === "analyzing" && (
             <div className="surface p-8">
@@ -1156,9 +1170,11 @@ function PeriodSection({
                       videoRef={playbackRef}
                       targetIndex={selectedAthlete ?? 0}
                       centerPosition={selectedAthleteCenter}
+                      trackingZone={trackingZone}
                       visible={showSkeleton}
                       onLungeData={(angle) => setLungeAngles((prev) => [...prev, angle])}
                     />
+
                   </div>
                   {lungeAngles.length > 0 && (
                     <div className="grid grid-cols-2 gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
@@ -1646,3 +1662,100 @@ function SpeedInsights({
     </div>
   );
 }
+
+function ZoneSelector({
+  frameDataUrl,
+  zone,
+  setZone,
+  onConfirm,
+}: {
+  frameDataUrl: string;
+  zone: { x: number; y: number; w: number; h: number } | null;
+  setZone: (z: { x: number; y: number; w: number; h: number } | null) => void;
+  onConfirm: () => void;
+}) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+
+  const getRect = () => containerRef.current?.getBoundingClientRect();
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const r = getRect();
+    if (!r) return;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    startRef.current = { x, y };
+    setDrag({ x, y, w: 0, h: 0 });
+    setZone(null);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!startRef.current) return;
+    const r = getRect();
+    if (!r) return;
+    const cx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const cy = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    const s = startRef.current;
+    const x = Math.min(s.x, cx);
+    const y = Math.min(s.y, cy);
+    const w = Math.abs(cx - s.x);
+    const h = Math.abs(cy - s.y);
+    setDrag({ x, y, w, h });
+  };
+
+  const onPointerUp = () => {
+    if (drag && drag.w > 0.01 && drag.h > 0.01) {
+      setZone(drag);
+    }
+    startRef.current = null;
+  };
+
+  const display = zone ?? drag;
+
+  return (
+    <div className="surface p-4 space-y-3">
+      <p className="text-sm text-[var(--text-secondary)]">
+        Draw a box around the piste where your athlete competes. People outside this box will be ignored.
+      </p>
+      <div
+        ref={containerRef}
+        className="relative inline-block w-full overflow-hidden rounded-md select-none touch-none"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        <img ref={imgRef} src={frameDataUrl} alt="frame" className="block w-full pointer-events-none" draggable={false} />
+        {display && (
+          <div
+            className="absolute border-2 border-[var(--accent)] bg-[var(--accent)]/20 pointer-events-none"
+            style={{
+              left: `${display.x * 100}%`,
+              top: `${display.y * 100}%`,
+              width: `${display.w * 100}%`,
+              height: `${display.h * 100}%`,
+            }}
+          />
+        )}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onConfirm}
+          disabled={!zone}
+          className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-black disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Confirm Zone
+        </button>
+        <button
+          onClick={() => { setZone(null); setDrag(null); }}
+          className="rounded-md border border-[var(--border-default)] px-4 py-2 text-sm hover:bg-[var(--bg-elevated)]"
+        >
+          Redraw
+        </button>
+      </div>
+    </div>
+  );
+}
+
