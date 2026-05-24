@@ -9,7 +9,7 @@ type Box = { x: number; y: number; w: number; h: number };
 
 type Props = {
   frameDataUrl: string;
-  onSelect: (athleteIndex: number, hipPosition: { x: number; y: number }) => void;
+  onSelect: (athleteIndex: number) => void;
   onCancel?: () => void;
 };
 
@@ -129,7 +129,7 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
         {[...(boxes ?? []), ...manualBoxes].map((b, i) => (
           <button
             key={i}
-            onClick={(e) => { e.stopPropagation(); onSelect(i, { x: b.x + b.w / 2, y: b.y + b.h / 2 }); }}
+            onClick={(e) => { e.stopPropagation(); onSelect(i); }}
             style={{
               position: "absolute",
               left: `${b.x * 100}%`,
