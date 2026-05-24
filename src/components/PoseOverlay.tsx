@@ -10,6 +10,7 @@ type PoseOverlayProps = {
   targetIndex?: number;
   visible?: boolean;
   onLungeData?: (angle: number) => void;
+  centerPosition?: { x: number; y: number } | null;
 };
 
 const WASM_URL =
