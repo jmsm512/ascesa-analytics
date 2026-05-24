@@ -603,6 +603,7 @@ function PeriodSection({
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
   const [selectedAthlete, setSelectedAthlete] = useState<number | null>(null);
+  const [selectedAthleteHip, setSelectedAthleteHip] = useState<{ x: number; y: number } | null>(null);
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [lungeAngles, setLungeAngles] = useState<number[]>([]);
 
