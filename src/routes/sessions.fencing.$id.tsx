@@ -1079,6 +1079,7 @@ function PeriodSection({
                     src={dataUrl}
                     controls
                     playsInline
+                    crossOrigin="anonymous"
                     onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
                     onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
                     className="w-full rounded-md bg-black"
