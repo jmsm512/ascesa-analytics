@@ -765,6 +765,7 @@ function PeriodSection({
       }
 
       const out: Reading[] = [];
+      console.log("runAnalysis started, readings so far:", out.length);
       setReadings(out);
       setStage("results");
       setSaving(true);
