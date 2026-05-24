@@ -11,6 +11,7 @@ import {
   type DrillsPlan,
 } from "@/lib/coaching.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { format } from "date-fns";
 import {
   ResponsiveContainer,
