@@ -106,6 +106,8 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
                   const front = Math.min(left, right);
                   if (front < 150) lungeRef.current?.(front);
                 }
+                const selectedHip = hipMidpoints[selectedIndex];
+                if (selectedHip) lastHipPositionRef.current = selectedHip;
               }
             }
           } catch (err) {
