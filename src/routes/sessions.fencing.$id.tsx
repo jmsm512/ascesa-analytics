@@ -1063,7 +1063,6 @@ function PeriodSection({
               trackingZone={trackingZone}
               onSelect={(idx) => {
                 setSelectedAthlete(idx);
-                setStage("analyzing");
                 void runAnalysis();
               }}
               onCancel={() => {
