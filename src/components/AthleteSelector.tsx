@@ -11,9 +11,10 @@ type Props = {
   frameDataUrl: string;
   onSelect: (athleteIndex: number, center: { x: number; y: number }) => void;
   onCancel?: () => void;
+  trackingZone?: { x: number; y: number; w: number; h: number } | null;
 };
 
-export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
+export function AthleteSelector({ frameDataUrl, onSelect, onCancel, trackingZone = null }: Props) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [boxes, setBoxes] = useState<Box[] | null>(null);
   const [error, setError] = useState<string | null>(null);
