@@ -1047,13 +1047,26 @@ function PeriodSection({
             </div>
           )}
 
+          {stage === "zone" && firstFrame && (
+            <ZoneSelector
+              frameDataUrl={firstFrame}
+              zone={trackingZone}
+              setZone={setTrackingZone}
+              onConfirm={() => {
+                setStage("select-athlete");
+              }}
+            />
+          )}
+
           {stage === "select-athlete" && firstFrame && (
             <AthleteSelector
               frameDataUrl={firstFrame}
+              trackingZone={trackingZone}
               onSelect={(idx, center) => {
                 setSelectedAthlete(idx);
                 setSelectedAthleteCenter(center);
-                setStage("zone");
+                setStage("analyzing");
+                void runAnalysis();
               }}
               onCancel={() => {
                 setPoints([]);
@@ -1062,17 +1075,7 @@ function PeriodSection({
             />
           )}
 
-          {stage === "zone" && firstFrame && (
-            <ZoneSelector
-              frameDataUrl={firstFrame}
-              zone={trackingZone}
-              setZone={setTrackingZone}
-              onConfirm={() => {
-                setStage("analyzing");
-                void runAnalysis();
-              }}
-            />
-          )}
+
 
 
           {stage === "analyzing" && (
