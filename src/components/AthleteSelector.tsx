@@ -39,8 +39,8 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
           baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
           runningMode: "IMAGE",
           numPoses: 8,
-          minPoseDetectionConfidence: 0.25,
-          minPosePresenceConfidence: 0.25,
+          minPoseDetectionConfidence: 0.15,
+          minPosePresenceConfidence: 0.15,
         });
 
         const result = landmarker.detect(img);
@@ -130,6 +130,23 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
               }}
             >
               {i + 1}
+            </span>
+            <span
+              style={{
+                position: "absolute",
+                bottom: 4,
+                left: "50%",
+                transform: "translateX(-50%)",
+                background: "var(--accent)",
+                color: "#000",
+                fontWeight: 700,
+                fontSize: 11,
+                padding: "2px 8px",
+                borderRadius: 4,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Select
             </span>
           </button>
         ))}
