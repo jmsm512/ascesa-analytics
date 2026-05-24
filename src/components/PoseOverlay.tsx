@@ -17,12 +17,14 @@ const WASM_URL =
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
-export function PoseOverlay({ videoRef, targetIndex = 0, visible = true }: PoseOverlayProps) {
+export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
   targetIndexRef.current = targetIndex;
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
+  const lungeRef = useRef(onLungeData);
+  lungeRef.current = onLungeData;
 
   useEffect(() => {
     let cancelled = false;
