@@ -58,30 +58,23 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
               if (canvas.height !== height) canvas.height = height;
               ctx.clearRect(0, 0, canvas.width, canvas.height);
               if (!visibleRef.current) return;
-              let idx = targetIndexRef.current;
-              if (centerPositionRef.current && results.landmarks.length > 0) {
-                const cx = centerPositionRef.current.x;
-                let best = Infinity;
-                let bestIdx = 0;
-                for (let i = 0; i < results.landmarks.length; i++) {
-                  const pose = results.landmarks[i];
-                  const avgX = pose.reduce((s, p) => s + p.x, 0) / pose.length;
-                  const d = Math.abs(avgX - cx);
-                  if (d < best) { best = d; bestIdx = i; }
-                }
-                idx = bestIdx;
-              }
-              const lm = results.landmarks[idx];
-              if (lm && trackingZoneRef.current && lm[23] && lm[24]) {
-                const hx = (lm[23].x + lm[24].x) / 2;
-                const hy = (lm[23].y + lm[24].y) / 2;
+              const idx = targetIndexRef.current;
+
+              const lm = results.landmarks[idx] ?? results.landmarks[0];
+
+              if (!lm) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+
+              if (trackingZoneRef.current) {
+
                 const z = trackingZoneRef.current;
-                if (hx < z.x || hx > z.x + z.w || hy < z.y || hy > z.y + z.h) {
-                  ctx.clearRect(0, 0, canvas.width, canvas.height);
-                  return;
-                }
+
+                const checkLandmarks = [11, 12, 23, 24, 25, 26].map(i => lm[i]).filter(Boolean);
+
+                const anyInside = checkLandmarks.some(p => p.x >= z.x && p.x <= z.x + z.w && p.y >= z.y && p.y <= z.y + z.h);
+
+                if (!anyInside) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+
               }
-              if (lm) {
                 const drawingUtils = new DrawingUtils(ctx);
                 drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
                   color: "#00e5b4",
@@ -108,7 +101,6 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
                   const front = Math.min(left, right);
                   if (front < 150) lungeRef.current?.(front);
                 }
-              }
             }
           } catch (err) {
             console.warn("PoseOverlay detect failed", err);
@@ -160,8 +152,8 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
           },
           runningMode: "VIDEO",
           numPoses: 2,
-          minPoseDetectionConfidence: 0.7,
-          minPosePresenceConfidence: 0.7,
+          minPoseDetectionConfidence: 0.5,
+          minPosePresenceConfidence: 0.5,
         });
         console.log("PoseOverlay initialized");
         const v = videoRef.current;
