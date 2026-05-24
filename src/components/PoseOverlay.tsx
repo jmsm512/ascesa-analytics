@@ -10,6 +10,7 @@ type PoseOverlayProps = {
   targetIndex?: number;
   visible?: boolean;
   onLungeData?: (angle: number) => void;
+  centerPosition?: { x: number; y: number } | null;
 };
 
 const WASM_URL =
@@ -17,7 +18,7 @@ const WASM_URL =
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
-export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData }: PoseOverlayProps) {
+export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, centerPosition = null }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
   targetIndexRef.current = targetIndex;
@@ -25,6 +26,8 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
   visibleRef.current = visible;
   const lungeRef = useRef(onLungeData);
   lungeRef.current = onLungeData;
+  const centerPositionRef = useRef(centerPosition);
+  centerPositionRef.current = centerPosition;
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +55,20 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
               if (canvas.height !== height) canvas.height = height;
               ctx.clearRect(0, 0, canvas.width, canvas.height);
               if (!visibleRef.current) return;
-              const lm = results.landmarks[targetIndexRef.current];
+              let idx = targetIndexRef.current;
+              if (centerPositionRef.current && results.landmarks.length > 0) {
+                const cx = centerPositionRef.current.x;
+                let best = Infinity;
+                let bestIdx = 0;
+                for (let i = 0; i < results.landmarks.length; i++) {
+                  const pose = results.landmarks[i];
+                  const avgX = pose.reduce((s, p) => s + p.x, 0) / pose.length;
+                  const d = Math.abs(avgX - cx);
+                  if (d < best) { best = d; bestIdx = i; }
+                }
+                idx = bestIdx;
+              }
+              const lm = results.landmarks[idx];
               if (lm) {
                 const drawingUtils = new DrawingUtils(ctx);
                 drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
