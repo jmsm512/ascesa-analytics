@@ -767,7 +767,7 @@ function PeriodSection({
           delegate: "GPU",
         },
         runningMode: "IMAGE",
-        numPoses: 1,
+        numPoses: 2,
       });
 
       const out: Reading[] = [];
@@ -791,6 +791,10 @@ function PeriodSection({
           v.currentTime = t;
         });
         ctx.drawImage(v, 0, 0);
+        for (const r of maskRects) {
+          ctx.fillStyle = "black";
+          ctx.fillRect(r.x * c.width, r.y * c.height, r.w * c.width, r.h * c.height);
+        }
 
         const result = landmarker.detect(c);
         const lms = result.landmarks?.[0];
@@ -804,6 +808,11 @@ function PeriodSection({
             const dy = foot.y - prevFoot.y;
             const distPx = Math.hypot(dx, dy);
             const speed = (distPx * metersPerPx) / step;
+            if (speed > 12) {
+              prevFoot = null;
+              setProgress({ cur: i + 1, total: times.length });
+              continue;
+            }
             // Direction: dot product of movement with vector toward points[0]
             const toP0x = p0px.x - prevFoot.x;
             const toP0y = p0px.y - prevFoot.y;
