@@ -11,6 +11,7 @@ type PoseOverlayProps = {
   visible?: boolean;
   onLungeData?: (angle: number) => void;
   trackingZone?: { x: number; y: number; w: number; h: number } | null;
+  maskRects?: Array<{ x: number; y: number; w: number; h: number }>;
 };
 
 const WASM_URL =
