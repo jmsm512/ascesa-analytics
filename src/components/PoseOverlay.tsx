@@ -11,6 +11,7 @@ type PoseOverlayProps = {
   visible?: boolean;
   onLungeData?: (angle: number) => void;
   trackingZone?: { x: number; y: number; w: number; h: number } | null;
+  maskRects?: Array<{ x: number; y: number; w: number; h: number }>;
 };
 
 const WASM_URL =
@@ -18,7 +19,7 @@ const WASM_URL =
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
-export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, trackingZone = null }: PoseOverlayProps) {
+export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, trackingZone = null, maskRects = [] }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
   targetIndexRef.current = targetIndex;
@@ -28,6 +29,8 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
   lungeRef.current = onLungeData;
   const trackingZoneRef = useRef(trackingZone);
   trackingZoneRef.current = trackingZone;
+  const maskRectsRef = useRef(maskRects);
+  maskRectsRef.current = maskRects;
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +48,18 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
         if (ts !== lastTs) {
           lastTs = ts;
           try {
-            const results = landmarker.detectForVideo(video, ts);
+            const offscreen = document.createElement("canvas");
+            offscreen.width = video.videoWidth;
+            offscreen.height = video.videoHeight;
+            const offCtx = offscreen.getContext("2d");
+            if (offCtx) {
+              offCtx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
+              offCtx.fillStyle = "black";
+              for (const r of maskRectsRef.current) {
+                offCtx.fillRect(r.x * offscreen.width, r.y * offscreen.height, r.w * offscreen.width, r.h * offscreen.height);
+              }
+            }
+            const results = landmarker.detectForVideo(offscreen, ts);
             console.log("PoseOverlay onResults landmarks:", results.landmarks.length);
             const ctx = canvas.getContext("2d");
             if (ctx) {
