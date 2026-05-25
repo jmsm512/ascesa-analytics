@@ -1177,6 +1177,14 @@ function PeriodSection({
                     >
                       Re-select
                     </button>
+                    <button
+                      onClick={() => {
+                        setSelectedAthlete(selectedAthlete === 0 ? 1 : 0);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+                    >
+                      Switch Athlete
+                    </button>
                   </div>
                   <div style={{ position: "relative" }} className="overflow-hidden rounded-lg">
                     <video
