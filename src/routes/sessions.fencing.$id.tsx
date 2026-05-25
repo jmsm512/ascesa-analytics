@@ -559,7 +559,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 // ============= Period Section =============
 
-type Stage = "upload" | "uploading" | "extracting" | "calibrate" | "select-athlete" | "zone" | "analyzing" | "results";
+type Stage = "upload" | "uploading" | "extracting" | "calibrate" | "mask" | "select-athlete" | "zone" | "analyzing" | "results";
 
 function PeriodSection({
   index,
