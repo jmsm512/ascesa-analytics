@@ -1060,7 +1060,6 @@ function PeriodSection({
           {stage === "select-athlete" && firstFrame && (
             <AthleteSelector
               frameDataUrl={firstFrame}
-              trackingZone={trackingZone}
               onSelect={(idx) => {
                 setSelectedAthlete(idx);
                 void runAnalysis();
