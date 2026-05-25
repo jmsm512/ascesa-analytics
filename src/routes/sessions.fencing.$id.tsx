@@ -1768,3 +1768,109 @@ function ZoneSelector({
   );
 }
 
+function MaskStage({
+  frameDataUrl,
+  maskRects,
+  setMaskRects,
+  onDone,
+}: {
+  frameDataUrl: string;
+  maskRects: Array<{ x: number; y: number; w: number; h: number }>;
+  setMaskRects: (r: Array<{ x: number; y: number; w: number; h: number }>) => void;
+  onDone: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const startRef = useRef<{ x: number; y: number } | null>(null);
+
+  const getRect = () => containerRef.current?.getBoundingClientRect();
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const r = getRect();
+    if (!r) return;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    startRef.current = { x, y };
+    setDrag({ x, y, w: 0, h: 0 });
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!startRef.current) return;
+    const r = getRect();
+    if (!r) return;
+    const cx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const cy = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    const s = startRef.current;
+    setDrag({
+      x: Math.min(s.x, cx),
+      y: Math.min(s.y, cy),
+      w: Math.abs(cx - s.x),
+      h: Math.abs(cy - s.y),
+    });
+  };
+
+  const onPointerUp = () => {
+    if (drag && drag.w > 0.01 && drag.h > 0.01) {
+      setMaskRects([...maskRects, drag]);
+    }
+    setDrag(null);
+    startRef.current = null;
+  };
+
+  return (
+    <div className="surface p-4 space-y-3">
+      <p className="text-sm text-[var(--text-secondary)]">
+        Click and drag to black out people you want to ignore. Click Done when finished.
+      </p>
+      <div
+        ref={containerRef}
+        className="relative inline-block w-full overflow-hidden rounded-md select-none touch-none"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        <img src={frameDataUrl} alt="frame" className="block w-full pointer-events-none" draggable={false} />
+        {maskRects.map((r, i) => (
+          <div
+            key={i}
+            className="absolute bg-black pointer-events-none"
+            style={{
+              left: `${r.x * 100}%`,
+              top: `${r.y * 100}%`,
+              width: `${r.w * 100}%`,
+              height: `${r.h * 100}%`,
+            }}
+          />
+        ))}
+        {drag && (
+          <div
+            className="absolute bg-black/70 pointer-events-none"
+            style={{
+              left: `${drag.x * 100}%`,
+              top: `${drag.y * 100}%`,
+              width: `${drag.w * 100}%`,
+              height: `${drag.h * 100}%`,
+            }}
+          />
+        )}
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onDone}
+          className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-black"
+        >
+          Done
+        </button>
+        <button
+          onClick={() => setMaskRects([])}
+          className="rounded-md border border-[var(--border-default)] px-4 py-2 text-sm hover:bg-[var(--bg-elevated)]"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
