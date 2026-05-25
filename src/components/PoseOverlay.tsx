@@ -19,7 +19,7 @@ const WASM_URL =
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
 
-export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, trackingZone = null }: PoseOverlayProps) {
+export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, trackingZone = null, maskRects = [] }: PoseOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const targetIndexRef = useRef(targetIndex);
   targetIndexRef.current = targetIndex;
@@ -29,6 +29,8 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
   lungeRef.current = onLungeData;
   const trackingZoneRef = useRef(trackingZone);
   trackingZoneRef.current = trackingZone;
+  const maskRectsRef = useRef(maskRects);
+  maskRectsRef.current = maskRects;
 
   useEffect(() => {
     let cancelled = false;
