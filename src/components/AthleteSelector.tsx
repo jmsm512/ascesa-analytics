@@ -11,10 +11,9 @@ type Props = {
   frameDataUrl: string;
   onSelect: (athleteIndex: number) => void;
   onCancel?: () => void;
-  trackingZone?: { x: number; y: number; w: number; h: number } | null;
 };
 
-export function AthleteSelector({ frameDataUrl, onSelect, onCancel, trackingZone = null }: Props) {
+export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [boxes, setBoxes] = useState<Box[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,9 +62,6 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel, trackingZone
           return { box, avgVis, cx: minX + (maxX - minX) / 2, cy: minY + (maxY - minY) / 2 };
         });
 
-        // Deduplicate: if two detections' centers are within 10% of frame
-        // width/height of each other, keep only the one with the highest
-        // average landmark visibility.
         const sorted = [...detectedRaw].sort((a, b) => b.avgVis - a.avgVis);
         const kept: typeof sorted = [];
         for (const cand of sorted) {
@@ -74,15 +70,8 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel, trackingZone
           );
           if (!dup) kept.push(cand);
         }
-        let detected: Box[] = kept.map((k) => k.box);
-        if (trackingZone) {
-          const z = trackingZone;
-          detected = detected.filter(
-            (b) => b.x < z.x + z.w && b.x + b.w > z.x && b.y < z.y + z.h && b.y + b.h > z.y,
-          );
-        }
+        const detected: Box[] = kept.map((k) => k.box);
         setBoxes(detected);
-        // Do NOT auto-advance — wait for explicit user click.
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Detection failed");
       } finally {
