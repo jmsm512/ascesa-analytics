@@ -48,7 +48,18 @@ export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLunge
         if (ts !== lastTs) {
           lastTs = ts;
           try {
-            const results = landmarker.detectForVideo(video, ts);
+            const offscreen = document.createElement("canvas");
+            offscreen.width = video.videoWidth;
+            offscreen.height = video.videoHeight;
+            const offCtx = offscreen.getContext("2d");
+            if (offCtx) {
+              offCtx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
+              offCtx.fillStyle = "black";
+              for (const r of maskRectsRef.current) {
+                offCtx.fillRect(r.x * offscreen.width, r.y * offscreen.height, r.w * offscreen.width, r.h * offscreen.height);
+              }
+            }
+            const results = landmarker.detectForVideo(offscreen, ts);
             console.log("PoseOverlay onResults landmarks:", results.landmarks.length);
             const ctx = canvas.getContext("2d");
             if (ctx) {
