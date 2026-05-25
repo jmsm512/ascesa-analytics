@@ -1180,6 +1180,7 @@ function PeriodSection({
                       videoRef={playbackRef}
                       targetIndex={selectedAthlete ?? 0}
                       trackingZone={trackingZone}
+                      maskRects={maskRects}
                       visible={showSkeleton}
                       onLungeData={(angle) => setLungeAngles((prev) => [...prev, angle])}
                     />
