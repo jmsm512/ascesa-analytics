@@ -11,9 +11,10 @@ type Props = {
   frameDataUrl: string;
   onSelect: (athleteIndex: number) => void;
   onCancel?: () => void;
+  maskRects?: Array<{ x: number; y: number; w: number; h: number }>;
 };
 
-export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
+export function AthleteSelector({ frameDataUrl, onSelect, onCancel, maskRects = [] }: Props) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [boxes, setBoxes] = useState<Box[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +46,18 @@ export function AthleteSelector({ frameDataUrl, onSelect, onCancel }: Props) {
           minPosePresenceConfidence: 0.15,
         });
 
-        const result = landmarker.detect(img);
+        const offscreen = document.createElement("canvas");
+        offscreen.width = img.naturalWidth;
+        offscreen.height = img.naturalHeight;
+        const offCtx = offscreen.getContext("2d");
+        if (offCtx) {
+          offCtx.drawImage(img, 0, 0, offscreen.width, offscreen.height);
+          offCtx.fillStyle = "black";
+          for (const r of maskRects) {
+            offCtx.fillRect(r.x * offscreen.width, r.y * offscreen.height, r.w * offscreen.width, r.h * offscreen.height);
+          }
+        }
+        const result = landmarker.detect(offscreen);
         landmarker.close();
         if (cancelled) return;
 
