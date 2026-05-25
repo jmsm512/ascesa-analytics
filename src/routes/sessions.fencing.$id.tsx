@@ -1157,12 +1157,24 @@ function PeriodSection({
 
               {dataUrl && (
                 <div className="space-y-2">
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setShowSkeleton((s) => !s)}
                       className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
                     >
                       {showSkeleton ? "Hide Skeleton" : "Show Skeleton"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        playbackRef.current?.pause();
+                        setSelectedAthlete(null);
+                        setMaskRects([]);
+                        setLungeAngles([]);
+                        setStage("mask");
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+                    >
+                      Re-select
                     </button>
                   </div>
                   <div style={{ position: "relative" }} className="overflow-hidden rounded-lg">
