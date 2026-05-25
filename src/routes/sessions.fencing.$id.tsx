@@ -1047,6 +1047,17 @@ function PeriodSection({
             </div>
           )}
 
+          {stage === "mask" && firstFrame && (
+            <MaskStage
+              frameDataUrl={firstFrame}
+              maskRects={maskRects}
+              setMaskRects={setMaskRects}
+              onDone={() => setStage("select-athlete")}
+            />
+          )}
+
+
+
           {stage === "zone" && firstFrame && (
             <ZoneSelector
               frameDataUrl={firstFrame}
