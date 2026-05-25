@@ -1170,6 +1170,7 @@ function PeriodSection({
                         setSelectedAthlete(null);
                         setMaskRects([]);
                         setLungeAngles([]);
+                        setCollapsed(false);
                         setStage("mask");
                       }}
                       className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
