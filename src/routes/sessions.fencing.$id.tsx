@@ -728,7 +728,7 @@ function PeriodSection({
     const next = [...points, { x, y }];
     setPoints(next);
     if (next.length === 2) {
-      setStage("zone");
+      setStage("select-athlete");
     }
   }
 
