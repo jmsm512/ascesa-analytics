@@ -277,6 +277,31 @@ function NewSessionPage() {
                 />
               </div>
 
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <div className="metric-label mb-1.5">Tournament / Event <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
+                  <input
+                    value={fencingEventName}
+                    onChange={(e) => setFencingEventName(e.target.value)}
+                    placeholder="e.g. Kaizen Spring Open"
+                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                  />
+                </label>
+                <label className="block">
+                  <div className="metric-label mb-1.5">Bout Type <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
+                  <Select value={fencingBoutType || "none"} onValueChange={(v) => setFencingBoutType(v === "none" ? "" : v)}>
+                    <SelectTrigger className="w-full border-[var(--border-default)] bg-[var(--bg-elevated)] focus:ring-[var(--accent)] focus:ring-1">
+                      <SelectValue placeholder="Select bout type…" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[var(--bg-elevated)] border-[var(--border-default)]">
+                      <SelectItem value="none" className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">None</SelectItem>
+                      <SelectItem value="pool" className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">Pool</SelectItem>
+                      <SelectItem value="de" className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">DE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+              </div>
+
               <NavBtns onBack={() => setStep(1)} onNext={() => setStep(3)} />
             </div>
           )}
