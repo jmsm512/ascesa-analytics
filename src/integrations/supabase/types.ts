@@ -282,7 +282,9 @@ export type Database = {
       }
       fencing_sessions: {
         Row: {
+          bout_type: string | null
           created_at: string
+          event_name: string | null
           id: string
           opponent: string | null
           result: string | null
@@ -295,7 +297,9 @@ export type Database = {
           weapon: string | null
         }
         Insert: {
+          bout_type?: string | null
           created_at?: string
+          event_name?: string | null
           id?: string
           opponent?: string | null
           result?: string | null
@@ -308,7 +312,9 @@ export type Database = {
           weapon?: string | null
         }
         Update: {
+          bout_type?: string | null
           created_at?: string
+          event_name?: string | null
           id?: string
           opponent?: string | null
           result?: string | null
