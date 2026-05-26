@@ -224,6 +224,8 @@ function FencingSession() {
                   opponent: fs.opponent ?? null,
                   touches_scored: fs.touches_scored ?? 0,
                   touches_received: fs.touches_received ?? 0,
+                  event_name: (fs as any).event_name ?? null,
+                  bout_type: (fs as any).bout_type ?? null,
                 }}
                 onSaved={() => q.refetch()}
               />
