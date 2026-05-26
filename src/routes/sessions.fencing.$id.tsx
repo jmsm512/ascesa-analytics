@@ -618,6 +618,7 @@ function PeriodSection({
 
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
+  const lungeSaveCounterRef = useRef(0);
 
   // Sign existing video for playback
   useEffect(() => {
