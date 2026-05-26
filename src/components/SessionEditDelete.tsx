@@ -201,11 +201,11 @@ export function SessionEditDelete({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Tournament / Event</Label>
-                    <Input
+                    <EventNameCombobox
                       value={eventName}
-                      onChange={(e) => setEventName(e.target.value)}
-                      placeholder="e.g. Kaizen Spring Open"
+                      onChange={setEventName}
                     />
+
                   </div>
                   <div>
                     <Label>Bout Type</Label>
