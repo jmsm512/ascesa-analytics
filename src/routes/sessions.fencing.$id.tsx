@@ -61,7 +61,7 @@ const TABS = ["Overview", "Video"] as const;
 type Pt = { x: number; y: number };
 type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
 type ActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
-type ActionTag = { id: string; time: number; action: ActionType; success: boolean };
+type ActionTag = { id: string; time: number; action: ActionType | "Opp Touch"; success: boolean };
 
 type Period = {
   id: string;
