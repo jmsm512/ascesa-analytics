@@ -1251,20 +1251,37 @@ function PeriodSection({
                       trackingZone={trackingZone}
                       maskRects={maskRects}
                       visible={showSkeleton}
-                      onLungeData={(angle) => setLungeAngles((prev) => [...prev, angle])}
+                      onLungeData={(angle) => {
+                        setLungeAngles((prev) => {
+                          const next = [...prev, angle];
+                          lungeSaveCounterRef.current += 1;
+                          if (lungeSaveCounterRef.current >= 10 && next.length > 0) {
+                            lungeSaveCounterRef.current = 0;
+                            commit({
+                              peakLungeDepth: Math.min(...next),
+                              avgLungeDepth: next.reduce((a, b) => a + b, 0) / next.length,
+                            });
+                          }
+                          return next;
+                        });
+                      }}
                     />
 
                   </div>
-                  {lungeAngles.length > 0 && (
+                  {(lungeAngles.length > 0 || period.peakLungeDepth != null || period.avgLungeDepth != null) && (
                     <div className="grid grid-cols-2 gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
                       <div>
                         <div className="metric-label">Peak Lunge Depth</div>
-                        <div className="text-lg font-semibold">{Math.min(...lungeAngles).toFixed(1)}°</div>
+                        <div className="text-lg font-semibold">
+                          {(lungeAngles.length > 0 ? Math.min(...lungeAngles) : (period.peakLungeDepth ?? 0)).toFixed(1)}°
+                        </div>
                       </div>
                       <div>
                         <div className="metric-label">Average Lunge Depth</div>
                         <div className="text-lg font-semibold">
-                          {(lungeAngles.reduce((a, b) => a + b, 0) / lungeAngles.length).toFixed(1)}°
+                          {(lungeAngles.length > 0
+                            ? lungeAngles.reduce((a, b) => a + b, 0) / lungeAngles.length
+                            : (period.avgLungeDepth ?? 0)).toFixed(1)}°
                         </div>
                       </div>
                     </div>
