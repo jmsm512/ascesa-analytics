@@ -37,6 +37,8 @@ function NewSessionPage() {
   const [hockeyReps, setHockeyReps] = useState<HockeyRep[]>([{ rep_number: 1, time_10m: "", peak_kmh: "" }]);
   const [fencingOpponent, setFencingOpponent] = useState("");
   const [fencingScore, setFencingScore] = useState({ scored: 0, received: 0 });
+  const [fencingEventName, setFencingEventName] = useState("");
+  const [fencingBoutType, setFencingBoutType] = useState<string>("");
   const [saving, setSaving] = useState(false);
   
 
@@ -95,6 +97,8 @@ function NewSessionPage() {
           opponent: fencingOpponent || "Sparring partner",
           touches_scored: fencingScore.scored,
           touches_received: fencingScore.received,
+          event_name: fencingEventName.trim() || null,
+          bout_type: fencingBoutType || null,
           result: fencingScore.scored > fencingScore.received ? "win" : fencingScore.scored < fencingScore.received ? "loss" : "draw",
         });
       navigate({ to: "/sessions/fencing/$id", params: { id: session.id }, search: { tab: "Video" } });
@@ -271,6 +275,31 @@ function NewSessionPage() {
                   value={String(fencingScore.received)}
                   onChange={(v) => setFencingScore((s) => ({ ...s, received: Number(v) }))}
                 />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <div className="metric-label mb-1.5">Tournament / Event <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
+                  <input
+                    value={fencingEventName}
+                    onChange={(e) => setFencingEventName(e.target.value)}
+                    placeholder="e.g. Kaizen Spring Open"
+                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+                  />
+                </label>
+                <label className="block">
+                  <div className="metric-label mb-1.5">Bout Type <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
+                  <Select value={fencingBoutType || "none"} onValueChange={(v) => setFencingBoutType(v === "none" ? "" : v)}>
+                    <SelectTrigger className="w-full border-[var(--border-default)] bg-[var(--bg-elevated)] focus:ring-[var(--accent)] focus:ring-1">
+                      <SelectValue placeholder="Select bout type…" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[var(--bg-elevated)] border-[var(--border-default)]">
+                      <SelectItem value="none" className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">None</SelectItem>
+                      <SelectItem value="pool" className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">Pool</SelectItem>
+                      <SelectItem value="de" className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">DE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
               </div>
 
               <NavBtns onBack={() => setStep(1)} onNext={() => setStep(3)} />

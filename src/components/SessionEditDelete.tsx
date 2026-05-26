@@ -24,6 +24,8 @@ type FencingFields = {
   opponent: string | null;
   touches_scored: number;
   touches_received: number;
+  event_name?: string | null;
+  bout_type?: string | null;
 };
 
 export function SessionEditDelete({
@@ -51,6 +53,8 @@ export function SessionEditDelete({
   const [opponent, setOpponent] = useState(fencing?.opponent ?? "");
   const [scored, setScored] = useState(String(fencing?.touches_scored ?? 0));
   const [received, setReceived] = useState(String(fencing?.touches_received ?? 0));
+  const [eventName, setEventName] = useState(fencing?.event_name ?? "");
+  const [boutType, setBoutType] = useState<string>(fencing?.bout_type ?? "");
 
   async function save() {
     setSaving(true);
@@ -77,6 +81,8 @@ export function SessionEditDelete({
             opponent: opponent || null,
             touches_scored: s,
             touches_received: r,
+            event_name: eventName.trim() || null,
+            bout_type: boutType || null,
             result: s > r ? "win" : s < r ? "loss" : "draw",
           })
           .eq("id", fencing.fencingSessionId);
@@ -190,6 +196,28 @@ export function SessionEditDelete({
                   <div>
                     <Label>Touches received</Label>
                     <Input type="number" value={received} onChange={(e) => setReceived(e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Tournament / Event</Label>
+                    <Input
+                      value={eventName}
+                      onChange={(e) => setEventName(e.target.value)}
+                      placeholder="e.g. Kaizen Spring Open"
+                    />
+                  </div>
+                  <div>
+                    <Label>Bout Type</Label>
+                    <select
+                      value={boutType}
+                      onChange={(e) => setBoutType(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">None</option>
+                      <option value="pool">Pool</option>
+                      <option value="de">DE</option>
+                    </select>
                   </div>
                 </div>
               </>
