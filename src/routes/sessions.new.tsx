@@ -14,6 +14,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { EventNameCombobox } from "@/components/EventNameCombobox";
+
 
 export const Route = createFileRoute("/sessions/new")({
   component: NewSessionPage,
