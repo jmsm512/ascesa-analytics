@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { LineChart, Line, AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts";
 import { ArrowLeft, ArrowUpDown, ChevronRight, ChevronDown, Sparkles, RefreshCw, Check, Plus, Pencil, Trash2, Upload, RotateCcw, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { formatHeightImperial, formatWeightLb, kmhToMph, msToFps } from "@/lib/units";
@@ -587,7 +587,31 @@ type ProgressRow = {
   avgSpeed: number;
   peakAdvance: number;
   peakRetreat: number;
+  boutType: string | null;
+  peakLungeDepth: number | null;
+  avgLungeDepth: number | null;
+  attackSuccessRate: number | null;
+  touchSuccessRate: number | null;
+  riposteSuccessRate: number | null;
 };
+
+function extractLungeAngles(sa: any): number[] {
+  if (!sa) return [];
+  const out: number[] = [];
+  const pushAll = (v: any) => {
+    if (Array.isArray(v)) for (const n of v) if (typeof n === "number" && isFinite(n)) out.push(n);
+  };
+  pushAll(sa?.lungeAngles);
+  if (Array.isArray(sa?.periods)) for (const p of sa.periods) pushAll(p?.lungeAngles);
+  return out;
+}
+
+function successRate(tags: Array<{ action: string; success: boolean }>, action: string): number | null {
+  const filtered = tags.filter((t) => t.action === action);
+  if (!filtered.length) return null;
+  const succ = filtered.filter((t) => t.success).length;
+  return (succ / filtered.length) * 100;
+}
 
 async function loadProgressRows(athleteId: string): Promise<ProgressRow[]> {
   const { data: sess } = await supabase
@@ -599,18 +623,19 @@ async function loadProgressRows(athleteId: string): Promise<ProgressRow[]> {
   const ids = sessions.map((s) => s.id);
   const { data: fsRows } = await supabase
     .from("fencing_sessions")
-    .select("session_id, opponent, result, speed_analysis")
+    .select("session_id, opponent, result, speed_analysis, bout_type")
     .in("session_id", ids);
   console.log("[Progress] fetched fencing_sessions rows:", fsRows);
   const rows: ProgressRow[] = [];
   for (const fs of fsRows ?? []) {
-    const { readings } = flattenSpeedAnalysis((fs as any)?.speed_analysis);
+    const { readings, tags } = flattenSpeedAnalysis((fs as any)?.speed_analysis);
     if (!readings.length) continue;
     const s = sessions.find((x) => x.id === (fs as any).session_id);
     if (!s) continue;
     const speeds = readings.map((r) => r.speed);
     const adv = readings.filter((r) => r.direction === "advance").map((r) => r.speed);
     const ret = readings.filter((r) => r.direction === "retreat").map((r) => r.speed);
+    const lungeAngles = extractLungeAngles((fs as any)?.speed_analysis);
     rows.push({
       sessionId: s.id,
       date: s.session_date,
@@ -621,6 +646,12 @@ async function loadProgressRows(athleteId: string): Promise<ProgressRow[]> {
       avgSpeed: speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0,
       peakAdvance: adv.length ? Math.max(...adv) : 0,
       peakRetreat: ret.length ? Math.max(...ret) : 0,
+      boutType: (fs as any).bout_type ?? null,
+      peakLungeDepth: lungeAngles.length ? Math.min(...lungeAngles) : null,
+      avgLungeDepth: lungeAngles.length ? lungeAngles.reduce((a, b) => a + b, 0) / lungeAngles.length : null,
+      attackSuccessRate: successRate(tags, "Attack"),
+      touchSuccessRate: successRate(tags, "Touch"),
+      riposteSuccessRate: successRate(tags, "Riposte"),
     });
   }
   rows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -664,6 +695,9 @@ function ProgressCharts({ athleteId, sport }: { athleteId: string; sport: string
         <TrendChart title="Avg Speed (m/s)" data={chartData} dataKey="avgSpeed" benchmark={ELITE_BENCHMARKS.avgSpeed} />
         <TrendChart title="Peak Retreat (m/s)" data={chartData} dataKey="peakRetreat" benchmark={ELITE_BENCHMARKS.peakRetreat} />
       </div>
+
+      <FencingProgressExtras rows={rows} />
+
 
       <div className="surface p-5">
         <div className="metric-label mb-3">Session comparison</div>
@@ -743,6 +777,137 @@ function TrendChart({ title, data, dataKey, benchmark }: { title: string; data: 
           </ResponsiveContainer>
         </ClientOnly>
       </div>
+    </div>
+  );
+}
+
+function FencingProgressExtras({ rows }: { rows: ProgressRow[] }) {
+  const lungeData = rows
+    .filter((r) => r.peakLungeDepth != null)
+    .map((r) => ({ date: r.dateLabel, peakLungeDepth: Number((r.peakLungeDepth as number).toFixed(1)) }));
+
+  const successData = rows
+    .filter((r) => r.attackSuccessRate != null || r.touchSuccessRate != null || r.riposteSuccessRate != null)
+    .map((r) => ({
+      date: r.dateLabel,
+      attack: r.attackSuccessRate != null ? Number(r.attackSuccessRate.toFixed(1)) : null,
+      touch: r.touchSuccessRate != null ? Number(r.touchSuccessRate.toFixed(1)) : null,
+      riposte: r.riposteSuccessRate != null ? Number(r.riposteSuccessRate.toFixed(1)) : null,
+    }));
+
+  const pool = rows.filter((r) => r.boutType === "pool");
+  const de = rows.filter((r) => r.boutType === "de");
+  const showBoutCompare = pool.length > 0 && de.length > 0;
+
+  const avg = (vals: Array<number | null>) => {
+    const xs = vals.filter((v): v is number => v != null);
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+  };
+  const boutCompareData = showBoutCompare
+    ? [
+        {
+          action: "Attack",
+          Pool: Number(avg(pool.map((r) => r.attackSuccessRate)).toFixed(1)),
+          DE: Number(avg(de.map((r) => r.attackSuccessRate)).toFixed(1)),
+        },
+        {
+          action: "Touch",
+          Pool: Number(avg(pool.map((r) => r.touchSuccessRate)).toFixed(1)),
+          DE: Number(avg(de.map((r) => r.touchSuccessRate)).toFixed(1)),
+        },
+        {
+          action: "Riposte",
+          Pool: Number(avg(pool.map((r) => r.riposteSuccessRate)).toFixed(1)),
+          DE: Number(avg(de.map((r) => r.riposteSuccessRate)).toFixed(1)),
+        },
+      ]
+    : [];
+
+  const tooltipStyle = {
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border-default)",
+    borderRadius: 8,
+    fontSize: 12,
+  } as const;
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {lungeData.length > 0 && (
+        <div className="surface p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="metric-label">Peak Lunge Depth (degrees)</div>
+            <div className="text-[10px] text-[var(--text-secondary)]">(lower = deeper)</div>
+          </div>
+          <div className="h-56">
+            <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={lungeData} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+                  <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} label={{ value: "degrees", angle: -90, position: "insideLeft", fill: "var(--text-secondary)", fontSize: 11 }} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "var(--text-secondary)" }} />
+                  <ReferenceLine y={75} stroke="var(--accent)" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: "Elite 75°", fill: "var(--accent)", fontSize: 10, position: "right" }} />
+                  <Line type="monotone" dataKey="peakLungeDepth" stroke="var(--fencing)" strokeWidth={2.5} dot={{ r: 3, fill: "var(--fencing)" }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </ClientOnly>
+          </div>
+        </div>
+      )}
+
+      {successData.length > 0 && (
+        <div className="surface p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="metric-label">Action Success Rate</div>
+            <div className="flex items-center gap-3 text-[10px] text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#f59e0b" }} />Attack</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#14b8a6" }} />Touch</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#3b82f6" }} />Riposte</span>
+            </div>
+          </div>
+          <div className="h-56">
+            <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={successData} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+                  <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "var(--text-secondary)" }} formatter={(v: any) => (v == null ? "—" : `${v}%`)} />
+                  <Line type="monotone" dataKey="attack" name="Attack" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: "#f59e0b" }} connectNulls />
+                  <Line type="monotone" dataKey="touch" name="Touch" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3, fill: "#14b8a6" }} connectNulls />
+                  <Line type="monotone" dataKey="riposte" name="Riposte" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3, fill: "#3b82f6" }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </ClientOnly>
+          </div>
+        </div>
+      )}
+
+      {showBoutCompare && (
+        <div className="surface p-5 md:col-span-2">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="metric-label">Success Rate by Bout Type</div>
+            <div className="flex items-center gap-3 text-[10px] text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: "var(--fencing)" }} />Pool</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: "var(--accent)" }} />DE</span>
+            </div>
+          </div>
+          <div className="h-56">
+            <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={boutCompareData} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+                  <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+                  <XAxis dataKey="action" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "var(--text-secondary)" }} formatter={(v: any) => `${v}%`} />
+                  <Bar dataKey="Pool" fill="var(--fencing)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="DE" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ClientOnly>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
