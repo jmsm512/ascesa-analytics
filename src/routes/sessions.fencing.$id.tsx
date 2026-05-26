@@ -80,7 +80,7 @@ type SavedAnalysis = {
   drills?: DrillsPlan;
 };
 
-const ACTION_COLORS: Record<ActionType, string> = {
+const ACTION_COLORS: Record<ActionType | "Opp Touch", string> = {
   Attack: "#ef4444",
   Lunge: "#f97316",
   Parry: "#3b82f6",
@@ -88,6 +88,7 @@ const ACTION_COLORS: Record<ActionType, string> = {
   Advance: "#22c55e",
   Retreat: "#ec4899",
   Touch: "#eab308",
+  "Opp Touch": "#dc2626",
 };
 const ACTION_TYPES: ActionType[] = ["Attack", "Lunge", "Parry", "Riposte", "Advance", "Retreat", "Touch"];
 
@@ -610,6 +611,8 @@ function PeriodSection({
   
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [lungeAngles, setLungeAngles] = useState<number[]>([]);
+  const [rieScore, setRieScore] = useState(0);
+  const [oppScore, setOppScore] = useState(0);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const playbackRef = useRef<HTMLVideoElement>(null);
@@ -654,6 +657,7 @@ function PeriodSection({
     setTags(next);
     setPendingTag(null);
     commit({ tags: next });
+    if (success) setRieScore((s) => s + 1);
   }
   function cancelPending() {
     setPendingTag(null);
