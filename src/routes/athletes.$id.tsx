@@ -598,11 +598,12 @@ type ProgressRow = {
 function extractLungeAngles(sa: any): number[] {
   if (!sa) return [];
   const out: number[] = [];
-  const pushAll = (v: any) => {
-    if (Array.isArray(v)) for (const n of v) if (typeof n === "number" && isFinite(n)) out.push(n);
-  };
-  pushAll(sa?.lungeAngles);
-  if (Array.isArray(sa?.periods)) for (const p of sa.periods) pushAll(p?.lungeAngles);
+  if (Array.isArray(sa?.periods)) {
+    for (const p of sa.periods) {
+      const d = p?.peakLungeDepth;
+      if (typeof d === "number" && isFinite(d)) out.push(d);
+    }
+  }
   return out;
 }
 
