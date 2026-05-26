@@ -81,6 +81,8 @@ export function SessionEditDelete({
             opponent: opponent || null,
             touches_scored: s,
             touches_received: r,
+            event_name: eventName.trim() || null,
+            bout_type: boutType || null,
             result: s > r ? "win" : s < r ? "loss" : "draw",
           })
           .eq("id", fencing.fencingSessionId);
