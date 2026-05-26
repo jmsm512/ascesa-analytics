@@ -24,6 +24,8 @@ type FencingFields = {
   opponent: string | null;
   touches_scored: number;
   touches_received: number;
+  event_name?: string | null;
+  bout_type?: string | null;
 };
 
 export function SessionEditDelete({
