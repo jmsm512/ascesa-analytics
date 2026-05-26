@@ -1493,7 +1493,7 @@ function TaggedActionSummary({ tags, speedAt }: { tags: ActionTag[]; speedAt: (t
                   const actionTags = outcome === "success" ? successTags : failTags;
                   if (!actionTags.length) return;
                   const isSuccess = outcome === "success";
-                  const bench = ACTION_BENCHMARKS[action as ActionType];
+                  const bench = ACTION_BENCHMARKS[action as ActionType | "Opp Touch"];
                   const speeds = actionTags
                     .map((t) => speedAt(t.time)?.speed)
                     .filter((s): s is number => typeof s === "number");
@@ -1508,7 +1508,7 @@ function TaggedActionSummary({ tags, speedAt }: { tags: ActionTag[]; speedAt: (t
                       <div className="flex shrink-0 items-center gap-2 self-start">
                         <span
                           className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-black"
-                          style={{ background: ACTION_COLORS[action as ActionType] }}
+                          style={{ background: ACTION_COLORS[action as ActionType | "Opp Touch"] }}
                         >
                           {action}
                         </span>
