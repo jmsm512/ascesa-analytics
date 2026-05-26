@@ -100,30 +100,10 @@ function AthletePage() {
         <div className="mt-6">
           {tab === "Overview" && a && <OverviewTab athleteId={id} athleteName={a.name} sport={a.sport} />}
 
-          {tab === "Sessions" && (
-            <div className="surface divide-y divide-[var(--border-subtle)] overflow-hidden">
-              {sessions.data?.length === 0 && <Empty>No sessions yet.</Empty>}
-              {sessions.data?.map((s) => (
-                <Link
-                  key={s.id}
-                  to={s.sport === "hockey" ? "/sessions/hockey/$id" : "/sessions/fencing/$id"}
-                  params={{ id: s.id }}
-                  className="row-hover flex items-center gap-4 px-5 py-4"
-                >
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">
-                      {s.name?.trim() || <span className="capitalize">{s.session_type}</span>}
-                    </div>
-                    <div className="text-xs text-[var(--text-secondary)]">
-                      {format(new Date(s.session_date), "PP")}
-                      {s.name?.trim() ? <span className="capitalize"> · {s.session_type}</span> : null}
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
-                </Link>
-              ))}
-            </div>
+          {tab === "Sessions" && a && (
+            <FencingAwareSessionList athleteId={id} sport={a.sport} sessions={sessions.data ?? []} />
           )}
+
 
           {tab === "Drills" && a && <DrillsTab athleteId={id} athleteName={a.name} athleteAge={a.age} />}
 
