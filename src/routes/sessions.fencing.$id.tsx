@@ -659,6 +659,16 @@ function PeriodSection({
     commit({ tags: next });
     if (success) setRieScore((s) => s + 1);
   }
+  function logOppTouch() {
+    const t = playbackRef.current?.currentTime ?? currentTime;
+    setOppScore((s) => s + 1);
+    const next = [
+      ...tags,
+      { id: uid(), time: t, action: "Opp Touch" as const, success: false },
+    ].sort((a, b) => a.time - b.time);
+    setTags(next);
+    commit({ tags: next });
+  }
   function cancelPending() {
     setPendingTag(null);
   }
@@ -1260,6 +1270,19 @@ function PeriodSection({
               )}
 
               <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
+                <div className="mb-3 text-center">
+                  <div className="text-2xl font-bold tracking-tight">
+                    <span style={{ color: "var(--accent)" }}>RIE {rieScore}</span>
+                    <span className="mx-2 text-[var(--text-secondary)]">—</span>
+                    <span style={{ color: "var(--data-negative)" }}>OPP {oppScore}</span>
+                  </div>
+                  <button
+                    onClick={() => { setRieScore(0); setOppScore(0); }}
+                    className="mt-1 text-[11px] text-[var(--text-muted)] underline-offset-2 hover:underline"
+                  >
+                    Reset score
+                  </button>
+                </div>
                 <div className="metric-label mb-1">Tag action at {currentTime.toFixed(2)}s</div>
                 <p className="mb-3 text-[11px] text-[var(--text-muted)]">Tag at the moment the action begins — the first movement of the feet.</p>
                 <div className="flex flex-wrap gap-2">
@@ -1274,6 +1297,14 @@ function PeriodSection({
                       {a}
                     </button>
                   ))}
+                  <button
+                    onClick={logOppTouch}
+                    disabled={!!pendingTag}
+                    className="rounded-md px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
+                    style={{ background: "var(--data-negative)" }}
+                  >
+                    Opp Touch
+                  </button>
                 </div>
                 {pendingTag && (
                   <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--border-default)] bg-[var(--bg-default)] px-3 py-2">
