@@ -906,20 +906,39 @@ function PeriodSection({
           {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
         </button>
         {editingLabel ? (
-          <input
-            value={labelDraft}
-            onChange={(e) => setLabelDraft(e.target.value)}
-            onBlur={saveLabel}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") saveLabel();
-              if (e.key === "Escape") {
-                setLabelDraft(period.label);
-                setEditingLabel(false);
-              }
-            }}
-            autoFocus
-            className="rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 py-0.5 text-sm font-semibold"
-          />
+          <>
+            <input
+              list="period-label-options"
+              value={labelDraft}
+              onChange={(e) => setLabelDraft(e.target.value)}
+              onBlur={saveLabel}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveLabel();
+                if (e.key === "Escape") {
+                  setLabelDraft(period.label);
+                  setEditingLabel(false);
+                }
+              }}
+              autoFocus
+              className="rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 py-0.5 text-sm font-semibold"
+            />
+            <datalist id="period-label-options">
+              <option value="Pool 1" />
+              <option value="Pool 2" />
+              <option value="Pool 3" />
+              <option value="Pool 4" />
+              <option value="Pool 5" />
+              <option value="Pool 6" />
+              <option value="DE Round of 64" />
+              <option value="DE Round of 32" />
+              <option value="DE Round of 16" />
+              <option value="DE Quarterfinal" />
+              <option value="DE Semifinal" />
+              <option value="DE Final" />
+              <option value="Practice" />
+              <option value="Home Training" />
+            </datalist>
+          </>
         ) : (
           <button
             onClick={() => {
