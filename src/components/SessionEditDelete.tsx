@@ -198,6 +198,28 @@ export function SessionEditDelete({
                     <Input type="number" value={received} onChange={(e) => setReceived(e.target.value)} />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Tournament / Event</Label>
+                    <Input
+                      value={eventName}
+                      onChange={(e) => setEventName(e.target.value)}
+                      placeholder="e.g. Kaizen Spring Open"
+                    />
+                  </div>
+                  <div>
+                    <Label>Bout Type</Label>
+                    <select
+                      value={boutType}
+                      onChange={(e) => setBoutType(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">None</option>
+                      <option value="pool">Pool</option>
+                      <option value="de">DE</option>
+                    </select>
+                  </div>
+                </div>
               </>
             )}
             {err && <div className="text-xs text-[var(--data-negative)]">{err}</div>}
