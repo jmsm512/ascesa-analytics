@@ -587,7 +587,31 @@ type ProgressRow = {
   avgSpeed: number;
   peakAdvance: number;
   peakRetreat: number;
+  boutType: string | null;
+  peakLungeDepth: number | null;
+  avgLungeDepth: number | null;
+  attackSuccessRate: number | null;
+  touchSuccessRate: number | null;
+  riposteSuccessRate: number | null;
 };
+
+function extractLungeAngles(sa: any): number[] {
+  if (!sa) return [];
+  const out: number[] = [];
+  const pushAll = (v: any) => {
+    if (Array.isArray(v)) for (const n of v) if (typeof n === "number" && isFinite(n)) out.push(n);
+  };
+  pushAll(sa?.lungeAngles);
+  if (Array.isArray(sa?.periods)) for (const p of sa.periods) pushAll(p?.lungeAngles);
+  return out;
+}
+
+function successRate(tags: Array<{ action: string; success: boolean }>, action: string): number | null {
+  const filtered = tags.filter((t) => t.action === action);
+  if (!filtered.length) return null;
+  const succ = filtered.filter((t) => t.success).length;
+  return (succ / filtered.length) * 100;
+}
 
 async function loadProgressRows(athleteId: string): Promise<ProgressRow[]> {
   const { data: sess } = await supabase
@@ -599,18 +623,19 @@ async function loadProgressRows(athleteId: string): Promise<ProgressRow[]> {
   const ids = sessions.map((s) => s.id);
   const { data: fsRows } = await supabase
     .from("fencing_sessions")
-    .select("session_id, opponent, result, speed_analysis")
+    .select("session_id, opponent, result, speed_analysis, bout_type")
     .in("session_id", ids);
   console.log("[Progress] fetched fencing_sessions rows:", fsRows);
   const rows: ProgressRow[] = [];
   for (const fs of fsRows ?? []) {
-    const { readings } = flattenSpeedAnalysis((fs as any)?.speed_analysis);
+    const { readings, tags } = flattenSpeedAnalysis((fs as any)?.speed_analysis);
     if (!readings.length) continue;
     const s = sessions.find((x) => x.id === (fs as any).session_id);
     if (!s) continue;
     const speeds = readings.map((r) => r.speed);
     const adv = readings.filter((r) => r.direction === "advance").map((r) => r.speed);
     const ret = readings.filter((r) => r.direction === "retreat").map((r) => r.speed);
+    const lungeAngles = extractLungeAngles((fs as any)?.speed_analysis);
     rows.push({
       sessionId: s.id,
       date: s.session_date,
@@ -621,6 +646,12 @@ async function loadProgressRows(athleteId: string): Promise<ProgressRow[]> {
       avgSpeed: speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0,
       peakAdvance: adv.length ? Math.max(...adv) : 0,
       peakRetreat: ret.length ? Math.max(...ret) : 0,
+      boutType: (fs as any).bout_type ?? null,
+      peakLungeDepth: lungeAngles.length ? Math.min(...lungeAngles) : null,
+      avgLungeDepth: lungeAngles.length ? lungeAngles.reduce((a, b) => a + b, 0) / lungeAngles.length : null,
+      attackSuccessRate: successRate(tags, "Attack"),
+      touchSuccessRate: successRate(tags, "Touch"),
+      riposteSuccessRate: successRate(tags, "Riposte"),
     });
   }
   rows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
