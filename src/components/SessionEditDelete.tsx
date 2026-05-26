@@ -53,6 +53,8 @@ export function SessionEditDelete({
   const [opponent, setOpponent] = useState(fencing?.opponent ?? "");
   const [scored, setScored] = useState(String(fencing?.touches_scored ?? 0));
   const [received, setReceived] = useState(String(fencing?.touches_received ?? 0));
+  const [eventName, setEventName] = useState(fencing?.event_name ?? "");
+  const [boutType, setBoutType] = useState<string>(fencing?.bout_type ?? "");
 
   async function save() {
     setSaving(true);
