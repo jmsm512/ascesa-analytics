@@ -14,6 +14,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { EventNameCombobox } from "@/components/EventNameCombobox";
+
 
 export const Route = createFileRoute("/sessions/new")({
   component: NewSessionPage,
@@ -280,12 +282,8 @@ function NewSessionPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block">
                   <div className="metric-label mb-1.5">Tournament / Event <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
-                  <input
-                    value={fencingEventName}
-                    onChange={(e) => setFencingEventName(e.target.value)}
-                    placeholder="e.g. Kaizen Spring Open"
-                    className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
-                  />
+                  <EventNameCombobox value={fencingEventName} onChange={setFencingEventName} />
+
                 </label>
                 <label className="block">
                   <div className="metric-label mb-1.5">Bout Type <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>

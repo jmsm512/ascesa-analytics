@@ -100,30 +100,10 @@ function AthletePage() {
         <div className="mt-6">
           {tab === "Overview" && a && <OverviewTab athleteId={id} athleteName={a.name} sport={a.sport} />}
 
-          {tab === "Sessions" && (
-            <div className="surface divide-y divide-[var(--border-subtle)] overflow-hidden">
-              {sessions.data?.length === 0 && <Empty>No sessions yet.</Empty>}
-              {sessions.data?.map((s) => (
-                <Link
-                  key={s.id}
-                  to={s.sport === "hockey" ? "/sessions/hockey/$id" : "/sessions/fencing/$id"}
-                  params={{ id: s.id }}
-                  className="row-hover flex items-center gap-4 px-5 py-4"
-                >
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">
-                      {s.name?.trim() || <span className="capitalize">{s.session_type}</span>}
-                    </div>
-                    <div className="text-xs text-[var(--text-secondary)]">
-                      {format(new Date(s.session_date), "PP")}
-                      {s.name?.trim() ? <span className="capitalize"> · {s.session_type}</span> : null}
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
-                </Link>
-              ))}
-            </div>
+          {tab === "Sessions" && a && (
+            <FencingAwareSessionList athleteId={id} sport={a.sport} sessions={sessions.data ?? []} />
           )}
+
 
           {tab === "Drills" && a && <DrillsTab athleteId={id} athleteName={a.name} athleteAge={a.age} />}
 
@@ -150,6 +130,191 @@ function Stat({ label, value }: { label: string; value: string }) {
 function Empty({ children }: { children: React.ReactNode }) {
   return <div className="px-5 py-10 text-center text-sm text-[var(--text-secondary)]">{children}</div>;
 }
+
+function SessionRow({ s }: { s: any }) {
+  return (
+    <Link
+      to={s.sport === "hockey" ? "/sessions/hockey/$id" : "/sessions/fencing/$id"}
+      params={{ id: s.id }}
+      className="row-hover flex items-center gap-4 px-5 py-4"
+    >
+      <div className="flex-1">
+        <div className="text-sm font-medium">
+          {s.name?.trim() || <span className="capitalize">{s.session_type}</span>}
+        </div>
+        <div className="text-xs text-[var(--text-secondary)]">
+          {format(new Date(s.session_date), "PP")}
+          {s.name?.trim() ? <span className="capitalize"> · {s.session_type}</span> : null}
+        </div>
+      </div>
+      <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
+    </Link>
+  );
+}
+
+function FencingSessionRow({ s, fs }: { s: any; fs: any }) {
+  const score = `${fs?.touches_scored ?? 0}-${fs?.touches_received ?? 0}`;
+  const opp = fs?.opponent?.trim() || "Unknown";
+  const result = fs?.result as string | undefined;
+  const resultColor =
+    result === "win" ? "var(--data-positive)" : result === "loss" ? "var(--data-negative)" : "var(--text-muted)";
+  return (
+    <Link
+      to="/sessions/fencing/$id"
+      params={{ id: s.id }}
+      className="row-hover flex items-center gap-4 px-5 py-3"
+    >
+      <div className="flex-1">
+        <div className="text-sm font-medium">
+          vs {opp} <span className="ml-1.5 text-xs font-normal" style={{ color: resultColor }}>{score}</span>
+        </div>
+        <div className="text-xs text-[var(--text-secondary)]">
+          {format(new Date(s.session_date), "PP")}
+          {s.name?.trim() ? <> · {s.name.trim()}</> : null}
+        </div>
+      </div>
+      <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
+    </Link>
+  );
+}
+
+function EventGroup({
+  eventName,
+  sessions,
+  fsBy,
+}: {
+  eventName: string;
+  sessions: any[];
+  fsBy: Map<string, any>;
+}) {
+  const [open, setOpen] = useState(true);
+  const dates = sessions.map((s) => new Date(s.session_date).getTime());
+  const minD = new Date(Math.min(...dates));
+  const maxD = new Date(Math.max(...dates));
+  const dateRange =
+    minD.getTime() === maxD.getTime()
+      ? format(minD, "PP")
+      : `${format(minD, "PP")} – ${format(maxD, "PP")}`;
+  let wins = 0;
+  let losses = 0;
+  let pool = 0;
+  let de = 0;
+  for (const s of sessions) {
+    const fs = fsBy.get(s.id);
+    if (fs?.result === "win") wins++;
+    else if (fs?.result === "loss") losses++;
+    if (fs?.bout_type === "pool") pool++;
+    else if (fs?.bout_type === "de") de++;
+  }
+  const ordered = [...sessions].sort((a, b) => {
+    const ra = fsBy.get(a.id)?.bout_type === "pool" ? 0 : fsBy.get(a.id)?.bout_type === "de" ? 1 : 2;
+    const rb = fsBy.get(b.id)?.bout_type === "pool" ? 0 : fsBy.get(b.id)?.bout_type === "de" ? 1 : 2;
+    if (ra !== rb) return ra - rb;
+    return new Date(a.session_date).getTime() - new Date(b.session_date).getTime();
+  });
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="row-hover flex w-full items-center gap-3 px-5 py-3 text-left"
+      >
+        <ChevronDown
+          className={`h-4 w-4 text-[var(--text-muted)] transition-transform ${open ? "" : "-rotate-90"}`}
+        />
+        <div className="flex-1">
+          <div className="text-sm font-semibold">{eventName}</div>
+          <div className="text-xs text-[var(--text-secondary)]">{dateRange}</div>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
+          <span>
+            <span style={{ color: "var(--data-positive)" }}>{wins}W</span>
+            {" – "}
+            <span style={{ color: "var(--data-negative)" }}>{losses}L</span>
+          </span>
+          <span className="text-[var(--text-muted)]">·</span>
+          <span>{pool} pool · {de} DE</span>
+        </div>
+      </button>
+      {open && (
+        <div className="divide-y divide-[var(--border-subtle)] border-t border-[var(--border-subtle)] bg-[color-mix(in_oklab,var(--bg-elevated)_30%,transparent)]">
+          {ordered.map((s) => (
+            <FencingSessionRow key={s.id} s={s} fs={fsBy.get(s.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FencingAwareSessionList({
+  athleteId,
+  sport,
+  sessions,
+}: {
+  athleteId: string;
+  sport: "hockey" | "fencing";
+  sessions: any[];
+}) {
+  const fencingMeta = useQuery({
+    queryKey: ["athlete-fencing-meta", athleteId],
+    enabled: sport === "fencing" && sessions.length > 0,
+    queryFn: async () => {
+      const ids = sessions.map((s) => s.id);
+      const { data } = await supabase
+        .from("fencing_sessions")
+        .select("session_id, event_name, bout_type, opponent, touches_scored, touches_received, result")
+        .in("session_id", ids);
+      return data ?? [];
+    },
+  });
+
+  if (sessions.length === 0) {
+    return (
+      <div className="surface divide-y divide-[var(--border-subtle)] overflow-hidden">
+        <Empty>No sessions yet.</Empty>
+      </div>
+    );
+  }
+
+  if (sport !== "fencing") {
+    return (
+      <div className="surface divide-y divide-[var(--border-subtle)] overflow-hidden">
+        {sessions.map((s) => <SessionRow key={s.id} s={s} />)}
+      </div>
+    );
+  }
+
+  const fsBy = new Map<string, any>();
+  for (const row of fencingMeta.data ?? []) fsBy.set((row as any).session_id, row);
+
+  const grouped = new Map<string, any[]>();
+  const ungrouped: any[] = [];
+  for (const s of sessions) {
+    const ev = (fsBy.get(s.id)?.event_name ?? "").trim();
+    if (ev) {
+      if (!grouped.has(ev)) grouped.set(ev, []);
+      grouped.get(ev)!.push(s);
+    } else {
+      ungrouped.push(s);
+    }
+  }
+
+  const eventEntries = Array.from(grouped.entries()).sort((a, b) => {
+    const aMax = Math.max(...a[1].map((s) => new Date(s.session_date).getTime()));
+    const bMax = Math.max(...b[1].map((s) => new Date(s.session_date).getTime()));
+    return bMax - aMax;
+  });
+
+  return (
+    <div className="surface divide-y divide-[var(--border-subtle)] overflow-hidden">
+      {eventEntries.map(([eventName, evSessions]) => (
+        <EventGroup key={eventName} eventName={eventName} sessions={evSessions} fsBy={fsBy} />
+      ))}
+      {ungrouped.map((s) => <SessionRow key={s.id} s={s} />)}
+    </div>
+  );
+}
+
 
 async function loadOverviewData(athleteId: string) {
   const { data: sess } = await supabase

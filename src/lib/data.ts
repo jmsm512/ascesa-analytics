@@ -159,3 +159,17 @@ export async function getVideo(id: string) {
   const { data } = await supabase.from("videos").select("*, athletes(name, sport, age)").eq("id", id).maybeSingle();
   return data;
 }
+
+export async function listFencingEventNames(): Promise<string[]> {
+  const { data } = await supabase
+    .from("fencing_sessions")
+    .select("event_name")
+    .not("event_name", "is", null);
+  const set = new Set<string>();
+  for (const row of data ?? []) {
+    const v = (row as any).event_name;
+    if (typeof v === "string" && v.trim()) set.add(v.trim());
+  }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
