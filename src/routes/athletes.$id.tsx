@@ -696,6 +696,9 @@ function ProgressCharts({ athleteId, sport }: { athleteId: string; sport: string
         <TrendChart title="Peak Retreat (m/s)" data={chartData} dataKey="peakRetreat" benchmark={ELITE_BENCHMARKS.peakRetreat} />
       </div>
 
+      <FencingProgressExtras rows={rows} />
+
+
       <div className="surface p-5">
         <div className="metric-label mb-3">Session comparison</div>
         <div className="overflow-x-auto">
