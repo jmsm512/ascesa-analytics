@@ -781,6 +781,137 @@ function TrendChart({ title, data, dataKey, benchmark }: { title: string; data: 
   );
 }
 
+function FencingProgressExtras({ rows }: { rows: ProgressRow[] }) {
+  const lungeData = rows
+    .filter((r) => r.peakLungeDepth != null)
+    .map((r) => ({ date: r.dateLabel, peakLungeDepth: Number((r.peakLungeDepth as number).toFixed(1)) }));
+
+  const successData = rows
+    .filter((r) => r.attackSuccessRate != null || r.touchSuccessRate != null || r.riposteSuccessRate != null)
+    .map((r) => ({
+      date: r.dateLabel,
+      attack: r.attackSuccessRate != null ? Number(r.attackSuccessRate.toFixed(1)) : null,
+      touch: r.touchSuccessRate != null ? Number(r.touchSuccessRate.toFixed(1)) : null,
+      riposte: r.riposteSuccessRate != null ? Number(r.riposteSuccessRate.toFixed(1)) : null,
+    }));
+
+  const pool = rows.filter((r) => r.boutType === "pool");
+  const de = rows.filter((r) => r.boutType === "de");
+  const showBoutCompare = pool.length > 0 && de.length > 0;
+
+  const avg = (vals: Array<number | null>) => {
+    const xs = vals.filter((v): v is number => v != null);
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+  };
+  const boutCompareData = showBoutCompare
+    ? [
+        {
+          action: "Attack",
+          Pool: Number(avg(pool.map((r) => r.attackSuccessRate)).toFixed(1)),
+          DE: Number(avg(de.map((r) => r.attackSuccessRate)).toFixed(1)),
+        },
+        {
+          action: "Touch",
+          Pool: Number(avg(pool.map((r) => r.touchSuccessRate)).toFixed(1)),
+          DE: Number(avg(de.map((r) => r.touchSuccessRate)).toFixed(1)),
+        },
+        {
+          action: "Riposte",
+          Pool: Number(avg(pool.map((r) => r.riposteSuccessRate)).toFixed(1)),
+          DE: Number(avg(de.map((r) => r.riposteSuccessRate)).toFixed(1)),
+        },
+      ]
+    : [];
+
+  const tooltipStyle = {
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border-default)",
+    borderRadius: 8,
+    fontSize: 12,
+  } as const;
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {lungeData.length > 0 && (
+        <div className="surface p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="metric-label">Peak Lunge Depth (degrees)</div>
+            <div className="text-[10px] text-[var(--text-secondary)]">(lower = deeper)</div>
+          </div>
+          <div className="h-56">
+            <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={lungeData} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+                  <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} domain={["auto", "auto"]} label={{ value: "degrees", angle: -90, position: "insideLeft", fill: "var(--text-secondary)", fontSize: 11 }} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "var(--text-secondary)" }} />
+                  <ReferenceLine y={75} stroke="var(--accent)" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: "Elite 75°", fill: "var(--accent)", fontSize: 10, position: "right" }} />
+                  <Line type="monotone" dataKey="peakLungeDepth" stroke="var(--fencing)" strokeWidth={2.5} dot={{ r: 3, fill: "var(--fencing)" }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </ClientOnly>
+          </div>
+        </div>
+      )}
+
+      {successData.length > 0 && (
+        <div className="surface p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="metric-label">Action Success Rate</div>
+            <div className="flex items-center gap-3 text-[10px] text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#f59e0b" }} />Attack</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#14b8a6" }} />Touch</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: "#3b82f6" }} />Riposte</span>
+            </div>
+          </div>
+          <div className="h-56">
+            <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={successData} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+                  <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "var(--text-secondary)" }} formatter={(v: any) => (v == null ? "—" : `${v}%`)} />
+                  <Line type="monotone" dataKey="attack" name="Attack" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: "#f59e0b" }} connectNulls />
+                  <Line type="monotone" dataKey="touch" name="Touch" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3, fill: "#14b8a6" }} connectNulls />
+                  <Line type="monotone" dataKey="riposte" name="Riposte" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3, fill: "#3b82f6" }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </ClientOnly>
+          </div>
+        </div>
+      )}
+
+      {showBoutCompare && (
+        <div className="surface p-5 md:col-span-2">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="metric-label">Success Rate by Bout Type</div>
+            <div className="flex items-center gap-3 text-[10px] text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: "var(--fencing)" }} />Pool</span>
+              <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: "var(--accent)" }} />DE</span>
+            </div>
+          </div>
+          <div className="h-56">
+            <ClientOnly fallback={<div className="h-full w-full animate-pulse rounded bg-[var(--bg-elevated)]" />}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={boutCompareData} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+                  <CartesianGrid stroke="var(--border-subtle)" vertical={false} />
+                  <XAxis dataKey="action" tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "var(--text-secondary)", fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "var(--text-secondary)" }} formatter={(v: any) => `${v}%`} />
+                  <Bar dataKey="Pool" fill="var(--fencing)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="DE" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ClientOnly>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============= Drills Tab =============
 
 type AggregatedStats = {
