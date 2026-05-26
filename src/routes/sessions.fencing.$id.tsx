@@ -72,6 +72,8 @@ type Period = {
   points: Pt[];
   tags: ActionTag[];
   savedAt: string;
+  peakLungeDepth?: number | null;
+  avgLungeDepth?: number | null;
 };
 
 type SavedAnalysis = {
