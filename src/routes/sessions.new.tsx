@@ -37,6 +37,8 @@ function NewSessionPage() {
   const [hockeyReps, setHockeyReps] = useState<HockeyRep[]>([{ rep_number: 1, time_10m: "", peak_kmh: "" }]);
   const [fencingOpponent, setFencingOpponent] = useState("");
   const [fencingScore, setFencingScore] = useState({ scored: 0, received: 0 });
+  const [fencingEventName, setFencingEventName] = useState("");
+  const [fencingBoutType, setFencingBoutType] = useState<string>("");
   const [saving, setSaving] = useState(false);
   
 
