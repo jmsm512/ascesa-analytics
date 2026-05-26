@@ -97,6 +97,8 @@ function NewSessionPage() {
           opponent: fencingOpponent || "Sparring partner",
           touches_scored: fencingScore.scored,
           touches_received: fencingScore.received,
+          event_name: fencingEventName.trim() || null,
+          bout_type: fencingBoutType || null,
           result: fencingScore.scored > fencingScore.received ? "win" : fencingScore.scored < fencingScore.received ? "loss" : "draw",
         });
       navigate({ to: "/sessions/fencing/$id", params: { id: session.id }, search: { tab: "Video" } });
