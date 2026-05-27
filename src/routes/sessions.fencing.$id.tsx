@@ -390,12 +390,21 @@ function VideoTab({
     setPeriods(analysis.periods);
   }, [analysis]);
 
+  useEffect(() => {
+    if (maskRectsInitRef.current) {
+      maskRectsInitRef.current = false;
+      return;
+    }
+    void persist(periodsRef.current);
+  }, [maskRects]);
+
   async function persist(next: Period[]) {
     if (!fencingSessionId) return;
     const payload: SavedAnalysis = {
       periods: next,
       coaching: analysis.coaching,
       drills: analysis.drills,
+      maskRects,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
     onSaved();
