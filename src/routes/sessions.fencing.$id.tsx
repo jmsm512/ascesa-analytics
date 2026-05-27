@@ -464,6 +464,8 @@ function VideoTab({
             onDelete={() => deletePeriod(p.id)}
             onCancelDraft={() => cancelDraft(p.id)}
             onAnalysisComplete={() => setDraftPeriodId(null)}
+            maskRects={maskRects}
+            setMaskRects={setMaskRects}
           />
         ))}
 
