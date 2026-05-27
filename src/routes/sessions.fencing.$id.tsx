@@ -387,7 +387,9 @@ function VideoTab({
 
   // Resync if upstream analysis changes (e.g. after refetch)
   useEffect(() => {
-    setPeriods(analysis.periods);
+    if (periods.length === 0 && analysis.periods.length > 0) {
+      setPeriods(analysis.periods);
+    }
   }, [analysis]);
 
   useEffect(() => {
