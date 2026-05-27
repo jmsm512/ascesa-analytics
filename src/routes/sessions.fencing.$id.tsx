@@ -593,6 +593,8 @@ function PeriodSection({
   onDelete,
   onCancelDraft,
   onAnalysisComplete,
+  maskRects,
+  setMaskRects,
 }: {
   index: number;
   period: Period;
