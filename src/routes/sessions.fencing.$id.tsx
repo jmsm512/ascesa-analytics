@@ -609,7 +609,7 @@ function PeriodSection({
   maskRects: Array<{ x: number; y: number; w: number; h: number }>;
   setMaskRects: (r: Array<{ x: number; y: number; w: number; h: number }>) => void;
 }) {
-  console.log("PeriodSection mount/render, videoPath:", period.videoPath, "stage:", stage, "dataUrl in init:", !!period.videoPath);
+  console.log("PeriodSection mount/render, videoPath:", period.videoPath, "stage:", initialStage, "dataUrl in init:", !!period.videoPath);
   const hasResults = period.readings.length > 0;
   const initialStage: Stage = (hasResults || !!period.videoPath) ? "results" : "upload";
   const [stage, setStage] = useState<Stage>(initialStage);
