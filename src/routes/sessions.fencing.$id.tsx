@@ -657,6 +657,7 @@ function PeriodSection({
             const video = document.createElement("video");
             video.crossOrigin = "anonymous";
             video.src = data.signedUrl;
+            video.load();
             video.addEventListener("loadeddata", () => {
               video.currentTime = 0.1;
             });
