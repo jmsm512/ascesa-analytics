@@ -658,7 +658,7 @@ function PeriodSection({
     return () => {
       cancelled = true;
     };
-  }, [period.videoPath]);
+  }, [period.videoPath, dataUrl]);
 
 
   function commit(partial: Partial<Period>) {
