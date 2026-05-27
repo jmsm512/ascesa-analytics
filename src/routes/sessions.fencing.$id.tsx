@@ -380,6 +380,10 @@ function VideoTab({
 }) {
   const [periods, setPeriods] = useState<Period[]>(analysis.periods);
   const [draftPeriodId, setDraftPeriodId] = useState<string | null>(null);
+  const [maskRects, setMaskRects] = useState<Array<{x: number, y: number, w: number, h: number}>>(analysis.maskRects ?? []);
+  const periodsRef = useRef(periods);
+  periodsRef.current = periods;
+  const maskRectsInitRef = useRef(true);
 
   // Resync if upstream analysis changes (e.g. after refetch)
   useEffect(() => {
