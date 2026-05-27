@@ -383,7 +383,7 @@ function VideoTab({
   const [maskRects, setMaskRects] = useState<Array<{x: number, y: number, w: number, h: number}>>(analysis.maskRects ?? []);
   const periodsRef = useRef(periods);
   periodsRef.current = periods;
-  const maskRectsInitRef = useRef(true);
+  const mountedRef = useRef(false);
 
   // Resync if upstream analysis changes (e.g. after refetch)
   useEffect(() => {
@@ -391,8 +391,8 @@ function VideoTab({
   }, [analysis]);
 
   useEffect(() => {
-    if (maskRectsInitRef.current) {
-      maskRectsInitRef.current = false;
+    if (!mountedRef.current) {
+      mountedRef.current = true;
       return;
     }
     void persist(periodsRef.current);
@@ -1236,7 +1236,6 @@ function PeriodSection({
                       onClick={() => {
                         playbackRef.current?.pause();
                         setSelectedAthlete(null);
-                        setMaskRects([]);
                         setLungeAngles([]);
                         setCollapsed(false);
                         setStage("mask");
