@@ -604,6 +604,8 @@ function PeriodSection({
   onDelete: () => void;
   onCancelDraft: () => void;
   onAnalysisComplete: () => void;
+  maskRects: Array<{ x: number; y: number; w: number; h: number }>;
+  setMaskRects: (r: Array<{ x: number; y: number; w: number; h: number }>) => void;
 }) {
   const hasResults = period.readings.length > 0;
   const initialStage: Stage = (hasResults || !!period.videoPath) ? "results" : "upload";
