@@ -870,6 +870,7 @@ function PeriodSection({
 
       setReadings(out);
       setStage("results");
+      setCollapsed(false);
       setSaving(true);
       try {
         const videoPath = uploadedPath ?? period.videoPath;
