@@ -1241,6 +1241,7 @@ function PeriodSection({
                         playbackRef.current?.pause();
                         setSelectedAthlete(null);
                         setLungeAngles([]);
+                        setDataUrl(null);
                         setCollapsed(false);
                         setStage("mask");
                       }}
