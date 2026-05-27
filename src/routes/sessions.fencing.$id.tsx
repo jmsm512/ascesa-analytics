@@ -80,6 +80,7 @@ type SavedAnalysis = {
   periods: Period[];
   coaching?: CoachingSummary;
   drills?: DrillsPlan;
+  maskRects?: Array<{x: number, y: number, w: number, h: number}>;
 };
 
 const ACTION_COLORS: Record<ActionType | "Opp Touch", string> = {
