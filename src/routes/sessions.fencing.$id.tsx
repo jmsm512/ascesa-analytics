@@ -652,7 +652,26 @@ function PeriodSection({
         .from("videos")
         .createSignedUrl(period.videoPath, 60 * 60)
         .then(({ data }) => {
-          if (!cancelled && data?.signedUrl) setDataUrl(data.signedUrl);
+          if (!cancelled && data?.signedUrl) {
+            setDataUrl(data.signedUrl);
+            const video = document.createElement("video");
+            video.crossOrigin = "anonymous";
+            video.src = data.signedUrl;
+            video.addEventListener("loadeddata", () => {
+              video.currentTime = 0.1;
+            });
+            video.addEventListener("seeked", () => {
+              if (cancelled) return;
+              const canvas = document.createElement("canvas");
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext("2d");
+              if (ctx) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                setFirstFrame(canvas.toDataURL());
+              }
+            }, { once: true });
+          }
         });
     }
     return () => {
