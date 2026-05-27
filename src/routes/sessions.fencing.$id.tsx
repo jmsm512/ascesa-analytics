@@ -80,6 +80,7 @@ type SavedAnalysis = {
   periods: Period[];
   coaching?: CoachingSummary;
   drills?: DrillsPlan;
+  maskRects?: Array<{x: number, y: number, w: number, h: number}>;
 };
 
 const ACTION_COLORS: Record<ActionType | "Opp Touch", string> = {
@@ -115,12 +116,13 @@ function periodColor(i: number) {
 }
 
 function normalizeAnalysis(raw: any, legacyVideoPath: string | null): SavedAnalysis {
-  if (!raw || typeof raw !== "object") return { periods: [] };
+  if (!raw || typeof raw !== "object") return { periods: [], maskRects: [] };
   if (Array.isArray(raw.periods)) {
     return {
       periods: raw.periods as Period[],
       coaching: raw.coaching,
       drills: raw.drills,
+      maskRects: Array.isArray(raw.maskRects) ? raw.maskRects : [],
     };
   }
   if (Array.isArray(raw.readings)) {
@@ -141,9 +143,10 @@ function normalizeAnalysis(raw: any, legacyVideoPath: string | null): SavedAnaly
       ],
       coaching: raw.coaching,
       drills: raw.drills,
+      maskRects: Array.isArray(raw.maskRects) ? raw.maskRects : [],
     };
   }
-  return { periods: [], coaching: raw.coaching, drills: raw.drills };
+  return { periods: [], coaching: raw.coaching, drills: raw.drills, maskRects: Array.isArray(raw.maskRects) ? raw.maskRects : [] };
 }
 
 function uid() {
@@ -377,11 +380,23 @@ function VideoTab({
 }) {
   const [periods, setPeriods] = useState<Period[]>(analysis.periods);
   const [draftPeriodId, setDraftPeriodId] = useState<string | null>(null);
+  const [maskRects, setMaskRects] = useState<Array<{x: number, y: number, w: number, h: number}>>(analysis.maskRects ?? []);
+  const periodsRef = useRef(periods);
+  periodsRef.current = periods;
+  const maskRectsInitRef = useRef(true);
 
   // Resync if upstream analysis changes (e.g. after refetch)
   useEffect(() => {
     setPeriods(analysis.periods);
   }, [analysis]);
+
+  useEffect(() => {
+    if (maskRectsInitRef.current) {
+      maskRectsInitRef.current = false;
+      return;
+    }
+    void persist(periodsRef.current);
+  }, [maskRects]);
 
   async function persist(next: Period[]) {
     if (!fencingSessionId) return;
@@ -389,6 +404,7 @@ function VideoTab({
       periods: next,
       coaching: analysis.coaching,
       drills: analysis.drills,
+      maskRects,
     };
     await supabase.from("fencing_sessions").update({ speed_analysis: payload } as any).eq("id", fencingSessionId);
     onSaved();
@@ -448,6 +464,8 @@ function VideoTab({
             onDelete={() => deletePeriod(p.id)}
             onCancelDraft={() => cancelDraft(p.id)}
             onAnalysisComplete={() => setDraftPeriodId(null)}
+            maskRects={maskRects}
+            setMaskRects={setMaskRects}
           />
         ))}
 
@@ -575,6 +593,8 @@ function PeriodSection({
   onDelete,
   onCancelDraft,
   onAnalysisComplete,
+  maskRects,
+  setMaskRects,
 }: {
   index: number;
   period: Period;
@@ -584,6 +604,8 @@ function PeriodSection({
   onDelete: () => void;
   onCancelDraft: () => void;
   onAnalysisComplete: () => void;
+  maskRects: Array<{ x: number; y: number; w: number; h: number }>;
+  setMaskRects: (r: Array<{ x: number; y: number; w: number; h: number }>) => void;
 }) {
   const hasResults = period.readings.length > 0;
   const initialStage: Stage = (hasResults || !!period.videoPath) ? "results" : "upload";
@@ -609,7 +631,6 @@ function PeriodSection({
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
   const [selectedAthlete, setSelectedAthlete] = useState<number | null>(null);
   const [trackingZone, setTrackingZone] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  const [maskRects, setMaskRects] = useState<Array<{x: number, y: number, w: number, h: number}>>([]);
   
   const [showSkeleton, setShowSkeleton] = useState(true);
   const [lungeAngles, setLungeAngles] = useState<number[]>([]);
