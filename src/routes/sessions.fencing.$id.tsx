@@ -116,12 +116,13 @@ function periodColor(i: number) {
 }
 
 function normalizeAnalysis(raw: any, legacyVideoPath: string | null): SavedAnalysis {
-  if (!raw || typeof raw !== "object") return { periods: [] };
+  if (!raw || typeof raw !== "object") return { periods: [], maskRects: [] };
   if (Array.isArray(raw.periods)) {
     return {
       periods: raw.periods as Period[],
       coaching: raw.coaching,
       drills: raw.drills,
+      maskRects: Array.isArray(raw.maskRects) ? raw.maskRects : [],
     };
   }
   if (Array.isArray(raw.readings)) {
@@ -142,9 +143,10 @@ function normalizeAnalysis(raw: any, legacyVideoPath: string | null): SavedAnaly
       ],
       coaching: raw.coaching,
       drills: raw.drills,
+      maskRects: Array.isArray(raw.maskRects) ? raw.maskRects : [],
     };
   }
-  return { periods: [], coaching: raw.coaching, drills: raw.drills };
+  return { periods: [], coaching: raw.coaching, drills: raw.drills, maskRects: Array.isArray(raw.maskRects) ? raw.maskRects : [] };
 }
 
 function uid() {
