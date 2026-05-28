@@ -634,6 +634,7 @@ function PeriodSection({
   const [uploadPct, setUploadPct] = useState(0);
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [selectedAthlete, setSelectedAthlete] = useState<number | null>(null);
   const [trackingZone, setTrackingZone] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   
