@@ -60,7 +60,7 @@ const TABS = ["Overview", "Video"] as const;
 
 type Pt = { x: number; y: number };
 type Reading = { time: number; speed: number; direction: "advance" | "retreat" };
-type ActionType = "Attack" | "Lunge" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
+type ActionType = "Attack" | "Lunge" | "Fleche" | "Parry" | "Riposte" | "Advance" | "Retreat" | "Touch";
 type ActionTag = { id: string; time: number; action: ActionType | "Opp Touch"; success: boolean };
 
 type Period = {
@@ -86,6 +86,7 @@ type SavedAnalysis = {
 const ACTION_COLORS: Record<ActionType | "Opp Touch", string> = {
   Attack: "#ef4444",
   Lunge: "#f97316",
+  Fleche: "#8b5cf6",
   Parry: "#3b82f6",
   Riposte: "#06b6d4",
   Advance: "#22c55e",
@@ -93,7 +94,7 @@ const ACTION_COLORS: Record<ActionType | "Opp Touch", string> = {
   Touch: "#eab308",
   "Opp Touch": "#dc2626",
 };
-const ACTION_TYPES: ActionType[] = ["Attack", "Lunge", "Parry", "Riposte", "Advance", "Retreat", "Touch"];
+const ACTION_TYPES: ActionType[] = ["Attack", "Lunge", "Fleche", "Parry", "Riposte", "Advance", "Retreat", "Touch"];
 
 const ACTION_BENCHMARKS: Record<string, { metric: "peak" | "avg"; eliteMin: number; eliteMax: number; label: string }> = {
   Lunge: { metric: "peak", eliteMin: 3.5, eliteMax: 5.0, label: "Elite junior: 3.5–5.0 m/s" },
