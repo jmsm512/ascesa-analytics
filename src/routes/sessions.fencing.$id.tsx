@@ -38,6 +38,7 @@ import {
   RefreshCw,
   Plus,
   Pencil,
+  Save,
 } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
