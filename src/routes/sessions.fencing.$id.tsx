@@ -1435,7 +1435,7 @@ function PeriodSection({
               </div>
             </>
           )}
-          {dataUrl && stage !== "uploading" && stage !== "extracting" && (
+          {dataUrl && stage !== "uploading" && stage !== "extracting" && stage !== "calibrate" && (
             <div className="space-y-2">
               <div className="flex justify-end gap-2">
                 <button
