@@ -1248,6 +1248,95 @@ function PeriodSection({
               )}
 
 
+            </>
+          )}
+          {dataUrl && stage !== "uploading" && stage !== "extracting" && stage !== "calibrate" && (
+            <div className="space-y-2">
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowSkeleton((s) => !s)}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+                >
+                  {showSkeleton ? "Hide Skeleton" : "Show Skeleton"}
+                </button>
+                <button
+                  onClick={() => {
+                    playbackRef.current?.pause();
+                    setSelectedAthlete(null);
+                    setLungeAngles([]);
+                    setCollapsed(false);
+                    setStage("mask");
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+                >
+                  Re-select
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedAthlete(selectedAthlete === 0 ? 1 : 0);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
+                >
+                  Switch Athlete
+                </button>
+              </div>
+              <div style={{ position: "relative" }} className="overflow-hidden rounded-lg">
+                <video
+                  ref={playbackRef}
+                  src={dataUrl}
+                  controls
+                  playsInline
+                  crossOrigin="anonymous"
+                  onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                  onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                  className="w-full rounded-md bg-black"
+                  style={{ maxHeight: 480 }}
+                />
+                <PoseOverlay
+                  videoRef={playbackRef}
+                  targetIndex={selectedAthlete ?? 0}
+                  trackingZone={trackingZone}
+                  maskRects={maskRects}
+                  visible={showSkeleton}
+                  onLungeData={(angle) => {
+                    setLungeAngles((prev) => {
+                      const next = [...prev, angle];
+                      lungeSaveCounterRef.current += 1;
+                      if (lungeSaveCounterRef.current >= 10 && next.length > 0) {
+                        lungeSaveCounterRef.current = 0;
+                        commit({
+                          peakLungeDepth: Math.min(...next),
+                          avgLungeDepth: next.reduce((a, b) => a + b, 0) / next.length,
+                        });
+                      }
+                      return next;
+                    });
+                  }}
+                />
+
+              </div>
+              {(lungeAngles.length > 0 || period.peakLungeDepth != null || period.avgLungeDepth != null) && (
+                <div className="grid grid-cols-2 gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
+                  <div>
+                    <div className="metric-label">Peak Lunge Depth</div>
+                    <div className="text-lg font-semibold">
+                      {(lungeAngles.length > 0 ? Math.min(...lungeAngles) : (period.peakLungeDepth ?? 0)).toFixed(1)}°
+                    </div>
+                  </div>
+                  <div>
+                    <div className="metric-label">Average Lunge Depth</div>
+                    <div className="text-lg font-semibold">
+                      {(lungeAngles.length > 0
+                        ? lungeAngles.reduce((a, b) => a + b, 0) / lungeAngles.length
+                        : (period.avgLungeDepth ?? 0)).toFixed(1)}°
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {stage === "results" && (
+            <>
               <div className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-4">
                 <div className="mb-3 text-center">
                   <div className="text-2xl font-bold tracking-tight">
@@ -1434,91 +1523,6 @@ function PeriodSection({
                 </button>
               </div>
             </>
-          )}
-          {dataUrl && stage !== "uploading" && stage !== "extracting" && stage !== "calibrate" && (
-            <div className="space-y-2">
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setShowSkeleton((s) => !s)}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
-                >
-                  {showSkeleton ? "Hide Skeleton" : "Show Skeleton"}
-                </button>
-                <button
-                  onClick={() => {
-                    playbackRef.current?.pause();
-                    setSelectedAthlete(null);
-                    setLungeAngles([]);
-                    setCollapsed(false);
-                    setStage("mask");
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
-                >
-                  Re-select
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedAthlete(selectedAthlete === 0 ? 1 : 0);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border-default)] px-3 py-1.5 text-xs hover:bg-[var(--bg-elevated)]"
-                >
-                  Switch Athlete
-                </button>
-              </div>
-              <div style={{ position: "relative" }} className="overflow-hidden rounded-lg">
-                <video
-                  ref={playbackRef}
-                  src={dataUrl}
-                  controls
-                  playsInline
-                  crossOrigin="anonymous"
-                  onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                  onSeeked={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                  className="w-full rounded-md bg-black"
-                  style={{ maxHeight: 480 }}
-                />
-                <PoseOverlay
-                  videoRef={playbackRef}
-                  targetIndex={selectedAthlete ?? 0}
-                  trackingZone={trackingZone}
-                  maskRects={maskRects}
-                  visible={showSkeleton}
-                  onLungeData={(angle) => {
-                    setLungeAngles((prev) => {
-                      const next = [...prev, angle];
-                      lungeSaveCounterRef.current += 1;
-                      if (lungeSaveCounterRef.current >= 10 && next.length > 0) {
-                        lungeSaveCounterRef.current = 0;
-                        commit({
-                          peakLungeDepth: Math.min(...next),
-                          avgLungeDepth: next.reduce((a, b) => a + b, 0) / next.length,
-                        });
-                      }
-                      return next;
-                    });
-                  }}
-                />
-
-              </div>
-              {(lungeAngles.length > 0 || period.peakLungeDepth != null || period.avgLungeDepth != null) && (
-                <div className="grid grid-cols-2 gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-elevated)] p-3">
-                  <div>
-                    <div className="metric-label">Peak Lunge Depth</div>
-                    <div className="text-lg font-semibold">
-                      {(lungeAngles.length > 0 ? Math.min(...lungeAngles) : (period.peakLungeDepth ?? 0)).toFixed(1)}°
-                    </div>
-                  </div>
-                  <div>
-                    <div className="metric-label">Average Lunge Depth</div>
-                    <div className="text-lg font-semibold">
-                      {(lungeAngles.length > 0
-                        ? lungeAngles.reduce((a, b) => a + b, 0) / lungeAngles.length
-                        : (period.avgLungeDepth ?? 0)).toFixed(1)}°
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           )}
         </div>
       )}
