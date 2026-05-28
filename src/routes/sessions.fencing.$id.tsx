@@ -611,7 +611,7 @@ function PeriodSection({
 }) {
   console.log("PeriodSection mount/render, videoPath:", period.videoPath, "stage:", (period.readings.length > 0 || !!period.videoPath) ? "results" : "upload", "dataUrl in init:", !!period.videoPath);
   const hasResults = period.readings.length > 0;
-  const initialStage: Stage = (hasResults || !!period.videoPath) ? "results" : "upload";
+  const initialStage: Stage = hasResults ? "results" : "upload";
   const [stage, setStage] = useState<Stage>(initialStage);
   const [collapsed, setCollapsed] = useState(false);
   const [editingLabel, setEditingLabel] = useState(false);
