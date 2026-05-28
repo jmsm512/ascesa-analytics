@@ -704,7 +704,7 @@ function PeriodSection({
     setTags(next);
     setPendingTag(null);
     commit({ tags: next });
-    if (success) setRieScore((s) => s + 1);
+    if (success && pendingTag?.action === "Touch") setRieScore((s) => s + 1);
   }
   function logOppTouch() {
     const t = playbackRef.current?.currentTime ?? currentTime;
