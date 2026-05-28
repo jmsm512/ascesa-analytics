@@ -38,6 +38,7 @@ import {
   RefreshCw,
   Plus,
   Pencil,
+  Save,
 } from "lucide-react";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { msToFps } from "@/lib/units";
@@ -633,6 +634,7 @@ function PeriodSection({
   const [uploadPct, setUploadPct] = useState(0);
   const [saving, setSaving] = useState(false);
   const [pendingTag, setPendingTag] = useState<{ action: ActionType; time: number } | null>(null);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [selectedAthlete, setSelectedAthlete] = useState<number | null>(null);
   const [trackingZone, setTrackingZone] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   
@@ -1427,6 +1429,12 @@ function PeriodSection({
                     <tbody className="divide-y divide-[var(--border-subtle)]">
                       {tags.map((tg) => {
                         const r = speedAt(tg.time);
+                        const isEditing = editingTagId === tg.id;
+                        const updateTag = (patch: Partial<ActionTag>) => {
+                          const next = tags.map((t) => (t.id === tg.id ? { ...t, ...patch } : t));
+                          setTags(next);
+                          commit({ tags: next });
+                        };
                         return (
                           <tr key={tg.id} className="row-hover">
                             <td className="px-5 py-2 tabular-nums">
@@ -1443,31 +1451,75 @@ function PeriodSection({
                               </button>
                             </td>
                             <td className="px-5 py-2">
-                              <span
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                                style={{ background: ACTION_COLORS[tg.action] }}
-                              >
-                                {tg.action}
-                              </span>
+                              {isEditing ? (
+                                <select
+                                  value={tg.action}
+                                  onChange={(e) => updateTag({ action: e.target.value as ActionTag["action"] })}
+                                  className="rounded-md border border-[var(--border-default)] bg-[var(--bg-default)] px-2 py-0.5 text-xs"
+                                >
+                                  {[...ACTION_TYPES, "Opp Touch"].map((a) => (
+                                    <option key={a} value={a}>{a}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                                  style={{ background: ACTION_COLORS[tg.action] }}
+                                >
+                                  {tg.action}
+                                </span>
+                              )}
                             </td>
                             <td className="px-5 py-2">
-                              <span
-                                className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
-                                style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}
-                              >
-                                {tg.success ? "Success" : "Fail"}
-                              </span>
+                              {isEditing ? (
+                                <button
+                                  onClick={() => updateTag({ success: !tg.success })}
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                                  style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}
+                                >
+                                  {tg.success ? "Success" : "Fail"}
+                                </button>
+                              ) : (
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-black"
+                                  style={{ background: tg.success ? "var(--data-positive)" : "var(--data-negative)" }}
+                                >
+                                  {tg.success ? "Success" : "Fail"}
+                                </span>
+                              )}
                             </td>
                             <td className="px-5 py-2 tabular-nums">{r ? r.speed.toFixed(3) : "—"}</td>
                             <td className="px-5 py-2 text-[var(--text-secondary)]">{r?.direction ?? "—"}</td>
                             <td className="px-5 py-2 text-right">
-                              <button
-                                onClick={() => removeTag(tg.id)}
-                                className="inline-flex items-center justify-center rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]"
-                                aria-label="Delete tag"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              <div className="inline-flex items-center gap-1">
+                                {isEditing ? (
+                                  <button
+                                    onClick={() => {
+                                      commit({ tags });
+                                      setEditingTagId(null);
+                                    }}
+                                    className="inline-flex items-center justify-center rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-positive)]"
+                                    aria-label="Save tag"
+                                  >
+                                    <Save className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => setEditingTagId(tg.id)}
+                                    className="inline-flex items-center justify-center rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+                                    aria-label="Edit tag"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => removeTag(tg.id)}
+                                  className="inline-flex items-center justify-center rounded-md p-1.5 text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--data-negative)]"
+                                  aria-label="Delete tag"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
