@@ -1,0 +1,208 @@
+import { useEffect, useRef } from "react";
+import {
+  PoseLandmarker,
+  FilesetResolver,
+  DrawingUtils,
+} from "@mediapipe/tasks-vision";
+
+type PoseOverlayProps = {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  targetIndex?: number;
+  visible?: boolean;
+  onLungeData?: (angle: number) => void;
+  trackingZone?: { x: number; y: number; w: number; h: number } | null;
+  maskRects?: Array<{ x: number; y: number; w: number; h: number }>;
+};
+
+const WASM_URL =
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
+const MODEL_URL =
+  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task";
+
+export function PoseOverlay({ videoRef, targetIndex = 0, visible = true, onLungeData, trackingZone = null, maskRects = [] }: PoseOverlayProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const targetIndexRef = useRef(targetIndex);
+  targetIndexRef.current = targetIndex;
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
+  const lungeRef = useRef(onLungeData);
+  lungeRef.current = onLungeData;
+  const trackingZoneRef = useRef(trackingZone);
+  trackingZoneRef.current = trackingZone;
+  const maskRectsRef = useRef(maskRects);
+  maskRectsRef.current = maskRects;
+
+  useEffect(() => {
+    let cancelled = false;
+    let landmarker: PoseLandmarker | null = null;
+    let rafId: number | null = null;
+    let running = false;
+    let lastTs = -1;
+
+    const loop = () => {
+      if (cancelled) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (video && canvas && landmarker && video.readyState >= 2 && !video.paused && !video.ended) {
+        const ts = performance.now();
+        if (ts !== lastTs) {
+          lastTs = ts;
+          try {
+            const offscreen = document.createElement("canvas");
+            offscreen.width = video.videoWidth;
+            offscreen.height = video.videoHeight;
+            const offCtx = offscreen.getContext("2d");
+            if (offCtx) {
+              offCtx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
+              offCtx.fillStyle = "black";
+              for (const r of maskRectsRef.current) {
+                offCtx.fillRect(r.x * offscreen.width, r.y * offscreen.height, r.w * offscreen.width, r.h * offscreen.height);
+              }
+            }
+            const results = landmarker.detectForVideo(offscreen, ts);
+            console.log("PoseOverlay onResults landmarks:", results.landmarks.length);
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              const rect = video.getBoundingClientRect();
+              const width = rect.width || canvas.clientWidth || 1;
+              const height = rect.height || canvas.clientHeight || 1;
+              if (canvas.width !== width) canvas.width = width;
+              if (canvas.height !== height) canvas.height = height;
+              canvas.style.left = (video.offsetLeft) + "px";
+              canvas.style.width = rect.width + "px";
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              if (!visibleRef.current) return;
+              const idx = targetIndexRef.current;
+
+              const lm = results.landmarks[idx];
+
+              if (!lm) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+
+              if (trackingZoneRef.current) {
+
+                const z = trackingZoneRef.current;
+
+                const checkLandmarks = [11, 12, 23, 24, 25, 26].map(i => lm[i]).filter(Boolean);
+
+                const anyInside = checkLandmarks.some(p => p.x >= z.x && p.x <= z.x + z.w && p.y >= z.y && p.y <= z.y + z.h);
+
+                if (!anyInside) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+
+              }
+                const drawingUtils = new DrawingUtils(ctx);
+                drawingUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {
+                  color: "#00e5b4",
+                  lineWidth: 3,
+                });
+                drawingUtils.drawLandmarks(lm, {
+                  color: "#00e5b4",
+                  fillColor: "#00e5b4",
+                  radius: 3,
+                });
+                const kneeAngle = (a: any, b: any, c: any) => {
+                  const v1x = a.x - b.x, v1y = a.y - b.y, v1z = (a.z ?? 0) - (b.z ?? 0);
+                  const v2x = c.x - b.x, v2y = c.y - b.y, v2z = (c.z ?? 0) - (b.z ?? 0);
+                  const dot = v1x * v2x + v1y * v2y + v1z * v2z;
+                  const m1 = Math.sqrt(v1x * v1x + v1y * v1y + v1z * v1z);
+                  const m2 = Math.sqrt(v2x * v2x + v2y * v2y + v2z * v2z);
+                  if (m1 === 0 || m2 === 0) return 180;
+                  const cos = Math.max(-1, Math.min(1, dot / (m1 * m2)));
+                  return (Math.acos(cos) * 180) / Math.PI;
+                };
+                if (lm[23] && lm[25] && lm[27] && lm[24] && lm[26] && lm[28]) {
+                  const left = kneeAngle(lm[23], lm[25], lm[27]);
+                  const right = kneeAngle(lm[24], lm[26], lm[28]);
+                  const front = Math.min(left, right);
+                  if (front < 150) lungeRef.current?.(front);
+                }
+            }
+          } catch (err) {
+            console.warn("PoseOverlay detect failed", err);
+          }
+        }
+      }
+      rafId = requestAnimationFrame(loop);
+    };
+
+    const start = () => {
+      if (running) return;
+      running = true;
+      if (rafId == null) rafId = requestAnimationFrame(loop);
+    };
+    const stop = () => {
+      running = false;
+      if (rafId != null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    };
+
+    let attachedVideo: HTMLVideoElement | null = null;
+    const tryAttach = () => {
+      const v = videoRef.current;
+      if (!v || v === attachedVideo) return;
+      if (attachedVideo) {
+        attachedVideo.removeEventListener("play", start);
+        attachedVideo.removeEventListener("pause", stop);
+        attachedVideo.removeEventListener("ended", stop);
+      }
+      attachedVideo = v;
+      v.addEventListener("play", start);
+      v.addEventListener("pause", stop);
+      v.addEventListener("ended", stop);
+      if (!v.paused && !v.ended) start();
+    };
+    const attachInterval = window.setInterval(tryAttach, 500);
+    tryAttach();
+
+    (async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(WASM_URL);
+        if (cancelled) return;
+        landmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: MODEL_URL,
+            delegate: "GPU",
+          },
+          runningMode: "VIDEO",
+          numPoses: 2,
+          minPoseDetectionConfidence: 0.5,
+          minPosePresenceConfidence: 0.5,
+        });
+        console.log("PoseOverlay initialized");
+        const v = videoRef.current;
+        if (v && !v.paused && !v.ended) start();
+      } catch (err) {
+        console.warn("PoseOverlay init failed", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      clearInterval(attachInterval);
+      stop();
+      if (attachedVideo) {
+        attachedVideo.removeEventListener("play", start);
+        attachedVideo.removeEventListener("pause", stop);
+        attachedVideo.removeEventListener("ended", stop);
+      }
+      landmarker?.close();
+      landmarker = null;
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        zIndex: 50,
+        pointerEvents: "none",
+      }}
+    />
+  );
+}

@@ -22,7 +22,8 @@ export async function uploadFrames(
   const results: UploadedKeyframe[] = [];
 
   for (let i = 0; i < blobs.length; i++) {
-    const storagePath = `keyframes/${videoId}/frame_${i}.jpg`;
+    // Scope under the user's folder so the per-user storage RLS policy allows it.
+    const storagePath = `${userId}/keyframes/${videoId}/frame_${i}.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from('videos')
@@ -35,17 +36,23 @@ export async function uploadFrames(
       throw new Error(`Storage upload failed for frame ${i}: ${uploadError.message}`);
     }
 
-    const { data: urlData } = supabase.storage
+    // Bucket is private — sign the URL so the keyframe is viewable by the owner.
+    const { data: urlData, error: signError } = await supabase.storage
       .from('videos')
-      .getPublicUrl(storagePath);
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+    if (signError || !urlData?.signedUrl) {
+      throw new Error(`Signing failed for frame ${i}: ${signError?.message ?? 'no url'}`);
+    }
 
     const record: KeyframeInsert = {
       video_id: videoId,
       user_id: userId,
       frame_index: i,
       timestamp_seconds: timestamps[i],
-      thumbnail_url: urlData.publicUrl,
+      thumbnail_url: urlData.signedUrl,
     };
+
 
     const { error: insertError } = await supabase
       .from('video_keyframes')

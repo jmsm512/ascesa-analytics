@@ -1,13 +1,21 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { format } from "date-fns";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
 import { listAthletes } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Plus, Trash2, Upload, Check } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Check, CalendarIcon } from "lucide-react";
 import { mphToKmh } from "@/lib/units";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { EventNameCombobox } from "@/components/EventNameCombobox";
+
 
 export const Route = createFileRoute("/sessions/new")({
   component: NewSessionPage,
@@ -17,7 +25,6 @@ export const Route = createFileRoute("/sessions/new")({
 });
 
 type HockeyRep = { rep_number: number; time_10m: string; peak_kmh: string };
-type FencingAction = { action_type: string; successful: boolean };
 
 function NewSessionPage() {
   const navigate = useNavigate();
@@ -27,11 +34,15 @@ function NewSessionPage() {
   const [step, setStep] = useState(1);
   const [athleteId, setAthleteId] = useState<string>(preselectedAthleteId ?? "");
   const [sessionType, setSessionType] = useState<string>("");
+  const [sessionName, setSessionName] = useState<string>("");
+  const [sessionDate, setSessionDate] = useState<Date>(new Date());
   const [hockeyReps, setHockeyReps] = useState<HockeyRep[]>([{ rep_number: 1, time_10m: "", peak_kmh: "" }]);
   const [fencingOpponent, setFencingOpponent] = useState("");
   const [fencingScore, setFencingScore] = useState({ scored: 0, received: 0 });
-  const [actions, setActions] = useState<FencingAction[]>([]);
+  const [fencingEventName, setFencingEventName] = useState("");
+  const [fencingBoutType, setFencingBoutType] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  
 
   const athlete = athletes.data?.find((a) => a.id === athleteId);
   const isHockey = athlete?.sport === "hockey";
@@ -49,7 +60,8 @@ function NewSessionPage() {
         user_id: userId,
         sport: athlete.sport,
         session_type: sessionType,
-        session_date: new Date().toISOString(),
+        session_date: sessionDate.toISOString(),
+        name: sessionName.trim() || null,
       })
       .select()
       .single();
@@ -57,7 +69,6 @@ function NewSessionPage() {
       setSaving(false);
       return;
     }
-
     if (isHockey) {
       const { data: hss } = await supabase
         .from("hockey_sprint_sessions")
@@ -79,7 +90,7 @@ function NewSessionPage() {
       }
       navigate({ to: "/sessions/hockey/$id", params: { id: session.id } });
     } else {
-      const { data: fs } = await supabase
+      await supabase
         .from("fencing_sessions")
         .insert({
           session_id: session.id,
@@ -88,22 +99,11 @@ function NewSessionPage() {
           opponent: fencingOpponent || "Sparring partner",
           touches_scored: fencingScore.scored,
           touches_received: fencingScore.received,
+          event_name: fencingEventName.trim() || null,
+          bout_type: fencingBoutType || null,
           result: fencingScore.scored > fencingScore.received ? "win" : fencingScore.scored < fencingScore.received ? "loss" : "draw",
-        })
-        .select()
-        .single();
-      if (fs && actions.length) {
-        await supabase.from("fencing_actions").insert(
-          actions.map((a, i) => ({
-            fencing_session_id: fs.id,
-            user_id: userId,
-            action_type: a.action_type,
-            successful: a.successful,
-            timestamp_seconds: i * 30,
-          })),
-        );
-      }
-      navigate({ to: "/sessions/fencing/$id", params: { id: session.id } });
+        });
+      navigate({ to: "/sessions/fencing/$id", params: { id: session.id }, search: { tab: "Video" } });
     }
   };
 
@@ -116,11 +116,11 @@ function NewSessionPage() {
 
         <div className="mt-4">
           <div className="metric-label mb-1">New Session</div>
-          <h1 className="text-2xl font-bold tracking-tight">Step {step} of 4</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Step {step} of 3</h1>
         </div>
 
         <div className="mt-4 flex gap-1.5">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div key={s} className={`h-1 flex-1 rounded-full ${s <= step ? "bg-[var(--accent)]" : "bg-[var(--bg-elevated)]"}`} />
           ))}
         </div>
@@ -166,12 +166,50 @@ function NewSessionPage() {
               {athleteId && (
                 <>
                   <div className="metric-label mt-4">Session type</div>
+                  <Select value={sessionType} onValueChange={setSessionType}>
+                    <SelectTrigger className="w-full border-[var(--border-default)] bg-[var(--bg-elevated)] focus:ring-[var(--accent)] focus:ring-1">
+                      <SelectValue placeholder="Select session type…" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[var(--bg-elevated)] border-[var(--border-default)]">
+                      {["Bout", "Drill Session", "Footwork", "Sparring", "Competition"].map((opt) => (
+                        <SelectItem key={opt} value={opt} className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="metric-label mt-4">Session name <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
                   <input
-                    value={sessionType}
-                    onChange={(e) => setSessionType(e.target.value)}
-                    placeholder={isHockey ? "sprint, on-ice, off-ice…" : "bout, drills, footwork…"}
+                    value={sessionName}
+                    onChange={(e) => setSessionName(e.target.value)}
+                    placeholder="e.g. Tuesday open bout vs Marco"
                     className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
                   />
+                  <div className="metric-label mt-4">Session date</div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal border-[var(--border-default)] bg-[var(--bg-elevated)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
+                          !sessionDate && "text-[var(--text-muted)]"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {sessionDate ? format(sessionDate, "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-[var(--bg-elevated)] border-[var(--border-default)]" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={sessionDate}
+                        onSelect={(date) => date && setSessionDate(date)}
+                        disabled={(date) => date > new Date()}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </>
               )}
 
@@ -241,66 +279,44 @@ function NewSessionPage() {
                 />
               </div>
 
-              <div className="metric-label">Quick-add actions</div>
-              <div className="flex flex-wrap gap-2">
-                {["attack", "parry", "lunge", "riposte"].map((t) => (
-                  <div key={t} className="flex gap-1 rounded-md bg-[var(--bg-elevated)] p-1">
-                    <span className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-[var(--text-secondary)]">{t}</span>
-                    <button
-                      onClick={() => setActions((a) => [...a, { action_type: t, successful: true }])}
-                      className="rounded bg-[var(--accent-glow)] px-2 py-1 text-xs text-[var(--accent)]"
-                    >
-                      ✓
-                    </button>
-                    <button
-                      onClick={() => setActions((a) => [...a, { action_type: t, successful: false }])}
-                      className="rounded bg-[var(--data-negative)]/15 px-2 py-1 text-xs text-[var(--data-negative)]"
-                    >
-                      ✗
-                    </button>
-                  </div>
-                ))}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <div className="metric-label mb-1.5">Tournament / Event <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
+                  <EventNameCombobox value={fencingEventName} onChange={setFencingEventName} />
+
+                </label>
+                <label className="block">
+                  <div className="metric-label mb-1.5">Bout Type <span className="text-[var(--text-muted)] normal-case">(optional)</span></div>
+                  <Select value={fencingBoutType || "none"} onValueChange={(v) => setFencingBoutType(v === "none" ? "" : v)}>
+                    <SelectTrigger className="w-full border-[var(--border-default)] bg-[var(--bg-elevated)] focus:ring-[var(--accent)] focus:ring-1">
+                      <SelectValue placeholder="Select bout type…" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[var(--bg-elevated)] border-[var(--border-default)]">
+                      <SelectItem value="none" className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">None</SelectItem>
+                      <SelectItem value="pool" className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">Pool</SelectItem>
+                      <SelectItem value="de" className="focus:bg-[var(--bg-hover)] focus:text-[var(--text-primary)]">DE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
               </div>
 
-              <div className="surface divide-y divide-[var(--border-subtle)]">
-                {actions.length === 0 && <div className="px-4 py-6 text-center text-xs text-[var(--text-secondary)]">No actions yet.</div>}
-                {actions.map((a, i) => (
-                  <div key={i} className="flex items-center gap-3 px-4 py-2 text-sm">
-                    <span className="metric-label w-10">#{i + 1}</span>
-                    <span className="capitalize">{a.action_type}</span>
-                    <span className={a.successful ? "text-[var(--data-positive)]" : "text-[var(--data-negative)]"}>
-                      {a.successful ? "Success" : "Missed"}
-                    </span>
-                  </div>
-                ))}
-              </div>
               <NavBtns onBack={() => setStep(1)} onNext={() => setStep(3)} />
             </div>
           )}
 
           {step === 3 && (
-            <div className="surface flex flex-col items-center justify-center p-12 text-center">
-              <Upload className="mb-3 h-8 w-8 text-[var(--text-muted)]" />
-              <div className="font-semibold">Upload video (optional)</div>
-              <div className="mt-1 text-xs text-[var(--text-secondary)]">Drop a clip here or skip for now</div>
-              <input type="file" accept="video/*" className="mt-4 text-xs text-[var(--text-secondary)]" />
-              <div className="mt-6">
-                <NavBtns onBack={() => setStep(2)} onNext={() => setStep(4)} />
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
             <div className="surface space-y-3 p-6">
               <div className="metric-label">Summary</div>
               <Row k="Athlete" v={athlete?.name ?? ""} />
               <Row k="Sport" v={athlete?.sport ?? ""} />
               <Row k="Session type" v={sessionType} />
+              {sessionName.trim() && <Row k="Name" v={sessionName.trim()} />}
+              <Row k="Date" v={sessionDate ? format(sessionDate, "PPP") : ""} />
               {isHockey && <Row k="Reps" v={String(hockeyReps.length)} />}
               {!isHockey && <Row k="Score" v={`${fencingScore.scored} - ${fencingScore.received}`} />}
-              {!isHockey && <Row k="Actions logged" v={String(actions.length)} />}
+              
               <div className="flex justify-between pt-3">
-                <button onClick={() => setStep(3)} className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                <button onClick={() => setStep(2)} className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                   ← Back
                 </button>
                 <button

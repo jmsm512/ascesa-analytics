@@ -21,8 +21,9 @@ type AthleteForm = {
   dob: string;
   height_in: string;
   weight_lb: string;
-  role: string; // value for the sport's "role" field (position or weapon)
-  group: string; // value for the sport's "group" field (team or club)
+  role: string;
+  group: string;
+  fencing_tracker_url: string;
 };
 
 const empty = (sport: SportKey = "hockey"): AthleteForm => {
@@ -35,6 +36,7 @@ const empty = (sport: SportKey = "hockey"): AthleteForm => {
     weight_lb: "",
     role: cfg.role.options?.[0] ?? "",
     group: "",
+    fencing_tracker_url: "",
   };
 };
 
@@ -82,6 +84,7 @@ function OnboardingPage() {
         weapon: null,
         team: null,
         club: null,
+        fencing_tracker_url: f.sport === "fencing" && f.fencing_tracker_url.trim() ? f.fencing_tracker_url.trim() : null,
       };
       row[cfg.role.column] = f.role || null;
       row[cfg.group.column] = f.group || null;
@@ -278,6 +281,21 @@ function AthleteCard({
             />
           </Field>
         </div>
+
+        {form.sport === "fencing" && (
+          <Field label="FencingTracker profile URL (optional)">
+            <input
+              type="url"
+              placeholder="https://fencingtracker.com/p/.../Name"
+              value={form.fencing_tracker_url}
+              onChange={(e) => onChange({ fencing_tracker_url: e.target.value })}
+              className={inputCls}
+            />
+            <div className="mt-1 text-[11px] text-[var(--text-muted)]">
+              Pull in current rating, tournament history, and podium finishes.
+            </div>
+          </Field>
+        )}
       </div>
     </div>
   );

@@ -102,6 +102,10 @@ export type Database = {
           avatar_url: string | null
           club: string | null
           created_at: string
+          drill_plan: Json | null
+          fencing_tracker_data: Json | null
+          fencing_tracker_updated_at: string | null
+          fencing_tracker_url: string | null
           height_cm: number | null
           id: string
           name: string
@@ -118,6 +122,10 @@ export type Database = {
           avatar_url?: string | null
           club?: string | null
           created_at?: string
+          drill_plan?: Json | null
+          fencing_tracker_data?: Json | null
+          fencing_tracker_updated_at?: string | null
+          fencing_tracker_url?: string | null
           height_cm?: number | null
           id?: string
           name: string
@@ -134,6 +142,10 @@ export type Database = {
           avatar_url?: string | null
           club?: string | null
           created_at?: string
+          drill_plan?: Json | null
+          fencing_tracker_data?: Json | null
+          fencing_tracker_updated_at?: string | null
+          fencing_tracker_url?: string | null
           height_cm?: number | null
           id?: string
           name?: string
@@ -144,6 +156,36 @@ export type Database = {
           user_id?: string
           weapon?: string | null
           weight_kg?: number | null
+        }
+        Relationships: []
+      }
+      benchmarks: {
+        Row: {
+          athlete_id: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          speed_analysis: Json | null
+          user_id: string
+        }
+        Insert: {
+          athlete_id: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          speed_analysis?: Json | null
+          user_id: string
+        }
+        Update: {
+          athlete_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          speed_analysis?: Json | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -192,29 +234,41 @@ export type Database = {
         Row: {
           attack_speed_ms: number | null
           created_at: string
-          fencing_session_id: string
+          fencing_session_id: string | null
           footwork_cadence: number | null
           id: string
+          left_speed_ms: number | null
           rep_number: number
+          right_speed_ms: number | null
+          timestamp_seconds: number | null
           user_id: string
+          video_id: string | null
         }
         Insert: {
           attack_speed_ms?: number | null
           created_at?: string
-          fencing_session_id: string
+          fencing_session_id?: string | null
           footwork_cadence?: number | null
           id?: string
+          left_speed_ms?: number | null
           rep_number: number
+          right_speed_ms?: number | null
+          timestamp_seconds?: number | null
           user_id: string
+          video_id?: string | null
         }
         Update: {
           attack_speed_ms?: number | null
           created_at?: string
-          fencing_session_id?: string
+          fencing_session_id?: string | null
           footwork_cadence?: number | null
           id?: string
+          left_speed_ms?: number | null
           rep_number?: number
+          right_speed_ms?: number | null
+          timestamp_seconds?: number | null
           user_id?: string
+          video_id?: string | null
         }
         Relationships: [
           {
@@ -228,36 +282,48 @@ export type Database = {
       }
       fencing_sessions: {
         Row: {
+          bout_type: string | null
           created_at: string
+          event_name: string | null
           id: string
           opponent: string | null
           result: string | null
           session_id: string
+          speed_analysis: Json | null
           touches_received: number | null
           touches_scored: number | null
           user_id: string
+          video_url: string | null
           weapon: string | null
         }
         Insert: {
+          bout_type?: string | null
           created_at?: string
+          event_name?: string | null
           id?: string
           opponent?: string | null
           result?: string | null
           session_id: string
+          speed_analysis?: Json | null
           touches_received?: number | null
           touches_scored?: number | null
           user_id: string
+          video_url?: string | null
           weapon?: string | null
         }
         Update: {
+          bout_type?: string | null
           created_at?: string
+          event_name?: string | null
           id?: string
           opponent?: string | null
           result?: string | null
           session_id?: string
+          speed_analysis?: Json | null
           touches_received?: number | null
           touches_scored?: number | null
           user_id?: string
+          video_url?: string | null
           weapon?: string | null
         }
         Relationships: [
@@ -365,29 +431,41 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          rep_id: string
+          left_speed_ms: number | null
+          rep_id: string | null
+          right_speed_ms: number | null
           step_length: number | null
           step_number: number
           step_time: number | null
+          timestamp_seconds: number | null
           user_id: string
+          video_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
-          rep_id: string
+          left_speed_ms?: number | null
+          rep_id?: string | null
+          right_speed_ms?: number | null
           step_length?: number | null
           step_number: number
           step_time?: number | null
+          timestamp_seconds?: number | null
           user_id: string
+          video_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
-          rep_id?: string
+          left_speed_ms?: number | null
+          rep_id?: string | null
+          right_speed_ms?: number | null
           step_length?: number | null
           step_number?: number
           step_time?: number | null
+          timestamp_seconds?: number | null
           user_id?: string
+          video_id?: string | null
         }
         Relationships: [
           {
@@ -426,33 +504,39 @@ export type Database = {
           created_at: string
           id: string
           location: string | null
+          name: string | null
           notes: string | null
           session_date: string
           session_type: string
           sport: string
           user_id: string
+          video_url: string | null
         }
         Insert: {
           athlete_id: string
           created_at?: string
           id?: string
           location?: string | null
+          name?: string | null
           notes?: string | null
           session_date?: string
           session_type: string
           sport: string
           user_id: string
+          video_url?: string | null
         }
         Update: {
           athlete_id?: string
           created_at?: string
           id?: string
           location?: string | null
+          name?: string | null
           notes?: string | null
           session_date?: string
           session_type?: string
           sport?: string
           user_id?: string
+          video_url?: string | null
         }
         Relationships: [
           {
