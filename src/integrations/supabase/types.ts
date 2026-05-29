@@ -98,7 +98,7 @@ export type Database = {
       }
       athletes: {
         Row: {
-          age: number | null
+          date_of_birth: string | null
           avatar_url: string | null
           club: string | null
           created_at: string
@@ -114,7 +114,7 @@ export type Database = {
           weight_kg: number | null
         }
         Insert: {
-          age?: number | null
+          date_of_birth?: string | null
           avatar_url?: string | null
           club?: string | null
           created_at?: string
@@ -130,7 +130,7 @@ export type Database = {
           weight_kg?: number | null
         }
         Update: {
-          age?: number | null
+          date_of_birth?: string | null
           avatar_url?: string | null
           club?: string | null
           created_at?: string

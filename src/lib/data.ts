@@ -4,7 +4,7 @@ export type Athlete = {
   id: string;
   name: string;
   sport: "hockey" | "fencing";
-  age: number | null;
+  date_of_birth: string | null;
   height_cm: number | null;
   weight_kg: number | null;
   position: string | null;
@@ -13,6 +13,17 @@ export type Athlete = {
   club: string | null;
   rating: string | null;
 };
+
+/** Returns current age in whole years from an ISO date string, or null. */
+export function calculateAge(dob: string | null): number | null {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const monthDiff = now.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) age--;
+  return age;
+}
 
 export type Session = {
   id: string;

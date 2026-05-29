@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as VideosIdRouteImport } from './routes/videos.$id'
 import { Route as SessionsNewRouteImport } from './routes/sessions.new'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AthletesIdRouteImport } from './routes/athletes.$id'
 import { Route as SessionsHockeyIdRouteImport } from './routes/sessions.hockey.$id'
 import { Route as SessionsFencingIdRouteImport } from './routes/sessions.fencing.$id'
@@ -49,6 +50,11 @@ const SessionsNewRoute = SessionsNewRouteImport.update({
   path: '/sessions/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AthletesIdRoute = AthletesIdRouteImport.update({
   id: '/athletes/$id',
   path: '/athletes/$id',
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/signup': typeof SignupRoute
   '/athletes/$id': typeof AthletesIdRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/sessions/new': typeof SessionsNewRoute
   '/videos/$id': typeof VideosIdRoute
   '/sessions/fencing/$id': typeof SessionsFencingIdRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/signup': typeof SignupRoute
   '/athletes/$id': typeof AthletesIdRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/sessions/new': typeof SessionsNewRoute
   '/videos/$id': typeof VideosIdRoute
   '/sessions/fencing/$id': typeof SessionsFencingIdRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/signup': typeof SignupRoute
   '/athletes/$id': typeof AthletesIdRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/sessions/new': typeof SessionsNewRoute
   '/videos/$id': typeof VideosIdRoute
   '/sessions/fencing/$id': typeof SessionsFencingIdRoute
@@ -107,6 +116,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/signup'
     | '/athletes/$id'
+    | '/auth/callback'
     | '/sessions/new'
     | '/videos/$id'
     | '/sessions/fencing/$id'
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/signup'
     | '/athletes/$id'
+    | '/auth/callback'
     | '/sessions/new'
     | '/videos/$id'
     | '/sessions/fencing/$id'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/signup'
     | '/athletes/$id'
+    | '/auth/callback'
     | '/sessions/new'
     | '/videos/$id'
     | '/sessions/fencing/$id'
@@ -141,6 +153,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   SignupRoute: typeof SignupRoute
   AthletesIdRoute: typeof AthletesIdRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   SessionsNewRoute: typeof SessionsNewRoute
   VideosIdRoute: typeof VideosIdRoute
   SessionsFencingIdRoute: typeof SessionsFencingIdRoute
@@ -191,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SessionsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/athletes/$id': {
       id: '/athletes/$id'
       path: '/athletes/$id'
@@ -221,6 +241,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   SignupRoute: SignupRoute,
   AthletesIdRoute: AthletesIdRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   SessionsNewRoute: SessionsNewRoute,
   VideosIdRoute: VideosIdRoute,
   SessionsFencingIdRoute: SessionsFencingIdRoute,
@@ -229,3 +250,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

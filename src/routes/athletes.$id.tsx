@@ -4,7 +4,7 @@ import { useState } from "react";
 import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/AppShell";
 import { SportIcon } from "@/components/SportIcon";
-import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals, listVideosForAthlete } from "@/lib/data";
+import { getAthlete, listSessionsForAthlete, getBenchmarks, getGoals, listVideosForAthlete, calculateAge } from "@/lib/data";
 import { format } from "date-fns";
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { ArrowLeft, ChevronRight } from "lucide-react";
@@ -54,7 +54,7 @@ function AthletePage() {
               </Link>
             </div>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-[var(--text-secondary)]">
-              {a.age && <Stat label="Age" value={`${a.age}`} />}
+              {calculateAge(a.date_of_birth) !== null && <Stat label="Age" value={`${calculateAge(a.date_of_birth)}`} />}
               {a.height_cm && <Stat label="Height" value={formatHeightImperial(a.height_cm)} />}
               {a.weight_kg && <Stat label="Weight" value={formatWeightLb(a.weight_kg)} />}
               {a.position && <Stat label="Position" value={a.position} />}

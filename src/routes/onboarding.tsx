@@ -18,7 +18,7 @@ export const Route = createFileRoute("/onboarding")({
 type AthleteForm = {
   name: string;
   sport: SportKey;
-  age: string;
+  dob: string;
   height_in: string;
   weight_lb: string;
   role: string; // value for the sport's "role" field (position or weapon)
@@ -30,7 +30,7 @@ const empty = (sport: SportKey = "hockey"): AthleteForm => {
   return {
     name: "",
     sport,
-    age: "",
+    dob: "",
     height_in: "",
     weight_lb: "",
     role: cfg.role.options?.[0] ?? "",
@@ -75,7 +75,7 @@ function OnboardingPage() {
         user_id: user.id,
         name: f.name.trim(),
         sport: f.sport,
-        age: f.age ? Number(f.age) : null,
+        date_of_birth: f.dob || null,
         height_cm: f.height_in ? inToCm(Number(f.height_in)) : null,
         weight_kg: f.weight_lb ? lbToKg(Number(f.weight_lb)) : null,
         position: null,
@@ -219,13 +219,12 @@ function AthleteCard({
         </Field>
 
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Age">
+          <Field label="Date of Birth">
             <input
-              type="number"
-              min={4}
-              max={99}
-              value={form.age}
-              onChange={(e) => onChange({ age: e.target.value })}
+              type="date"
+              value={form.dob}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => onChange({ dob: e.target.value })}
               className={inputCls}
             />
           </Field>
