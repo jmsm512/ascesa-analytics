@@ -111,7 +111,7 @@ function AthletePage() {
 
           {tab === "Benchmarks" && <BenchmarksTab athleteId={id} athleteName={a?.name ?? ""} />}
 
-          {tab === "Goals" && <GoalsTab athleteId={id} />}
+          {tab === "Goals" && <GoalsTab athleteId={id} sport={a?.sport ?? "hockey"} />}
         </div>
       </AppShell>
     </RequireAuth>
@@ -1385,7 +1385,7 @@ async function loadGoalCurrents(athleteId: string): Promise<Record<GoalMetricKey
   return result;
 }
 
-function GoalsTab({ athleteId }: { athleteId: string }) {
+function GoalsTab({ athleteId, sport }: { athleteId: string; sport: string }) {
   const goals = useQuery({ queryKey: ["goals", athleteId], queryFn: () => getGoals(athleteId) });
   const currents = useQuery({ queryKey: ["goal-currents", athleteId], queryFn: () => loadGoalCurrents(athleteId) });
   const [open, setOpen] = useState(false);
@@ -1451,6 +1451,7 @@ function GoalsTab({ athleteId }: { athleteId: string }) {
         const { error } = await supabase.from("athlete_goals").insert({
           athlete_id: athleteId,
           user_id: userId,
+          sport,
           metric_name: def.label,
           target_value: targetNum,
           current_value: cur,

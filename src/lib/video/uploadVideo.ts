@@ -20,7 +20,7 @@ export async function uploadVideoToStorage(
   const { data: sess } = await supabase.auth.getSession();
   const token = sess.session?.access_token;
   const base = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+  const apikey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
   if (!token || !base || !apikey) {
     throw new Error("Not signed in — please sign in again before uploading.");
   }

@@ -42,68 +42,89 @@ function NewSessionPage() {
   const [fencingEventName, setFencingEventName] = useState("");
   const [fencingBoutType, setFencingBoutType] = useState<string>("");
   const [saving, setSaving] = useState(false);
-  
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const athlete = athletes.data?.find((a) => a.id === athleteId);
   const isHockey = athlete?.sport === "hockey";
 
+  // Normalize athlete weapon (e.g. 'Épée') to the value the DB check constraint accepts.
+  function normalizeWeapon(w: string | null | undefined): "epee" | "foil" | "sabre" | null {
+    if (!w) return null;
+    const l = w.toLowerCase();
+    if (l.includes("p") && (l.includes("é") || l.includes("e"))) {
+      // catches 'epee', 'épée', 'Épée'
+      if (l.includes("é") || l.startsWith("ep")) return "epee";
+    }
+    if (l === "foil") return "foil";
+    if (l.startsWith("sabr") || l === "saber") return "sabre";
+    // Fallback: try the three known values directly
+    if (["epee", "foil", "sabre"].includes(l)) return l as "epee" | "foil" | "sabre";
+    return null;
+  }
+
   const save = async () => {
     if (!athlete) return;
     setSaving(true);
-    const { data: u } = await supabase.auth.getUser();
-    const userId = u.user?.id;
-    if (!userId) return;
-    const { data: session, error } = await supabase
-      .from("sessions")
-      .insert({
-        athlete_id: athlete.id,
-        user_id: userId,
-        sport: athlete.sport,
-        session_type: sessionType,
-        session_date: sessionDate.toISOString(),
-        name: sessionName.trim() || null,
-      })
-      .select()
-      .single();
-    if (error || !session) {
-      setSaving(false);
-      return;
-    }
-    if (isHockey) {
-      const { data: hss } = await supabase
-        .from("hockey_sprint_sessions")
-        .insert({ session_id: session.id, user_id: userId, body_weight_kg: athlete.weight_kg })
+    setSaveError(null);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const userId = u.user?.id;
+      if (!userId) throw new Error("Not signed in");
+
+      const { data: session, error: sessionErr } = await supabase
+        .from("sessions")
+        .insert({
+          athlete_id: athlete.id,
+          user_id: userId,
+          sport: athlete.sport,
+          session_type: sessionType,
+          session_date: sessionDate.toISOString(),
+          name: sessionName.trim() || null,
+        })
         .select()
         .single();
-      if (hss) {
-        const rows = hockeyReps
-          .filter((r) => r.time_10m || r.peak_kmh)
-          .map((r) => ({
-            hockey_session_id: hss.id,
+      if (sessionErr || !session) throw new Error(sessionErr?.message ?? "Failed to create session");
+
+      if (isHockey) {
+        const { data: hss } = await supabase
+          .from("hockey_sprint_sessions")
+          .insert({ session_id: session.id, user_id: userId, body_weight_kg: athlete.weight_kg })
+          .select()
+          .single();
+        if (hss) {
+          const rows = hockeyReps
+            .filter((r) => r.time_10m || r.peak_kmh)
+            .map((r) => ({
+              hockey_session_id: hss.id,
+              user_id: userId,
+              phase: "baseline",
+              rep_number: r.rep_number,
+              time_10m: r.time_10m ? Number(r.time_10m) : null,
+              peak_kmh: r.peak_kmh ? mphToKmh(Number(r.peak_kmh)) : null,
+            }));
+          if (rows.length) await supabase.from("hockey_sprint_reps").insert(rows);
+        }
+        navigate({ to: "/sessions/hockey/$id", params: { id: session.id } });
+      } else {
+        const { error: fsErr } = await supabase
+          .from("fencing_sessions")
+          .insert({
+            session_id: session.id,
             user_id: userId,
-            phase: "baseline",
-            rep_number: r.rep_number,
-            time_10m: r.time_10m ? Number(r.time_10m) : null,
-            peak_kmh: r.peak_kmh ? mphToKmh(Number(r.peak_kmh)) : null,
-          }));
-        if (rows.length) await supabase.from("hockey_sprint_reps").insert(rows);
+            weapon: normalizeWeapon(athlete.weapon),
+            opponent: fencingOpponent || "Sparring partner",
+            touches_scored: fencingScore.scored,
+            touches_received: fencingScore.received,
+            event_name: fencingEventName.trim() || null,
+            bout_type: fencingBoutType || null,
+            result: fencingScore.scored > fencingScore.received ? "win" : fencingScore.scored < fencingScore.received ? "loss" : "draw",
+          });
+        if (fsErr) throw new Error(fsErr.message);
+        navigate({ to: "/sessions/fencing/$id", params: { id: session.id }, search: { tab: "Video" } });
       }
-      navigate({ to: "/sessions/hockey/$id", params: { id: session.id } });
-    } else {
-      await supabase
-        .from("fencing_sessions")
-        .insert({
-          session_id: session.id,
-          user_id: userId,
-          weapon: athlete.weapon,
-          opponent: fencingOpponent || "Sparring partner",
-          touches_scored: fencingScore.scored,
-          touches_received: fencingScore.received,
-          event_name: fencingEventName.trim() || null,
-          bout_type: fencingBoutType || null,
-          result: fencingScore.scored > fencingScore.received ? "win" : fencingScore.scored < fencingScore.received ? "loss" : "draw",
-        });
-      navigate({ to: "/sessions/fencing/$id", params: { id: session.id }, search: { tab: "Video" } });
+    } catch (e: any) {
+      setSaveError(e?.message ?? "Failed to save session");
+      setSaving(false);
     }
   };
 
@@ -315,6 +336,11 @@ function NewSessionPage() {
               {isHockey && <Row k="Reps" v={String(hockeyReps.length)} />}
               {!isHockey && <Row k="Score" v={`${fencingScore.scored} - ${fencingScore.received}`} />}
               
+              {saveError && (
+                <div className="rounded-md bg-[var(--data-negative)]/10 px-3 py-2 text-xs text-[var(--data-negative)]">
+                  {saveError}
+                </div>
+              )}
               <div className="flex justify-between pt-3">
                 <button onClick={() => setStep(2)} className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                   ← Back

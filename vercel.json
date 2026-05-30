@@ -1,0 +1,16 @@
+{
+  "buildCommand": "bun run build",
+  "outputDirectory": "dist/client",
+  "functions": {
+    "api/ssr.js": {
+      "includeFiles": "dist/server/**",
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/:path*",
+      "destination": "/api/ssr"
+    }
+  ]
+}
